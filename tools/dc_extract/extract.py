@@ -343,6 +343,9 @@ def main() -> int:
     ap.add_argument("--area", type=int, default=1,
                     help="ROM area index at $81:A291 (default 1 for graveyard stage_600)")
     ap.add_argument("--screens", help="screen slots, e.g. 9,10 (default: bottom row first two)")
+    ap.add_argument("--full-room", action="store_true",
+                    help="build every screen in the captured screen row from the "
+                         "ROM block tables (2048 px wide for Area 1)")
     ap.add_argument("--player-oam", default="1-11",
                     help="OAM slots composing the player (default 1-11)")
     ap.add_argument("--player-palette", type=int, default=2,
@@ -381,26 +384,62 @@ def main() -> int:
     else:
         slots = info["grid"][info["height"] - 1][:2]
     if len(slots) != 2:
-        raise SystemExit("this first extractor expects exactly two screens (32x16 blocks)")
+        raise SystemExit("this extractor expects exactly two reference screens")
 
     # --- tilemaps -------------------------------------------------------
-    # The VRAM ring buffer holds the room as the game has currently loaded it.
-    # For this first slice the playable area is the captured viewport, so the
-    # buffer is exact; the block-table route needs the loader's tile remap and
-    # is deferred until a wider room capture exists.
-    bg_layers = []
-    for layer, name in ((1, "bg2"), (0, "bg1")):
-        bgsc = regs["bgsc"][layer]
-        w, h, tiles = tilemap_linear(vram, bgsc)
-        bg_layers.append({
-            "name": name,
-            "map_width": w,
-            "map_height": h,
-            "scroll_x": regs["hscroll"][layer],
-            "scroll_y": regs["vscroll"][layer],
-            "tilemap": tiles,
-        })
-    # BG layers are listed back-to-front by the renderer.
+    # BG2 always comes from the captured VRAM ring buffer: it is a looping
+    # backdrop rather than part of the block-table room. BG1 uses the ROM
+    # block tables for the full screen row when --full-room is requested.
+    bg2_sc = regs["bgsc"][1]
+    bg2_w, bg2_h, bg2_tiles = tilemap_linear(vram, bg2_sc)
+    bg_layers = [{
+        "name": "bg2",
+        "map_width": bg2_w,
+        "map_height": bg2_h,
+        "scroll_x": regs["hscroll"][1],
+        "scroll_y": regs["vscroll"][1],
+        "tilemap": bg2_tiles,
+    }]
+
+    room_screens = None
+    if args.full_room:
+        # Use every screen in the same grid row as the captured reference
+        # slots. Area 1's other grid row is empty padding (all-zero BG1 and
+        # collision), so the populated row is the actual room.
+        row_index = next((i for i, row in enumerate(info["grid"])
+                          if slots[0] in row), None)
+        if row_index is None:
+            raise SystemExit(f"screen slot {slots[0]} is not in the area grid")
+        room_screens = [info["screens"][s - 1]
+                        for s in info["grid"][row_index]]
+        map_w = len(room_screens) * 32
+        map_h = 32
+        screen_maps = [rom.screen_tilemap(set_id, screen)
+                       for screen in room_screens]
+        full_tiles = []
+        for ty in range(32):
+            for tm in screen_maps:
+                full_tiles.extend(tm[ty])
+        bg1 = {
+            "name": "bg1",
+            "map_width": map_w,
+            "map_height": map_h,
+            "scroll_x": regs["hscroll"][0],
+            "scroll_y": regs["vscroll"][0],
+            "tilemap": full_tiles,
+        }
+    else:
+        bg1_sc = regs["bgsc"][0]
+        bg1_w, bg1_h, bg1_tiles = tilemap_linear(vram, bg1_sc)
+        bg1 = {
+            "name": "bg1",
+            "map_width": bg1_w,
+            "map_height": bg1_h,
+            "scroll_x": regs["hscroll"][0],
+            "scroll_y": regs["vscroll"][0],
+            "tilemap": bg1_tiles,
+        }
+    bg_layers.append(bg1)
 
     # --- palettes -------------------------------------------------------
     for p in range(8):
@@ -472,37 +511,65 @@ def main() -> int:
 
     # --- collision ------------------------------------------------------
     attrs = []
-    for cby in range(16):
-        for cbx in range(32):
-            slot = slots[cbx // 16]
-            block = info["screens"][slot - 1] if slot else None
-            if block is None:
-                attrs.append(0)
-                continue
-            g = rom.screen_blocks(set_id, block)
-            b = g[cby][cbx % 16]
-            attrs.append(rom.block_attr(set_id, b))
+    if args.full_room:
+        col_w = len(room_screens) * 16
+        col_h = 16
+        for cby in range(col_h):
+            for gx, screen in enumerate(room_screens):
+                g = rom.screen_blocks(set_id, screen)
+                for cbx in range(16):
+                    b = g[cby][cbx]
+                    attrs.append(rom.block_attr(set_id, b))
+    else:
+        col_w, col_h = 32, 16
+        for cby in range(col_h):
+            for cbx in range(col_w):
+                slot = slots[cbx // 16]
+                block = info["screens"][slot - 1] if slot else None
+                if block is None:
+                    attrs.append(0)
+                    continue
+                g = rom.screen_blocks(set_id, block)
+                b = g[cby][cbx % 16]
+                attrs.append(rom.block_attr(set_id, b))
 
     # --- room document --------------------------------------------------
     spawn_x = regs["hscroll"][0] + bx + bw // 2
     spawn_y = regs["vscroll"][0] + by + bh
-    room = {
-        "name": f"area{args.area}_room",
-        "world": {"width": bg_layers[0]["map_width"] * 8,
-                  "height": bg_layers[0]["map_height"] * 8},
-        "camera": {
+    world_w = bg1["map_width"] * 8
+    world_h = bg1["map_height"] * 8
+    if args.full_room:
+        camera = {
+            "x": regs["hscroll"][0], "y": regs["vscroll"][0],
+            "min_x": 0, "max_x": max(0, world_w - 256),
+            "min_y": 0, "max_y": max(0, world_h - 224),
+        }
+        play = {
+            "min_x": 8,
+            "max_x": world_w - 8,
+            "min_y": 22,
+            "max_y": world_h,
+        }
+    else:
+        camera = {
             "x": regs["hscroll"][0], "y": regs["vscroll"][0],
             "min_x": regs["hscroll"][0], "max_x": regs["hscroll"][0],
             "min_y": regs["vscroll"][0], "max_y": regs["vscroll"][0],
-        },
-        "play": {
+        }
+        play = {
             "min_x": regs["hscroll"][0] + 15,
             "max_x": regs["hscroll"][0] + 241,
             "min_y": 22,
-            "max_y": bg_layers[0]["map_height"] * 8,
-        },
+            "max_y": world_h,
+        }
+    room = {
+        "name": f"area{args.area}_{'full_room' if args.full_room else 'room'}",
+        "world": {"width": world_w, "height": world_h},
+        "camera": camera,
+        "play": play,
         "bg": bg_layers,
-        "collision": {"cell": 16, "width": 32, "height": 16, "attrs": attrs},
+        "collision": {"cell": 16, "width": col_w, "height": col_h,
+                      "attrs": attrs},
         "spawn": {"x": spawn_x, "y": spawn_y},
         "player": {
             "texture": "player_idle.png",
@@ -515,10 +582,11 @@ def main() -> int:
     manifest = {
         "rom_sha256": rom.sha256,
         "area": args.area,
-        "screens": slots,
+        "screens": room_screens or slots,
+        "full_room": bool(args.full_room),
         "source": f"{args.prefix} ({args.dump})",
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "tool": "dc_extract 0.1",
+        "tool": "dc_extract 0.2",
         "tile_size": 8,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
@@ -527,7 +595,8 @@ def main() -> int:
     print(f"player: {player_img.width}x{player_img.height}, "
           f"feet=({player_feet_x},{player_feet_y}), spawn=({spawn_x},{spawn_y}), "
           f"palette={args.player_palette}")
-    print(f"collision: {len(attrs)} cells, screens {slots}, tileset set {set_id}")
+    print(f"collision: {len(attrs)} cells ({col_w}x{col_h}), "
+          f"screens {room_screens or slots}, tileset set {set_id}")
     return 0
 
 

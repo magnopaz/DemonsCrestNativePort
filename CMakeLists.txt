@@ -25,6 +25,7 @@ add_executable(demonscrest
     src/level.c
     src/input.c
     src/player.c
+    src/projectile.c
     src/camera.c
     src/render.c
     external/cJSON/cJSON.c

@@ -13,6 +13,11 @@ for left-facing movement. Each frame records an anchor measured from the
 player object's 24-bit X, so wings and projectiles do not shift the body
 between poses.
 
+The Y-shot pass also finds the moving fireball object in the first seven
+$1080 slots and bakes its separate palette-6 OAM group as fireball_0..n.png
+plus fireball_anim.json. The object-position window keeps the projectile out
+of Firebrand's bbox even if a capture reuses the player palette.
+
 Example:
 
   python3 tools/dc_extract/extract_anim.py \
@@ -34,7 +39,14 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import extract as dc  # noqa: E402
 
-CLIP_NAMES = ["idle", "walk", "jump", "hover", "fall", "land", "attack"]
+CLIP_NAMES = ["idle", "walk", "jump", "hover", "fall", "land", "attack",
+              "spell"]
+
+# Player projectile slots ($1080..$1260, stride $50, first 7 slots).
+OBJECT_BASE = 0x1080
+OBJECT_STRIDE = 0x50
+OBJECT_SLOTS = 7
+FIREBALL_SPECIES = 0x0040
 
 
 class Pose:
@@ -105,11 +117,182 @@ def compose_player(dump: Path, frame: int, palette: int) -> Pose:
     return Pose(image, digest, anchor_x, bh, len(sprites), frame)
 
 
+def read_frame_state(dump: Path, frame: int):
+    json_path, _vram_path = frame_paths(dump, frame)
+    if not json_path.exists():
+        return None
+    return json.loads(json_path.read_text())
+
+
+def wram_u16(wram: bytes, addr: int) -> int:
+    off = addr - 0x1000
+    return wram[off] | (wram[off + 1] << 8)
+
+
+def wram_u24(wram: bytes, addr: int) -> int:
+    off = addr - 0x1000
+    return wram[off] | (wram[off + 1] << 8) | (wram[off + 2] << 16)
+
+
+def projectile_slot(state: dict):
+    """Return (world_x, world_y, vx) for the moving player fireball slot.
+
+    The fireball is the active slot in $1080..$1260 with a non-zero
+    horizontal velocity. Its sprite palette is separate from the player's
+    (palette 6 vs 7 in save0), which keeps it out of the player bbox.
+    """
+    wram = bytes.fromhex(state["wram_1000"])
+    player_x = wram_u24(wram, 0x1030) / 256.0
+    player_y = wram_u24(wram, 0x1033) / 256.0
+    fallback = None
+    for i in range(OBJECT_SLOTS):
+        base = OBJECT_BASE + i * OBJECT_STRIDE
+        if wram_u16(wram, base) == 0:
+            continue
+        vx = wram_u16(wram, base + 0x20)
+        if vx == 0:
+            continue
+        x = wram_u24(wram, base + 0x30) / 256.0
+        y = wram_u24(wram, base + 0x33) / 256.0
+        if abs(x - player_x) >= 64 or abs(y - player_y) >= 32:
+            continue
+        species = wram_u16(wram, base + 0x02)
+        result = (x, y, vx, species)
+        if species == FIREBALL_SPECIES:
+            return result
+        if fallback is None:
+            fallback = result
+    return fallback
+
+
+def compose_projectile(dump: Path, frame: int, slot,
+                       player_palette: int) -> Pose | None:
+    """Compose the projectile OAM group around the fireball object position."""
+    state = read_frame_state(dump, frame)
+    if state is None:
+        return None
+    _json_path, vram_path = frame_paths(dump, frame)
+    if not vram_path.exists():
+        return None
+    vram = dc.read_vram(vram_path)
+    cgram = cgram_from_hex(state["cgram"])
+    oam = bytes.fromhex(state["oam"]) + bytes.fromhex(state["highOam"])
+    obsel = int(state["ppu"]["obsel"], 16)
+
+    world_x, world_y, vx, _species = slot
+    scroll_x = state["ppu"]["hScroll"][0]
+    scroll_y = state["ppu"]["vScroll"][0]
+    screen_x = world_x - scroll_x
+    screen_y = world_y - scroll_y
+
+    all_sprites = [s for s in dc.parse_oam(oam, obsel) if s.y < 224]
+    # The stream extends mostly behind the head: ~25 px left and 5 px right
+    # for a right-facing shot. Restrict to a 48x40 window around the object.
+    near = [s for s in all_sprites
+            if s.x < screen_x + 24 and s.x + s.size > screen_x - 40
+            and s.y < screen_y + 20 and s.y + s.size > screen_y - 20]
+    if not near:
+        return None
+
+    palettes = {}
+    for s in near:
+        if s.palette == player_palette:
+            continue
+        palettes[s.palette] = palettes.get(s.palette, 0) + 1
+    if not palettes:
+        return None
+    palette = max(palettes, key=palettes.get)
+    sprites = [s for s in near if s.palette == palette]
+    if not sprites:
+        return None
+
+    obj_base = (obsel & 7) << 13
+    obj_vram = vram[obj_base:obj_base + 0x2000]
+    index_img, ox, oy = dc.compose_oam_indices(obj_vram, sprites)
+    colors = [cgram[0x80 + palette * 16 + i] for i in range(16)]
+    image = dc.colorize(index_img, colors)
+    image, ox, oy, bw, _bh = dc.crop_sprite(image, ox, oy)
+
+    anchor_x = round(screen_x - ox)
+    anchor_y = round(screen_y - oy)
+    hflipped = sum(1 for s in sprites if s.hflip) > len(sprites) / 2
+    if not hflipped:
+        image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        anchor_x = round(bw - (screen_x - ox))
+    digest = hashlib.sha1(image.tobytes()).hexdigest()
+    return Pose(image, digest, anchor_x, anchor_y, len(sprites), frame)
+
+
 def segment_frames(meta: dict, name: str):
     for seg in meta["segments"]:
         if seg["name"] == name:
             return range(seg["start"] + 1, seg["end"] + 1)
     raise SystemExit(f"capture has no segment named '{name}'")
+
+
+def has_segment(meta: dict, name: str) -> bool:
+    return any(seg["name"] == name for seg in meta["segments"])
+
+
+def all_segment_frames(meta: dict, name: str):
+    """Inclusive segment range; the press frame sits on the boundary."""
+    for seg in meta["segments"]:
+        if seg["name"] == name:
+            return range(seg["start"], seg["end"] + 1)
+    raise SystemExit(f"capture has no segment named '{name}'")
+
+
+def build_shot_clip(meta: dict, dump: Path, palette: int,
+                    idle_pose: Pose) -> list[Pose] | None:
+    """Group the Y-shot player poses from the first spawned projectile.
+
+    The press frame still shows the idle pose; the shot pose starts on the
+    next guest frame and runs until the idle hash returns.
+    """
+    if not has_segment(meta, "shoot"):
+        return None
+    frames = list(all_segment_frames(meta, "shoot"))
+    press = None
+    for frame in frames:
+        state = read_frame_state(dump, frame)
+        if state is not None and projectile_slot(state):
+            press = frame
+            break
+    if press is None:
+        return None
+
+    runs: list[Pose] = []
+    for frame in range(press, frames[-1] + 1):
+        try:
+            pose = compose_player(dump, frame, palette)
+        except FileNotFoundError:
+            continue
+        if frame > press and pose.hash == idle_pose.hash:
+            break
+        if runs and runs[-1].hash == pose.hash:
+            runs[-1].duration += 1
+        else:
+            runs.append(pose)
+    return runs or None
+
+
+def build_projectile_poses(meta: dict, dump: Path,
+                           player_palette: int) -> list[Pose]:
+    """Compose every visible fireball frame at one step per guest frame."""
+    if not has_segment(meta, "shoot"):
+        return []
+    poses: list[Pose] = []
+    for frame in all_segment_frames(meta, "shoot"):
+        state = read_frame_state(dump, frame)
+        if state is None:
+            continue
+        slot = projectile_slot(state)
+        if slot is None:
+            continue
+        pose = compose_projectile(dump, frame, slot, player_palette)
+        if pose is not None:
+            poses.append(pose)
+    return poses
 
 
 def pose_runs(meta: dict, dump: Path, name: str, palette: int) -> list[Pose]:
@@ -204,21 +387,32 @@ def build_clips(meta: dict, dump: Path, palette: int, layout: dict | None):
     land = pick_clip(release_runs, 2, offset=2) if len(release_runs) >= 4 \
         else release_runs[-1:]
 
-    attack_runs = pose_runs(meta, dump, "attack", palette)
-
     idle_runs = pose_runs(meta, dump, "idle", palette)
     idle = idle_runs[:1]
     idle[0].duration = 1
 
-    return {
+    spell_runs = None
+    if has_segment(meta, "attack"):
+        spell_runs = pose_runs(meta, dump, "attack", palette)
+
+    shot_runs = build_shot_clip(meta, dump, palette, idle[0])
+
+    clips = {
         "idle": {"loop": True, "poses": idle},
         "walk": {"loop": True, "poses": walk_cycle},
         "jump": {"loop": False, "poses": jump},
         "hover": {"loop": True, "poses": [hover_pose]},
         "fall": {"loop": False, "poses": fall},
         "land": {"loop": False, "poses": land},
-        "attack": {"loop": False, "poses": attack_runs},
     }
+    if shot_runs:
+        clips["attack"] = {"loop": False, "poses": shot_runs}
+        if spell_runs:
+            clips["spell"] = {"loop": False, "poses": spell_runs}
+    elif spell_runs:
+        # Older captures only have the A-button clip; keep it as attack.
+        clips["attack"] = {"loop": False, "poses": spell_runs}
+    return clips
 
 
 def main() -> int:
@@ -247,6 +441,9 @@ def main() -> int:
         for old in args.out.glob("player_*.png"):
             if old.name != "player_idle.png":
                 old.unlink()
+        for old in args.out.glob("fireball_*.png"):
+            old.unlink()
+        (args.out / "fireball_anim.json").unlink(missing_ok=True)
 
     document = {
         "source": "capture_anim.py",
@@ -282,6 +479,34 @@ def main() -> int:
 
     (args.out / "player_anim.json").write_text(json.dumps(document, indent=1))
     print(f"wrote {args.out / 'player_anim.json'} ({total} steps)")
+
+    projectile_poses = build_projectile_poses(meta, args.dump, args.palette)
+    if projectile_poses:
+        steps = []
+        for index, pose in enumerate(projectile_poses):
+            filename = f"fireball_{index}.png"
+            pose.image.save(args.out / filename)
+            steps.append({
+                "texture": filename,
+                "anchor_x": pose.anchor_x,
+                "anchor_y": pose.anchor_y,
+                "duration": 1,
+            })
+        projectile_doc = {
+            "source": "capture_anim.py",
+            "capture_start": meta.get("start"),
+            "capture_end": meta.get("end"),
+            "generated_utc": datetime.now(timezone.utc).isoformat(
+                timespec="seconds"),
+            "loop": True,
+            "steps": steps,
+        }
+        (args.out / "fireball_anim.json").write_text(
+            json.dumps(projectile_doc, indent=1))
+        print(f"wrote {args.out / 'fireball_anim.json'} "
+              f"({len(steps)} steps)")
+    else:
+        print("fireball: no projectile OAM found in the shoot segment")
     return 0
 
 

@@ -9,13 +9,21 @@ void Camera_Init(GameCamera *camera, const Level *level) {
 
 void Camera_Update(GameCamera *camera, const Level *level, const Player *player) {
     float screen_x = player->x - camera->x;
+    float screen_y = player->y - camera->y;
 
     /* Original-style deadzone: the camera only moves when Firebrand leaves a
-     * central window. Tune against the oracle once trace capture is wired. */
+     * central window. The vertical window keeps the ground view stable at
+     * spawn and follows high jumps. Tune against the oracle once wider
+     * movement traces exist. */
     if (screen_x < 96.0f)
         camera->x = player->x - 96.0f;
     else if (screen_x > 160.0f)
         camera->x = player->x - 160.0f;
+
+    if (screen_y < 96.0f)
+        camera->y = player->y - 96.0f;
+    else if (screen_y > 176.0f)
+        camera->y = player->y - 176.0f;
 
     float max_x = level->camera_max_x;
     if (max_x < level->camera_min_x)

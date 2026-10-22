@@ -50,6 +50,8 @@ DEFAULT_SEGMENTS = [
     ("idle_3", "", 15),
     ("attack", "a", 30),
     ("settle", "", 15),
+    ("shoot", "y", 35),
+    ("settle2", "", 15),
 ]
 
 

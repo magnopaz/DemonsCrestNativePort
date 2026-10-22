@@ -49,37 +49,47 @@ Working today:
 
 - Native C11 + raylib application builds and runs.
 - 256×224 internal render target, integer scaling, 60 Hz presentation.
-- Extracted area-2 graveyard room:
-  - BG1 + BG2 tilemaps,
+- Extracted full Area 1 graveyard row (2048×256 px, screens 8/9/10/11 and
+  16/17/18/19 from the populated grid row):
+  - BG1 tilemap from the ROM block tables,
+  - looping BG2 forest backdrop from the capture,
   - per-palette tile atlases,
   - Firebrand and the visible item as composed OAM sprites,
-  - collision grid from the ROM block attributes,
+  - 128×16 collision grid from the ROM block attributes,
   - room JSON with spawn/camera/world bounds.
-- Firebrand can walk, jump, hover, fly, and is constrained to the captured
-  viewport.
+- Firebrand runs the authentic Bank `$80` grounded / jump / hover state machine
+  in 8.8 fixed point, walks up/down the decoded slope surface table, and is
+  constrained to the full-room bounds.
+- Camera follows Firebrand across the full room with deadzones and clamps to
+  the level bounds; BG2 wraps horizontally as the camera scrolls.
 - Firebrand animation extracted from `save0`:
   - static idle,
   - 6-pose, 46-frame walk cycle,
   - jump rise,
   - hover / fly pose,
   - fall and landing,
-  - attack pose (visual only; no projectile yet).
-- Attack and landing timers in the player state machine; `A` plays the attack
-  animation.
+  - Y Fireball spit (17 frames) and A Talisman/Spell (31 frames).
+- Shot (`Y`) and special (`A`) timers plus landing timers in the player state
+  machine.
+- 7-slot fireball projectile pool (`src/projectile.c`): original spawn
+  offset/velocity, palette-6 OAM animation, pillar and screen-edge despawn.
 - Collision debug overlay (`F1`), FPS (`F3`).
-- Per-frame CSV trace output.
+- Per-frame CSV trace output plus `DC_TRACE_PROJECTILES` slot logging.
 - Deterministic demo input modes for screenshots and comparison.
 - Oracle tooling:
   - WRAM trace parser,
   - OAM player-sprite parser,
   - native-vs-oracle comparison tool,
+  - capture-directory CSV exporter
+    (`tools/oracle/export_capture_csv.py`),
   - repeatable probe scripts for the area-2 route and `save0`,
   - debug-server animation capture (`tools/oracle/capture_anim.py`),
   - animation frame baker (`tools/dc_extract/extract_anim.py`).
 - Movement constants and state machine recovered from the original Bank `$80`
-  player code (`$80:DB00..F310`).
+  player code (`$80:DB00..F310`) and ported to `src/player.c`.
 - Movement validated against `save0`:
-  - walk speed 1.40 px/frame (`$1020`: `0x00B3` initial step → `0x0166` cap),
+  - walk speed 1.40 px/frame (`$1020` stays at the `0x0166` cap on flat ground;
+    the `0x00B3 → 0x0166` slope ramp is wired behind the `$1070` flag),
   - default SNES controls (`$80:DB00` via `$1E3A..$1E4C`):
     **B** = Jump / Hover toggle, **Y** = Fireball shot,
     **A** = Talisman / Headbutt, **X** = Item/Crest menu,
@@ -87,28 +97,28 @@ Working today:
     px/frame, gravity `$1026 = 0x0038` = 0.21875 px/frame², with `$1022` zeroed
     immediately on B release at `$80:E227`),
   - holding B gives the full jump arc; pressing B again in air toggles
-    horizontal Hover (`State 0x06`, `$1022 = 0`, gravity bypassed).
+    horizontal Hover (`State 0x06`, `$1022 = 0`, gravity bypassed),
+  - 603-frame `save0` replay (`DC_DEMO=6`): max delta `x=0.00 px`,
+    `y=0.53 px` (the residual Y is the known idle task oscillation).
 - Root causes of two major blockers identified from the ROM:
   - `stage_600` is ROM **Area 1** (`screens 8, 9` = `slots 9, 10`), not Area 2
     (`screens 33, 34`); passing `--area 1 --screens 9,10` yields `1957/2048`
     exact u16 tilemap matches between the ROM block table and VRAM (no tile
     remap exists) and aligns the collision floor (`by=10`, `y=160..175`) and
     stone pillar (`cx=24`, `x=384..399`) with the visuals.
-  - Pressing `A` in `save0` captured `State 0x16` (the 31-frame back-turned
-    wing-spread Talisman/Spell invocation pose), not the Fireball shot; pressing
-    `Y` (`$105C`) triggers `State 0x12` (Fireball spit) and spawns the
-    projectile via `$80:F1FE` directly in `save0` (no `save2` needed).
+  - Pressing `A` in `save0` captured the 31-frame back-turned wing-spread
+    Talisman/Spell invocation pose; pressing `Y` (`$105C`) selects the
+    grounded fireball-spit animation (`$1053 = 0x0E`, 17 frames) and spawns a
+    projectile in the first free `$1080..$1260` slot via the allocator at
+    `$80:F222` (earlier notes referenced `$80:F1FE`). No `save2` is needed.
 
 Not done yet:
 
-- Porting the exact Bank `$80` player state machine (`$80:DB00..F310`) into
-  `src/player.c` to replace the current float approximations.
-- Capturing the `Y` Fireball shot pose and projectile from `save0` (separating
-  projectile OAM sprites from Firebrand's palette-7 body group).
 - Enemies/object behaviour (`$1080..$1D50` loop + `$85:C180` heart pickup).
 - HUD (`BG3` status bar wired to `$1062` HP / `$1E50` max HP).
 - Audio.
-- Full-room camera scrolling and slope/ledge attribute decoding.
+- BG2 HDMA per-scanline parallax and the `$1070` walk-speed ramp (slope
+  surfaces themselves are done).
 - Full campaign, bosses, menus, password/save, Mode 7 overworld.
 - Public-release asset replacement / legal packaging.
 
@@ -132,6 +142,7 @@ projetos/opencode/DemonsCrestNativePort
 │   ├── level.c / level.h
 │   ├── input.c / input.h
 │   ├── player.c / player.h
+│   ├── projectile.c / projectile.h
 │   ├── camera.c / camera.h
 │   └── render.c / render.h
 ├── tools/
@@ -143,6 +154,8 @@ projetos/opencode/DemonsCrestNativePort
 │       ├── parse_wram_trace.py
 │       ├── parse_player_trace.py
 │       ├── compare.py
+│       ├── export_capture_csv.py
+│       ├── segments_save0_physics.json
 │       ├── oracle_walk.script
 │       ├── oracle_move.script
 │       ├── oracle_physics.script
@@ -220,8 +233,13 @@ python3 tools/dc_extract/extract.py \
   --prefix stage_600 \
   --area 1 \
   --screens 9,10 \
+  --full-room \
   --out assets/generated
 ```
+
+`--full-room` emits every screen in the captured grid row (2048×256 px) using
+the ROM block tables; without it the extractor keeps the older two-screen
+512×256 viewport slice.
 
 > **Important area index note:** The `stage_600` dump is ROM **Area 1**
 > (`screens 8, 9` = bottom-row `slots 9, 10`), not `--area 2` (`screens 33, 34`).
@@ -289,11 +307,35 @@ captures/anim/f000000.vram.bin  64 KiB VRAM
 ```
 
 The default route is idle, walk left/right (120 frames each), stop, tap jump,
-air, hold jump, hover release, idle and attack. The extractor emits
+air, hold jump, hover release, idle, A special, and Y shot. The extractor emits
 `player_<clip>_<n>.png` plus `player_anim.json` with per-step anchor and
 duration values. The clips are `idle`, `walk`, `jump`, `hover`, `fall`,
-`land` and `attack`. `fly` reuses the hover clip until a separate fly capture
-exists.
+`land`, `attack` (Y shot) and `spell` (A). `fly` reuses the hover clip until a
+separate fly capture exists. The same pass bakes `fireball_0..n.png` and
+`fireball_anim.json` from the palette-6 projectile OAM group.
+
+### Validate Step 3 movement against `save0`
+
+```sh
+python3 tools/oracle/capture_anim.py \
+  --recomp ../DemonsCrestSNESRecomp \
+  --rom "../roms/Demon's Crest (USA).sfc" \
+  --save ../saves/save0.sav \
+  --segments tools/oracle/segments_save0_physics.json \
+  --out captures/phys
+
+python3 tools/oracle/export_capture_csv.py captures/phys -o /tmp/oracle_phys.csv
+
+DC_DEMO=6 DC_RUN_FRAMES=603 DC_TRACE_CSV=/tmp/native_demo6.csv \
+  ./build/demonscrest   # add xvfb-run -a when headless
+
+python3 tools/oracle/compare.py /tmp/native_demo6.csv /tmp/oracle_phys.csv \
+  --oracle-start 0 --threshold 1.0
+```
+
+Expected result: `x=0.00 px`, `y=0.53 px` max delta over 603 frames. The
+remaining Y offset is the `$1000` task's idle oscillation (trap #8), not a
+physics difference.
 
 ---
 
@@ -317,33 +359,35 @@ exists.
 - `game.c` — asset/level/player/camera ownership, target creation, update,
   render, trace CSV.
 - `assets.c` — loads the eight BG and OBJ palette atlases, player and item
-  textures, and the optional `player_anim.json` animation set; sets point
-  filtering.
-- `anim.c` — parses `player_anim.json`, loads per-clip PNGs, and exposes
-  clip/step data with frame-based durations.
+  textures, `player_anim.json`, `fireball_anim.json`; sets point filtering.
+- `anim.c` — parses `player_anim.json` and `fireball_anim.json`, loads
+  per-clip PNGs, and exposes clip/step data with frame-based durations.
 - `level.c` — parses `room.json` with cJSON, stores BG layers, collision,
   camera/play bounds, spawn, player feet offsets and static sprites.
 - `input.c` — keyboard/gamepad mapping, edge detection, deterministic `DC_DEMO`
   modes.
-- `player.c` — movement, variable jump, hover/fly, collision, bounds, attack
-  and landing timers, animation clip/step timing.
+- `player.c` — Bank `$80` 8.8 fixed-point grounded/jump/hover state machine,
+  collision, bounds, shot/special and landing timers, animation clip/step
+  timing.
+- `projectile.c` — 7-slot player fireball pool, spawn offset/velocity,
+  terrain and viewport despawn.
 - `camera.c` — deadzone follow, clamped to level-provided camera bounds.
-- `render.c` — BG tile drawing, static sprites, animated player, debug
-  collision overlay.
+- `render.c` — BG tile drawing, static sprites, animated player, fireball
+  stream, debug collision overlay.
 
 ### Room format (`assets/generated/room.json`)
 
 ```json
 {
-  "name": "area2_room",
-  "world": { "width": 512, "height": 256 },
+  "name": "area1_full_room",
+  "world": { "width": 2048, "height": 256 },
   "camera": {
     "x": 207, "y": 0,
-    "min_x": 207, "max_x": 207,
-    "min_y": 0, "max_y": 0
+    "min_x": 0, "max_x": 1792,
+    "min_y": 0, "max_y": 32
   },
   "play": {
-    "min_x": 222, "max_x": 448,
+    "min_x": 8, "max_x": 2040,
     "min_y": 22, "max_y": 256
   },
   "bg": [
@@ -353,13 +397,13 @@ exists.
       "tilemap": [ ... 2048 u16 ... ]
     },
     {
-      "name": "bg1", "map_width": 64, "map_height": 32,
+      "name": "bg1", "map_width": 256, "map_height": 32,
       "scroll_x": 207, "scroll_y": 0,
-      "tilemap": [ ... 2048 u16 ... ]
+      "tilemap": [ ... 8192 u16 ... ]
     }
   ],
-  "collision": { "cell": 16, "width": 32, "height": 16,
-                 "attrs": [ ... 512 u8 ... ] },
+  "collision": { "cell": 16, "width": 128, "height": 16,
+                 "attrs": [ ... 2048 u8 ... ] },
   "spawn": { "x": 332, "y": 164 },
   "player": { "texture": "player_idle.png",
               "feet_x": 13, "feet_y": 43 },
@@ -369,33 +413,66 @@ exists.
 
 BG layer order is back-to-front: BG2 first, BG1 second.
 
-The camera is currently locked (`min_x == max_x`, `min_y == max_y`) because the
-captured VRAM tilemap is only the current ring-buffer viewport. Scrolling past
-it reveals stale/empty tiles. `play` bounds keep the player sprite inside the
-visible 256 px.
+The full-room BG1 is 256×32 tiles (2048×256 px) from the populated ROM screen
+row. The captured Area 1 grid is 8×2, but the second row is all-zero padding
+for this room, so the extractor emits only the populated row. Camera bounds
+span the full room; BG2 is the 64×32 captured backdrop and wraps horizontally.
+`play` bounds keep Firebrand inside the room.
 
 ### Player physics
 
-Current values in `src/player.c`:
+`src/player.c` now implements the recovered Bank `$80` state machine directly
+in 8.8 fixed point:
 
-- Max walk speed: `1.398 px/frame`.
-- Acceleration: `0.28`; friction: `0.28`.
-- Gravity: `0.25 px/frame²`.
-- Terminal fall: `6.0 px/frame`.
-- Jump tap: initial `-2.0 px/frame`, then while B is held an upward boost of
-  `0.10 px/frame` up to `-4.0`.
-- Hover fall cap: `1.05 px/frame`.
-- Fly-up cap: `-2.0 px/frame`.
-- Collision AABB: 12×22 px, feet-centered.
-- All non-zero block attributes are currently treated as solid.
+- Positions/velocities: `x_fx`, `y_fx`, `vy_fx`, `walk_speed_fx` (Q8.8).
+  `x`/`y`/`vx`/`vy` are derived floats for the camera, renderer and trace.
+- Grounded (`State 0x02`): walk speed stays at the `0x0166` cap on flat ground,
+  matching `save0`; direction input moves the 8.8 position by `0x0166` per
+  frame. The `0x00B3` first step plus `$80:8B85` 3/256 ramp lives in
+  `UpdateWalkSpeed`; the `$1070` terrain probe that selects it is still to be
+  wired.
+- Floor collision uses `Level_FloorAt`: the cell under the feet is decoded with
+  `Level_SurfaceOffset` from the `$80:962B` table, so the player stands at
+  `block_top + slope_offset` (spawn is `y=164` on `attr=0x09`).
+- Jump (`State 0x04`): pressing B on the ground sets `vy_fx = -0x059C` and
+  enters substate 0 without moving that frame. Substates 0→2→4 integrate
+  gravity (`0x0038`) before the position update, matching the observed
+  `save0` arc. On the first substate-4 frame with B released while rising,
+  `vy_fx` is zeroed (`$80:E227`).
+- Hover (`State 0x06`): B pressed in air zeroes `vy_fx`, freezes vertical
+  motion and bypasses gravity. The next B press returns to `State 0x04`
+  substate 4 and falls on the following frame.
+- Terminal fall: `0x0600` (6.0 px/frame, y-down).
+- Horizontal movement is the original single 8.8 add per frame. Walls are the
+  full-solid shapes (`0x01/0x15/0x1A`, half blocks `0x02/0x17`); slope shapes
+  are surfaces, not walls, so the player follows them via the floor snap.
+- Collision AABB: 12×22 px, feet-centered; ceiling/horizontal probes sample
+  the upper body so standing on a block does not count as a wall.
 - Player is clamped to `play` bounds.
-- Attack: `A` starts a 31-frame attack animation and cooldown. This is visual
-  only; no projectile is spawned yet.
+- Shot (`Y`): plays the captured 17-frame spit animation (idle press frame,
+  6-frame pose A, 10-frame pose B) and spawns one fireball by default. Special
+  (`A`) plays the captured 31-frame Talisman/Spell clip.
 - Landing: the first grounded frame after airtime starts an 8-frame landing
   animation.
-- Fly/jump interaction: once the fly branch is active, it no longer re-enters
-  the jump-boost branch each frame. This removed the state flicker between
-  `FLY` and `JUMP` while holding B + Up.
+- `DC_FLY_DEBUG=1` enables the non-canonical B+Up vertical flight for testing;
+  it is off by default so base Gargoyle behaviour matches `save0`.
+
+### Projectiles
+
+`src/projectile.c` ports the first seven player-object slots
+(`$1080..$1260`, stride `$50`):
+
+- Spawn on the shot press frame, at `floor(player.x) + 3 * facing` and
+  `floor(player.y) - 8`, matching the measured `save0` object slot.
+- Horizontal velocity `0x0300` (3.0 px/frame, 8.8 fixed point); vertical
+  velocity is zero for the grounded shot.
+- One slot is allocated per shot (first free slot, like `$80:F222`); up to
+  seven can be active.
+- Despawn when the centre leaves the current camera viewport or enters a
+  solid collision block (the stone pillar is the reference case).
+- The visual is the palette-6 OAM group baked as `fireball_0..8.png` and
+  played at one frame per guest frame; it is mirrored for left-facing shots.
+- `DC_TRACE_PROJECTILES=path` writes `frame,slot,x,y,vx,age` per active slot.
 
 Recovered original constants and routines (from Bank `$80` player code
 `$80:DB00..F310`):
@@ -424,7 +501,8 @@ Key Bank `$80` routines:
   - `0x04` (`$E1DA`): Jump / Fall (substates `0x00`/`0x02` takeoff while `$100F > 0`, `0x04` rising/falling flight)
   - `0x06` (`$E29F`): Hover (horizontal flight, `$1022 = 0`, no gravity)
   - `0x08` (`$E389`): Wall cling
-  - `0x12` (`$E4F4`): Ground fireball attack
+  - `0x12` (`$E4F4`): Fireball attack state entry (in `save0` the grounded
+    animation path selects `$1053 = 0x0E` instead)
   - `0x16` (`$EA4A`): Talisman / Spell invocation (animation `0x38`, back-turned wing spread)
   - `0x1A` (`$EC20`): Headbutt
   - `0x1C` (`$EDF1`): Hurt / knockback
@@ -433,10 +511,11 @@ Key Bank `$80` routines:
   `position += velocity; velocity -= gravity;` then clamp fall speed at `0xFA00`.
 - **Horizontal integrator (`$80:8D35`)**:
   `position += velocity`.
-- **Player projectile spawner (`$80:F1FE`)**:
+- **Player projectile slot allocator (`$80:F222`)**:
   scans the first 7 object slots (`$1080..$1260`, stride `$50`, limit `$12B0`)
   for a free slot (`$0000 == 0`), calls `$82:8D84` to clear it, and initializes
-  the fireball object.
+  the spawned object. `$80:F1FE` is a separate object helper, not this
+  allocator.
 
 > **Correction on `$85:C1D4`:** Earlier notes cited `$85:C1D4` (`$22 = 0x0400`,
 > `$26 = 0x0040`, `$39 = 0x0400`) as the player jump initializer. Full
@@ -451,10 +530,10 @@ Key Bank `$80` routines:
 | Action | Keyboard | Gamepad | Original SNES (`$80:DB00`) |
 |---|---|---|---|
 | Move | Arrows / WASD | D-pad | D-pad (`$0091` bits 0–3) |
-| Jump / hover / fly | Z or Space | B | **B** (`$1E3A` → `$1059`/`$105A`) |
-| Fly upward (temporary) | hold jump + Up | hold B + Up | Crest-dependent (not base Gargoyle) |
-| Attack (Fireball) | X or J | A / Y | **Y** (`$1E3C` → `$105B`/`$105C`) |
-| Talisman / Headbutt | (planned) | (planned) | **A** (`$1E3E` → `$105D`/`$105E`) |
+| Jump / hover / fly | Z or Space | B (right face) | **B** (`$1E3A` → `$1059`/`$105A`) |
+| Fly upward (debug only) | hold jump + Up | hold B + Up | Crest-dependent (not base Gargoyle) |
+| Fireball shot | X or J | X / Y (west/top) | **Y** (`$1E3C` → `$105B`/`$105C`) |
+| Talisman / Headbutt | C or K | A (south) | **A** (`$1E3E` → `$105D`/`$105E`) |
 | Collision overlay | F1 | — | — |
 | FPS | F3 | — | — |
 
@@ -472,7 +551,12 @@ The original SNES default mapping was verified from `$80:DB00..DB40` and `save0`
 | `DC_DEMO=2` | short walk/jump demo |
 | `DC_DEMO=3` | mirrors the area-2 physics probe timing |
 | `DC_DEMO=4` | tap-jump vs hold-jump comparison |
-| `DC_DEMO=5` | animation regression: walk, attack, jump, fly |
+| `DC_DEMO=5` | animation regression: walk, special, jump, fly |
+| `DC_DEMO=6` | exact `save0` Step 3 physics replay (603 frames) |
+| `DC_DEMO=7` | projectile demo: right shots into the pillar, long left shot |
+| `DC_DEMO=8` | full-room traversal: walk left, then hover right across pillars |
+| `DC_TRACE_PROJECTILES=path` | per-frame active projectile slots CSV |
+| `DC_FLY_DEBUG=1` | enable non-canonical B+Up vertical flight |
 | `DC_DEBUG_COLLISION=1` | enable the `F1` collision overlay in headless captures |
 | `DC_LAYER_MASK=1|2|3` | BG2 only / BG1 only / both |
 
@@ -483,6 +567,12 @@ Native trace CSV columns:
 
 ```
 frame,player_x,player_y,vx,vy,state,camera_x,camera_y
+```
+
+Projectile trace CSV columns (one row per active slot per frame):
+
+```
+frame,slot,x,y,vx,age
 ```
 
 ---
@@ -599,28 +689,37 @@ OBJ atlases:
 
 ### Collision
 
-- Built from `--area 1 --screens 9,10` (`screens 8, 9`), which places the
-  solid/sloped floor at `by=10` (`y=160..175`, with attributes `7, 8, 9, 0x0a,
-  0x16, 1, 0x16, 0x0b..0x0e`) directly beneath Firebrand's feet (`y=160` flat
-  top / `y=164` on slope `0x09`) and places the stone pillar at `cx=24`
-  (`x=384..399`, `by=8..9`, `y=128..159`) directly beneath the urn at
-  `(385, 111)`.
-- 32×16 block grid (512×256 px) for two screens, or 128×32 block grid
-  (2048×512 px) for the full 8×2 Area 1 map.
+- Built from the populated Area 1 screen row (`screens 8, 9, 10, 11, 16, 17,
+  18, 19`), which places the solid/sloped floor at `by=10` (`y=160..175`, with
+  attributes `7, 8, 9, 0x0a, 0x16, 1, 0x16, 0x0b..0x0e`) directly beneath
+  Firebrand's feet and places the stone pillar at `cx=24`
+  (`x=384..399`, `by=8..9`, `y=128..159`) beneath the urn at `(385, 111)`.
+- Full room: 128×16 block grid (2048×256 px). The ROM grid is 8×2, but its
+  first row is all-zero padding for this graveyard room; `--full-room` emits
+  the populated row and reports this in the manifest.
 - Attribute byte from `$98:8000 + (set<<12) + block`.
-- Current native rule (`Level_IsSolidAt`): any block whose low 5 shape bits are
-  non-zero (`(attr & 0x1F) != 0`) is solid; high 3 bits (`0xE0`) are
-  environment flags (so `0xA0` is correctly treated as air).
-- The exact per-pixel slope height formulas (`0x02..0x1b` at `$80:962B`) are
-  scheduled for Step 5 so Firebrand walks smoothly up the graveyard hill and
-  stands at `y=164` on `attr=0x09` instead of snapping to `y=160`.
+- High 3 attribute bits (`0xE0`) are environment flags; collision uses
+  `attr & 0x1F`.
+- Shapes `0x01/0x15/0x1A` are full solids, `0x02/0x17` are half-height blocks,
+  and `0x03..0x14` are slope surfaces. The native table follows the
+  `$80:962B` jump table:
+  - `0x03: ((15-x)>>1)+8`, `0x04: (15-x)>>1`
+  - `0x07..0x0a: ((15-x)>>2)+{12,8,4,0}`
+  - `0x0b..0x0e: (x>>2)+{0,4,8,12}`
+  - `0x0f: 15-x`, `0x10: x`, `0x11/0x12`, `0x13/0x14` linear/half variants
+  - `0x16/0x18/0x19/0x1b` are walkable transition surfaces at offset 0.
+- `Level_FloorAt` returns `block_top + offset` for the cell under the feet;
+  walls/ceilings ignore slope cells so the player can walk up the hill.
+- The `$1070` walk-speed probe is still separate; slope surfaces do not yet
+  select the `0x00B3 → 0x0166` speed ramp.
 
 ### Block-table vs. VRAM tilemap (resolved)
 
-The native BG1/BG2 tilemaps currently come from the **VRAM ring buffer** of the
-captured frame (`stage_600`). Earlier attempts to render the ROM block-table
-tilemap produced "fences/garbage" **only because `--area 2` (`screens 33, 34`)
-was passed instead of `--area 1` (`screens 8, 9`)**.
+BG1 now comes from the **ROM block tables** for the full populated screen row.
+BG2 remains the **VRAM ring-buffer** backdrop from the captured frame
+(`stage_600`). Earlier attempts to render the ROM block-table tilemap produced
+"fences/garbage" **only because `--area 2` (`screens 33, 34`) was passed instead
+of `--area 1` (`screens 8, 9`)**.
 
 Verification against `--area 1`:
 
@@ -631,15 +730,15 @@ Verification against `--area 1`:
   `hscroll = 207`).
 - **There is no tile remap.** The ROM block table (`$95 + set_id`) stores direct
   VRAM tile indices, palette bits and flip flags for BG1.
-- Therefore, unlocking the full 8×2 Area 1 room (2048×512 px) for BG1 does
-  **not** require reverse-engineering a tile remap or stitching multiple
-  captures: `extract.py` can emit the full multi-screen BG1 tilemap and
-  collision grid directly from the ROM block tables (`$81:A291`, `$8F`, `$92`,
-  `$95`, `$98`) as long as all BG1 tiles referenced by those screens are
-  present in the VRAM atlas (or decompressed from `$98:D000` via `$80:C2AF`).
-- Note on BG2: in `stage_600`, BG2 is a looping 64×32 forest backdrop scrolled
-  with parallax (and HDMA channel 1 on `$210F` `BG2HOFS`), so BG2 should wrap
-  horizontally (`tx & 63`) as the camera scrolls across the wider BG1 room.
+- The populated Area 1 row uses 492 unique BG1 tile indices (max index 622);
+  every non-blank one is already present in `stage_600.vram.bin`. The only
+  missing non-empty check is tile 4, which is not referenced by the room.
+- The ROM grid is 8×2, but the first row is all-zero BG1 and collision for this
+  room. `--full-room` therefore emits the populated 8-screen row (2048×256 px)
+  and records the row's screen indices in `manifest.json`.
+- BG2 is a looping 64×32 forest backdrop. The renderer wraps it horizontally
+  (`tx & 63`) as the camera scrolls; the original per-scanline HDMA parallax
+  on channel 1 (`$210F` `BG2HOFS`) is still a future improvement.
 
 ### Player animation extraction
 
@@ -659,7 +758,9 @@ Observed clip data in `save0`:
 | `hover` | 1 | loop | 18-piece wing-spread pose; also used for `fly` |
 | `fall` | 2 | 3,2 (hold) | descent poses |
 | `land` | 2 | 3,5 | 8 frames, matching `land_timer` |
-| `attack` (currently `A` = `State 0x16`) | 3 | 11,4,16 | 31 frames; `A` in `save0` triggered `State 0x16` (back-turned wing-spread Talisman/Spell pose), not `Y` (`State 0x12` fireball shot) |
+| `attack` (`Y` shot) | 3 | 1,6,10 | 17 frames: idle press frame, 6-frame pose A, 10-frame pose B |
+| `spell` (`A`) | 3 | 11,4,16 | 31 frames; back-turned wing-spread Talisman/Spell pose |
+| `fireball` | 9 | 1 each | palette-6 projectile OAM stream; one step per captured frame |
 
 Frame facts:
 
@@ -679,24 +780,29 @@ Frame facts:
   `anchor_x`, `anchor_y` and `duration` in game frames. The C loader in
   `src/anim.c` caps the set at 64 steps and falls back to `player_idle.png`
   when the file is absent.
+- `fireball_anim.json` uses the same step shape, capped at 16 steps by
+  `src/anim.c`; projectile anchors are measured from the object slot's world
+  X/Y rather than the player's feet.
 
-Why no fireball appeared in the `attack` capture (and how to capture it in `save0`):
+Fireball extraction (resolved):
 
-- `DEFAULT_SEGMENTS` in `capture_anim.py` pressed **`a`** (`$1E3E` → `$105E`),
-  which triggers `State 0x16` (the 31-frame back-turned wing-spread Talisman /
-  Spell invocation pose seen in `player_attack_1..2.png`), **not** the fireball
-  shot.
-- The Fireball shot button in *Demon's Crest* is **`y`** (`$1E3C` → `$105C`,
-  `State 0x12` on ground at `$80:E4F4`, spawning a projectile in `$1080..$1260`
-  via `$80:F1FE`).
-- `save0` can fire projectiles directly by driving **`y`** in `capture_anim.py`
-  (no `save2` is needed; `save2` was already deleted).
-- **Extraction trap to avoid:** when `y` spawns a fireball in `save0`, if the
-  projectile OAM sprites also use palette 7, `extract_anim.py`'s `s.palette == 7`
-  filter will include the moving fireball inside Firebrand's bounding box!
-  `extract_anim.py` must separate projectile OAM sprites from Firebrand's body
-  sprites (by X-distance clustering from `$1030` or by correlating against the
-  spawned object's screen coordinates `$109C`/`$109E` in `$1080..$1260`).
+- Pressing **`Y`** (`$1E3C` → `$105C`) in `save0` keeps the grounded state but
+  selects animation `$1053 = 0x0E` and spawns an object in the first free
+  `$1080..$1260` slot (allocator `$80:F222`; the earlier `$80:F1FE` label was a
+  different helper).
+- The shot starts on the press frame; the player OAM shows the idle pose for
+  that frame, then the 6-frame and 10-frame shot poses.
+- Measured object spawn: `X = floor(player.x) + 3`,
+  `Y = floor(player.y) - 8`, `vx = 0x0300` (3.0 px/frame), `vy = 0`.
+- The moving fireball slot is the active slot with non-zero `+$20`
+  horizontal velocity. Its OAM group uses **palette 6**, while Firebrand uses
+  palette 7, so the extractor can remove it from the player bbox cleanly. It
+  additionally filters by the object's screen position to avoid unrelated
+  sprites.
+- The game despawns the shot after it leaves the camera viewport; in `save0`
+  that happens at world X 704 when the camera right edge is `448 + 256`.
+- `extract_anim.py` emits `fireball_0..8.png` and `fireball_anim.json`; the
+  native pool draws one step per guest frame and mirrors it for left shots.
 
 ---
 
@@ -825,8 +931,8 @@ The trace build opens a TCP debug server (default port 4377; override with
 ### Original object/task system
 
 - Object table base `$1080`, stride `$50`, end `$1D50` (26 slots total).
-  - First 7 slots (`$1080..$1260`, up to `$12B0`) are used by `$80:F1FE` for
-    player projectiles/effects.
+  - First 7 slots (`$1080..$1260`, up to `$12B0`) are allocated by `$80:F222`
+    for player projectiles/effects.
 - Loop at `$82:8611` (mirror `$02:8611`):
   - skip if `$0000` is zero,
   - `TCD` to the object base,
@@ -977,15 +1083,16 @@ These were already discovered the hard way; do not rediscover them.
 11. **`--resume-state` consumes the file.**
     Copy `save0.sav` before each run.
 
-12. **The camera is currently locked.**
-    This is deliberate while `room.json` holds only one 64×32 VRAM viewport.
-    Unlock it after generating the full multi-screen BG1 tilemap from the Area 1
-    ROM block tables.
+12. **The camera is no longer locked.**
+    `room.json` from `--full-room` holds the 2048×256 BG1 row and camera bounds;
+    the renderer wraps the 64×32 BG2 backdrop horizontally. Vertical camera
+    range is only 32 px for this row.
 
-13. **Collision attributes are approximated.**
-    Every non-zero block attribute is currently treated as a flat 16×16 solid.
-    Slope/ledge heights (`0x03, 0x04, 0x07..0x0e, 0x16, 0x21, 0xa0`, handled at
-    `$80:91B7` / `$80:94D3`) still need decoding.
+13. **Collision attributes use the `$80:962B` surface table.**
+    Walls are full/half blocks; `0x03..0x14` are slope surfaces. `0x16/0x18/
+    0x19/0x1B` are treated as flat walkable transitions, and `0xA0` remains
+    pass-through. The `$1070` walk-speed probe is still separate from the
+    surface table.
 
 14. **The HUD is absent.**
     BG3/status bar extraction is a later step.
@@ -1014,35 +1121,33 @@ These were already discovered the hard way; do not rediscover them.
     `$1026 = 0x0038`, B-release zeroes `$1022` at `$80:E227`). `$85:C180..C250`
     bounces dropped hearts (`$22 = 0x0400`, `$26 = 0x0040`) and heals `$1062`.
 
-20. **Projectile OAM sprites must be separated from Firebrand's palette-7 bbox.**
-    When capturing `Y` (Fireball shot) in `save0`, if the fireball shares OAM
-    palette 7, a naive `s.palette == 7` filter will merge the moving projectile
-    into Firebrand's body PNG. Filter or cluster by distance from `$1030` or
-    object slot `$1080..$1260` screen coordinates (`$1C`/`$1E`).
+20. **The fireball OAM group uses palette 6, not the player's palette 7.**
+    In `save0`, the projectile stream is the palette-6 group near the moving
+    object slot, so palette filtering keeps it out of Firebrand's body PNG.
+    `extract_anim.py` still applies an object-position window as a fallback in
+    case a capture uses the same palette for both.
 
 ---
 
 ## 9. Current limitations
 
-- Single captured graveyard viewport; no room scrolling yet.
-- `assets/generated/room.json` was generated with `--area 2` instead of
-  `--area 1 --screens 9,10`, causing the native player to fall 11 px through
-  row `by=10` (`y=160..175`) onto `by=11` (`y=176`). Re-extracting with
-  `--area 1 --screens 9,10` puts the solid/sloped floor at `by=10` (`y=160`,
-  4 px above the `y=164` slope surface) and aligns the pillar at `cx=24`.
-- Animation covers idle/walk/jump/hover/fall/land plus the `A`-button `State
-  0x16` (Talisman/Spell) clip currently bound to `attack`. The real `Y`-button
-  Fireball spit (`State 0x12`), hurt, death and wall-cling clips are still
-  needed; one directional set is mirrored by the renderer.
-- No fireball projectile spawned yet (`$80:F1FE` 7-slot pool).
-- `src/player.c` still uses float approximations (`vy = -2.0` + `0.10` boost,
-  `gravity = 0.25`, `B+Up` fly) instead of the recovered Bank `$80` state
-  machine (`$1022 = 0x059C` with B-release cut, `$1026 = 0x0038`, `State 0x06`
-  zero-G hover toggle).
+- Full 2048×256 graveyard row scrolls horizontally; the ROM grid's other row is
+  empty padding. Vertical camera range is only 32 px for this row.
+- BG2 parallax is a flat 1:1 offset with wrapping; the original HDMA
+  per-scanline `BG2HOFS` table is not extracted yet.
+- Animation covers idle/walk/jump/hover/fall/land, the 17-frame `Y` shot and
+  the 31-frame `A` spell. Hurt, death and wall-cling clips are still needed;
+  one directional set is mirrored by the renderer.
+- The projectile kind is currently the base fireball only; no charged shot,
+  crest variants, enemy hit detection or damage yet.
+- The `$1070` terrain probe that selects the `0x00B3` initial walk step /
+  `$80:8B85` acceleration path is not wired yet; walking keeps the `0x0166`
+  cap on both flat ground and slopes.
 - No enemies.
 - No HUD.
 - No audio.
-- Slope/ledge block attributes (`0x03..0x21, 0xa0`) are treated as flat solids.
+- Slope shapes `0x03..0x14` are decoded; edge/hazard shapes (`0x19`, `0x21`)
+  still use conservative full-floor behavior.
 - No title screen, menus, save/password, stage select, map.
 - No full campaign or bosses.
 - No Windows build tested in this session (CMake/raylib are portable, but the
@@ -1076,7 +1181,7 @@ Acceptance:
 - Jump rise, hover/fly, fall, landing and attack use the captured poses.
 - Feet stay aligned with the ground/collision box via per-frame anchors.
 - The collision AABB remains independent of the sprite frame.
-- `DC_DEMO=5` exercises walk, attack, jump and fly for screenshots.
+- `DC_DEMO=5` exercises walk, special, jump and fly for screenshots.
 
 ### Step 2 — Fix Graveyard room extraction (`--area 1 --screens 9,10`) (done)
 
@@ -1096,96 +1201,124 @@ Done:
    (`y=160..175`) sits under Firebrand's spawn `(332, 160)` and `cx=24`
    (`x=384..399`, `y=128..159`) boxes the stone pillar under the urn `(385, 111)`.
 
-### Step 3 — Port the authentic Bank `$80` player state machine & physics (next)
+### Step 3 — Port the authentic Bank `$80` player state machine & physics (done)
 
 Why before projectiles/scrolling: the exact constants and transitions are now
 known from `$80:DB00..F310`; replacing the temporary float heuristics in
-`src/player.c` now locks down movement feel and input handling (`B` = Jump /
+`src/player.c` locked down movement feel and input handling (`B` = Jump /
 Hover toggle, `Y` = Fireball shot, `A` = Talisman/Headbutt).
 
-Tasks:
+Done:
 
-1. Use 8.8 fixed-point (or exact `/ 256.0f` equivalents) from Bank `$80`:
-   - Walk (`$80:F0A0..F0E5`): first step frame `$1020 = 0x00B3`
-     (`0.69921875`), accelerate via `$80:8B85` up to `0x0166` (`1.3984375`).
-   - Gravity (`$80:E070`, `$80:ED11`): `$1026 = 0x0038` (`0.21875`), terminal
-     fall clamp `0xFA00` (`-6.0`).
-   - Jump (`$80:E160..E239`, `State 0x04`): takeoff frames (`$100F`) before
-     vertical integration, initial `$1022 = 0x059C` (`5.609375`), and at
-     `$80:E227` **if `B` (`jump_held`) is released while rising (`vy < 0`),
-     immediately set `vy = 0`**.
-   - Hover (`$80:E1A3`, `$80:E29F..E340`, `State 0x06`): pressing `B`
-     (`jump_pressed`) while airborne toggles `PLAYER_HOVER` with `vy = 0` and
-     gravity bypassed; pressing `B` again exits hover into falling (`State
-     0x04`). Keep `B + Up` fly-up behind a debug/crest flag so base Gargoyle
-     matches `save0`.
-2. Update `input.c` so SNES `Y` (or keyboard `X`/`J`, gamepad `X`/`Y`/`West`)
-   triggers Fireball shot (`$105C`), while `A` (`$105E`) is reserved for
-   Talisman/Headbutt.
-3. Validate against `save0` OAM traces with `tools/oracle/compare.py`.
-
-Acceptance:
-
-- Tap-jump, full-hold jump, walk acceleration, and mid-air hover toggle match
-  `save0` within ≤1 px / 1 frame across a 600-frame trace.
-
-### Step 4 — Capture `Y` Fireball shot in `save0` & implement projectiles (`$80:F1FE`)
-
-Tasks:
-
-1. Add a `("shoot", "y", 35)` segment to `tools/oracle/capture_anim.py` and
-   capture from `save0.sav` (no `save2` needed).
-2. Inspect the spawned projectile slot in WRAM (`$1080..$1260`, stride `$50`,
-   allocated by `$80:F1FE`) and its OAM sprites across the segment:
-   - Record projectile spawn frame delay, `$1030`/`$1033` offset from player,
-     `$1020` horizontal velocity, species ID (`$1002`), and OAM tile/palette.
-3. Update `tools/dc_extract/extract_anim.py`:
-   - Exclude projectile OAM sprites from Firebrand's palette-7 body composition
-     so the moving fireball never stretches Firebrand's clip bbox.
-   - Emit the true `Y`-button Fireball spit clip as `attack` (and optionally
-     keep the `A`-button `State 0x16` clip as `spell` / `talisman`), plus bake
-     `fireball_0..n.png`.
-4. Implement the 7-slot player projectile pool in C (`src/projectile.c` or
-   `src/object.c`):
-   - Spawn on the exact animation frame, move at the recovered 8.8 velocity,
-     despawn on wall/pillar collision or screen exit.
+1. `src/player.c` now stores `x_fx`, `y_fx`, `vy_fx` and `walk_speed_fx` as
+   8.8 fixed point:
+   - Walk (`$80:F0A0..F0E5`): flat ground keeps `$1020 = 0x0166` (oracle
+     behaviour); `UpdateWalkSpeed` implements the `$1020 = 0x00B3` first step
+     and `$80:8B85` 3/256 ramp for the `$1070` slope path (surface walking is
+     done in Step 5; the speed probe is still separate).
+   - Gravity (`$80:E070`, `$80:ED11`): `$1026 = 0x0038`; terminal fall
+     `0xFA00` (`6.0` px/frame in y-down coordinates).
+   - Jump (`$80:E160..E239`, `State 0x04`): the press frame enters substate 0
+     without moving; substates 0→2→4 integrate gravity and position; the first
+     substate-4 frame applies the `$80:E227` B-release cut (`vy = 0`).
+   - Hover (`$80:E1A3`, `$80:E29F..E340`, `State 0x06`): B pressed in air
+     enters hover with `vy = 0` and no gravity; the next B press returns to
+     `State 0x04` substate 4 and falls on the following frame. `B + Up` flight
+     is behind `DC_FLY_DEBUG=1`, off by default.
+2. `src/input.c` maps SNES `Y` to the shot input (keyboard `X`/`J`, gamepad
+   west/top) and SNES `A` to the special input (keyboard `C`/`K`, gamepad
+   south). `Input` carries held/pressed pairs like `$1059..$105E`.
+3. Added `tools/oracle/export_capture_csv.py` and
+   `tools/oracle/segments_save0_physics.json`; `DC_DEMO=6` replays the same
+   603-frame walk / tap-jump / hold-jump / hover sequence.
 
 Acceptance:
 
-- Pressing Shot plays the Fireball spit pose (`State 0x12`) and spawns a
-  fireball at the original frame and offset.
-- Up to 7 projectiles can be active (matching `$1080..$1260`), and shots
-  despawn cleanly on the `cx=24` stone pillar or screen bounds.
+- Tap-jump, full-hold jump, walk speed, and mid-air hover toggle match `save0`
+  within ≤1 px / 1 frame across a 600-frame trace.
+- Result: 603 frames compared, max delta `x=0.00 px`, `y=0.53 px`. The
+  residual Y delta is the known `$1000` task-idle oscillation documented in
+  trap #8.
 
-### Step 5 — Full-room Area 1 tilemap, slope/ledge attributes & camera scrolling
+### Step 4 — Capture `Y` Fireball shot in `save0` & implement projectiles (done)
+
+Done:
+
+1. Added `("shoot", "y", 35)` to `capture_anim.py`'s default route and captured
+   it from `save0` (no `save2` needed).
+2. Inspected the spawned slot in WRAM (`$1080..$1260`, stride `$50`, allocated
+   by `$80:F222`; earlier notes called this `$80:F1FE`):
+   - spawn frame = the Y press frame; slot `$1080` becomes active before the
+     first shot pose is visible,
+   - X = `floor(player.x) + 3`, Y = `floor(player.y) - 8`,
+   - horizontal velocity `$1020 = 0x0300` (3.0 px/frame), vertical velocity 0,
+   - the moving slot is identified by non-zero `+$20`; the projectile OAM
+     group is palette 6 and the player is palette 7.
+3. Updated `tools/dc_extract/extract_anim.py`:
+   - projectile OAM is grouped around the moving object slot and excluded from
+     Firebrand's palette-7 body composition,
+   - the real Y clip is exported as `attack` (3 steps, durations 1/6/10 =
+     17 frames), the A clip as `spell` (11/4/16 = 31 frames),
+   - baked `fireball_0..8.png` + `fireball_anim.json` (one step per frame,
+     palette 6, per-step object anchor).
+4. Added `src/projectile.c` / `src/projectile.h`:
+   - 7-slot pool matching `$1080..$1260`,
+   - spawn on the shot press frame with the measured offset and velocity,
+   - despawn on solid collision (pillar) or camera viewport exit.
+   - `src/render.c` draws the palette-6 fireball group and mirrors it for
+     left-facing shots.
+5. Added `DC_DEMO=7` and `DC_TRACE_PROJECTILES=path` for reproducible visual
+   and CSV checks.
+
+Acceptance:
+
+- Pressing Shot plays the captured Y spit animation and spawns a fireball on
+  the press frame at the measured offset.
+- The pool allocates up to seven slots; `DC_DEMO=7` verifies pillar despawn,
+  viewport despawn, concurrent slots and left-facing mirroring.
+- Corrected finding: `$80:F222` is the slot allocator; `$80:F1FE` is a
+  different object helper and was mislabeled in the earlier notes.
+
+### Step 5 — Full-room Area 1 tilemap, slope/ledge attributes & camera scrolling (done)
 
 Why now: since Trap #4 is resolved (ROM block tables match VRAM directly when
 `--area 1` is used), full-room scrolling no longer requires reverse-engineering
 a tile remap.
 
-Tasks:
+Done:
 
-1. Extend `tools/dc_extract/extract.py` to optionally build the full 8×2
-   Area 1 BG1 tilemap (2048×512 px) and 128×32 collision grid directly from
-   `rom.area_info(1)` (`$81:A291`, `$8F`, `$92`, `$95`, `$98`):
-   - Verify whether all BG1 tile indices across Area 1's 16 screens are
-     already resident in `stage_600.vram.bin`; for any tiles loaded by
-     mid-stage segments (`$80:BFB5` / `$80:C11B`), either decode CHR from ROM
-     (`$98:D000` via `$80:C2AF`) or merge VRAM from a walk-through capture.
-   - Wrap BG2 horizontally (`tx & 63`) with its parallax scroll ratio (and
-     optional HDMA row split from `$210F`).
-2. Decode the graveyard block attribute bytes (`0x01` solid, `0x03/0x04` and
-   `0x07..0x0e` slope heights, `0x16` slope/ground transition, `0x21` hazard /
-   ledge, `0xa0` pass-through / foreground) from `$80:91B7` / `$80:94D3`.
-3. Unlock `camera.min_x..max_x` and `camera.min_y..max_y` in `room.json` and
-   match the original camera deadzone (`$00C0`/`$00C4` vs `$1030`/`$1033` in
-   `save0` traces).
+1. Extended `tools/dc_extract/extract.py` with `--full-room`:
+   - finds the populated screen row of the area grid and emits all eight
+     screens as a 2048×256 BG1 map (256×32 tiles) plus a 128×16 collision grid,
+   - all 492 referenced BG1 tile indices are already resident in
+     `stage_600.vram.bin`; no ROM CHR decode or VRAM merge was needed,
+   - BG2 stays the captured 64×32 backdrop and the renderer wraps it
+     horizontally as the camera moves.
+   - The ROM Area 1 grid is 8×2, but its other row is all-zero BG1/collision
+     padding, so the extractor emits the populated row and records the screen
+     indices `[8, 9, 10, 11, 16, 17, 18, 19]` in `manifest.json`.
+2. Decoded the graveyard surface table from `$80:962B`:
+   - full solids `0x01/0x15/0x1A`, half blocks `0x02/0x17`,
+   - slopes `0x03..0x14` with the per-pixel formulas,
+   - walkable transitions `0x16/0x18/0x19/0x1B` at offset 0.
+   `Level_FloorAt`/`Level_SurfaceOffset` now snap Firebrand to
+   `block_top + offset`; walls ignore slope cells.
+3. Unlocked `camera.min_x..max_x` and `min_y..max_y` in `room.json`:
+   - horizontal deadzone 96..160 and vertical deadzone 96..176,
+   - clamps to the 2048×256 room,
+   - `DC_DEMO=8` walks left across the lower graveyard and then hovers right
+     across pillars to exercise the full map.
 
 Acceptance:
 
 - Firebrand walks smoothly up and down the graveyard slopes (`by=10..11`),
   stands at `y=164` on `attr=0x09` at spawn, and the camera scrolls across the
   full starting room without stale or missing tiles.
+- Verified by trace and screenshots at camera X 0, ~90, ~370 and ~425; the
+  player height follows the slope as `164 → 163 → 162 → 161 → 160` (up) and
+  back down.
+- Remaining Step 5 sub-item: BG2 HDMA per-scanline parallax; the current
+  backdrop uses a flat 1:1 offset plus horizontal wrapping.
 
 ### Step 6 — Object system (`$1080..$1D50`), one graveyard enemy & heart pickup (`$85:C180`)
 
@@ -1246,8 +1379,8 @@ Acceptance:
 |---|---|---|
 | 0 | Extraction proof: graveyard map + VRAM/CGRAM dump + static render | done (needs `--area 1` re-extract) |
 | 1 | Engine skeleton: raylib, fixed 60 Hz, BG layers, input, camera | done |
-| 2 | Firebrand core: Bank `$80` state machine, physics, slopes, animations | base clips done; Bank `$80` state port & `Y` shot clip next |
-| 3 | Combat and objects: `$80:F1FE` fireball, `$1080` objects, enemy, `$85:C180` pickup, HUD | `A` spell pose done; `Y` fireball/enemies/HUD next |
+| 2 | Firebrand core: Bank `$80` state machine, physics, slopes, animations | done: state machine, slopes, shot/spell/fireball |
+| 3 | Combat and objects: fireball, `$1080` objects, enemy, `$85:C180` pickup, HUD | fireball done; enemies/HUD next |
 | 4 | Vertical slice: full Area 1–3 scrolling rooms, transitions, title/menu, audio | not started |
 | 5 | Full campaign: all areas, bosses, forms, Mode 7, password/save | not started |
 | 6 | Fan-game content: new levels/story/art | not started |
@@ -1289,9 +1422,9 @@ Definition of done for the **final fan game**:
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Mid-stage CHR streaming (`$80:BFB5`/`$80:C11B`) | unvisited screens in an area may reference CHR tiles not yet in a single VRAM dump | decode CHR from `$98:D000` via `$80:C2AF` or merge VRAM across a room walkthrough |
-| Player state machine not fully ported | feel drifts from `save0` | port Bank `$80` routines (`$80:DB00..F310`) directly; validate with `compare.py` |
-| Slope/ledge block attributes (`0x03..0x21, 0xa0`) | player steps on flat 16×16 tops instead of smooth hill heights (`y=160` vs `y=164`) | decode height tables at `$80:91B7` / `$80:94D3` |
-| Projectile OAM overlap with palette-7 player group | `extract_anim.py` merges fireball into player sprite bbox if both use palette 7 | filter by distance from `$1030` or correlate with projectile object slots `$1080..$1260` |
+| Player state machine drift | feel drifts from `save0` | ported Bank `$80` state machine with 8.8 fixed point; `DC_DEMO=6`/`compare.py` regression keeps ≤1 px |
+| Slope/ledge block attributes (`0x03..0x21, 0xa0`) | player steps on flat 16×16 tops instead of smooth hill heights (`y=160` vs `y=164`) | resolved: `$80:962B` surface table ported; `DC_DEMO=8` walks the hill |
+| Projectile OAM overlap with palette-7 player group | fireball could stretch the player bbox | resolved for `save0`: projectile OAM is palette 6 and the extractor also windows around the object slot |
 | BG2 HDMA parallax scroll splits | flat `scroll_x` on BG2 loses per-scanline sky/tree parallax | read HDMA table on channel 1 (`$210F` `BG2HOFS`) or approximate band scroll |
 | Audio extraction | no soundtrack | BRR/DSP decoder or recorded development placeholder |
 | Object AI breadth | huge scope | port `$82:8611` loop + `$85:C180` heart pickup + one enemy at a time |
@@ -1317,15 +1450,35 @@ Resolved questions (formerly open):
   `X` = Subscreen; walk `0x00B3 → 0x0166`, jump `0x059C` with B-release `vy=0`
   cut at `$80:E227`, gravity `0x0038`, hover `State 0x06` (`vy=0`). (`$85:C1D4`
   was identified as the dropped heart bounce routine.)
+- **Player movement parity with `save0`**: Resolved for the base ground/jump/
+  hover loop. `src/player.c` runs the recovered substate flow in 8.8 fixed
+  point; a 603-frame replay matches on X exactly and stays within 0.53 px on Y
+  (the task-idle oscillation). Walk speed on flat ground is the `0x0166` cap,
+  not a per-step ramp; the `0x00B3` first step belongs to the `$1070` slope
+  path and is awaiting slope wiring.
+- **Fireball shot timing, spawn offset and velocity**: Resolved from the `Y`
+  capture. The press frame uses the idle pose, then a 6-frame and a 10-frame
+  shot pose (17 total). The projectile spawns on the press frame in the first
+  free `$1080..$1260` slot via `$80:F222`, at
+  `(floor(player.x) + 3, floor(player.y) - 8)`, with `vx = 0x0300`
+  (3.0 px/frame). The projectile OAM group is palette 6 and despawns at the
+  camera edge in `save0`.
+- **Area 1 full-room layout and slope heights**: Resolved. The ROM area grid
+  is 8×2, but the graveyard row is the populated one (`screens 8, 9, 10, 11,
+  16, 17, 18, 19`); the other row is all-zero BG1/collision padding. All 492
+  referenced BG1 tiles are in the `stage_600` VRAM atlas. The `$80:962B` table
+  gives surface offsets for `0x03..0x14`; `Level_FloorAt` snaps Firebrand to
+  `block_top + offset`, so spawn is `y=164` on `attr=0x09` and the hill is
+  walkable in both directions.
 
 Remaining open technical questions:
 
-- Exact slope height-table lookup at `$80:91B7` / `$80:94D3` for attributes
-  `0x03, 0x04, 0x07..0x0e, 0x16, 0x21, 0xa0`.
+- BG2 HDMA per-scanline horizontal scroll table (channel 1, `$210F`
+  `BG2HOFS`); the native renderer currently uses a flat 1:1 offset + wrap.
 - Full object species ID (`$02`) → handler table (`$82:8000,X`) for Area 1
   graveyard enemies.
-- Exact frame delay, spawn offset and velocity of the `Y`-button fireball in
-  `$80:E4F4` / `$80:F1FE`.
+- Fireball interaction with enemies (hitbox, damage, knockback) is not yet
+  researched; only terrain/viewport despawn is implemented.
 - Best audio path for distribution (native BRR+sequence synth vs replacement
   tracks).
 - Widescreen support policy and Windows CI/test build path.
@@ -1407,21 +1560,26 @@ When resuming:
 ## 17. One-paragraph summary
 
 The project has a working native C11 + raylib foundation that renders the
-original graveyard room from extracted ROM data and drives Firebrand's extracted
-idle, walk, jump, hover, fall, landing and spell/attack poses through a
-frame-based animation state machine. Disassembly of Bank `$80` (`$80:DB00..F310`)
-and ROM level tables (`$81:A291`) resolved the major open mysteries:
-`stage_600` is ROM Area 1 (`screens 8, 9` = `slots 9, 10`), not Area 2, which
-eliminates the 11 px spawn offset and proves the ROM block tables match VRAM
-directly (`1957/2048` words) without any tile remap; `$85:C1D4` is a bouncing
-heart pickup while Firebrand's true physics live in Bank `$80` (walk
-`0x00B3 → 0x0166`, jump `0x059C` with immediate `vy=0` cut on B release at
-`$80:E227`, gravity `0x0038`, zero-G hover toggle at `State 0x06`); and `Y`
-(`$105C`) is the Fireball shot button (`State 0x12`, spawning projectiles in
-`$1080..$1260` via `$80:F1FE`) whereas `A` (`$105E`) triggered the Talisman
-invocation pose (`State 0x16`). The ordered next milestones are: (1) re-extract
-`stage_600` with `--area 1 --screens 9,10`, (2) port the Bank `$80` player state
-machine, (3) capture `Y` in `save0` and implement the 7-slot fireball pool,
-(4) build the full-room Area 1 tilemap with decoded slope attributes and camera
-scrolling, and (5) port the `$1080` object loop, one graveyard enemy, the
-`$85:C180` heart pickup, and the BG3 HUD.
+original graveyard room from extracted ROM data and runs Firebrand's authentic
+Bank `$80` movement state machine in 8.8 fixed point. Disassembly of Bank `$80`
+(`$80:DB00..F310`) and ROM level tables (`$81:A291`) resolved the major open
+mysteries: `stage_600` is ROM Area 1 (`screens 8, 9` = `slots 9, 10`), not Area
+2, which eliminates the 11 px spawn offset and proves the ROM block tables
+match VRAM directly (`1957/2048` words) without any tile remap; `$85:C1D4` is a
+bouncing heart pickup while Firebrand's true physics live in Bank `$80` (jump
+`0x059C` with immediate `vy=0` cut on B release at `$80:E227`, gravity
+`0x0038`, zero-G hover toggle at `State 0x06`); and `Y` (`$105C`) is the
+Fireball shot button, spawning projectiles in `$1080..$1260` via the allocator
+`$80:F222` (the earlier `$80:F1FE` label was a different helper), whereas `A`
+(`$105E`) triggered the Talisman invocation pose. The port now matches `save0`
+over a 603-frame ground/jump/hover replay (max delta `x=0.00 px`,
+`y=0.53 px`), and the Y shot is implemented end to end: 17-frame spit pose,
+7-slot fireball pool, palette-6 OAM stream, `(floor(player.x)+3,
+floor(player.y)-8)` spawn and `0x0300` velocity, with pillar/viewport despawn.
+Step 5 is also done: `--full-room` emits the populated Area 1 screen row as a
+2048×256 BG1 map (the ROM grid's other row is empty padding) with a 128×16
+collision grid, the `$80:962B` surface table gives smooth `0x03..0x14` slope
+walking (spawn `y=164` on `attr=0x09`), BG2 wraps horizontally, and the camera
+follows across the room with deadzones. The ordered next milestone is the
+`$1080..$1D50` object loop, one graveyard enemy, the `$85:C180` heart pickup,
+and the BG3 HUD; BG2 HDMA parallax remains a polish item.

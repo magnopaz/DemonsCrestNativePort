@@ -10,13 +10,17 @@ typedef struct Input {
     bool down;
     bool jump_pressed;
     bool jump_held;
-    bool attack_pressed;
+    bool shot_pressed;   /* SNES Y ($105C): Fireball */
+    bool shot_held;
+    bool special_pressed; /* SNES A ($105E): Talisman / Headbutt */
+    bool special_held;
     bool debug_collision;
 } Input;
 
 typedef struct InputState {
     bool prev_jump;
-    bool prev_attack;
+    bool prev_shot;
+    bool prev_special;
     bool prev_debug;
 } InputState;
 

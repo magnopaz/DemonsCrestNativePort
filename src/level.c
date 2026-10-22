@@ -245,3 +245,94 @@ bool Level_IsSolidAt(const Level *level, float world_x, float world_y) {
      * environment flags (e.g. 0xA0 has shape 0 and is empty air). */
     return (Level_AttrAt(level, world_x, world_y) & 0x1F) != 0;
 }
+
+int Level_SurfaceOffset(uint8_t attr, int local_x) {
+    /* Per-tile surface height from the $80:962B jump table. Offsets are
+     * measured downward from the block top; 0x03..0x14 are slopes. */
+    int shape = attr & 0x1F;
+    local_x &= 15;
+    switch (shape) {
+    case 0x01:
+    case 0x15:
+    case 0x16:
+    case 0x18:
+    case 0x19:
+    case 0x1A:
+    case 0x1B:
+        return 0;
+    case 0x02:
+    case 0x17:
+        return 8; /* half-height block */
+    case 0x03:
+        return ((15 - local_x) >> 1) + 8;
+    case 0x04:
+        return (15 - local_x) >> 1;
+    case 0x05:
+        return local_x >> 1;
+    case 0x06:
+        return (local_x >> 1) + 8;
+    case 0x07:
+        return ((15 - local_x) >> 2) + 12;
+    case 0x08:
+        return ((15 - local_x) >> 2) + 8;
+    case 0x09:
+        return ((15 - local_x) >> 2) + 4;
+    case 0x0A:
+        return (15 - local_x) >> 2;
+    case 0x0B:
+        return local_x >> 2;
+    case 0x0C:
+        return (local_x >> 2) + 4;
+    case 0x0D:
+        return (local_x >> 2) + 8;
+    case 0x0E:
+        return (local_x >> 2) + 12;
+    case 0x0F:
+        return 15 - local_x;
+    case 0x10:
+        return local_x;
+    case 0x11:
+        return local_x >> 1;
+    case 0x12:
+        return (local_x >> 1) + 8;
+    case 0x13:
+        return (15 - local_x) >> 1;
+    case 0x14:
+        return ((15 - local_x) >> 1) + 8;
+    default:
+        return -1;
+    }
+}
+
+bool Level_IsWallAt(const Level *level, float world_x, float world_y) {
+    int shape = Level_AttrAt(level, world_x, world_y) & 0x1F;
+    switch (shape) {
+    case 0x01: /* full block */
+    case 0x15:
+    case 0x1A:
+    case 0x02: /* half block / ledge */
+    case 0x17:
+        return true;
+    default:
+        /* Slopes and 0x16 transitions are walkable surfaces, not walls. */
+        return false;
+    }
+}
+
+bool Level_FloorAt(const Level *level, float world_x, float feet_y,
+                   float *surface_y) {
+    const Collision *c = &level->collision;
+    int cx = (int)floorf(world_x / (float)c->cell);
+    int cy = (int)floorf(feet_y / (float)c->cell);
+    if (cx < 0 || cy < 0 || cx >= c->width || cy >= c->height)
+        return false;
+
+    uint8_t attr = c->attrs[cy * c->width + cx];
+    int local_x = (int)floorf(world_x) & (c->cell - 1);
+    int offset = Level_SurfaceOffset(attr, local_x);
+    if (offset < 0)
+        return false;
+
+    *surface_y = (float)(cy * c->cell + offset);
+    return true;
+}

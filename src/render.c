@@ -9,10 +9,11 @@ static void DrawLayer(const Assets *assets, const BgLayer *layer,
                       const Level *level, const GameCamera *camera) {
     /* BG1 is the reference layer: its scroll is the camera position. BG2 keeps
      * the relative scroll it had in the captured frame. */
-    float base_scroll = (float)level->bg[1].scroll_x;
     float offset_x = (float)(layer->scroll_x - level->bg[1].scroll_x);
     float offset_y = (float)(layer->scroll_y - level->bg[1].scroll_y);
-    (void)base_scroll;
+    /* The full-room BG1 is much wider than the captured BG2 ring; loop the
+     * backdrop horizontally instead of running out of tiles. */
+    bool wrap_x = layer->map_w < level->bg[1].map_w;
 
     float origin_x = camera->x + offset_x;
     float origin_y = camera->y + offset_y;
@@ -26,9 +27,15 @@ static void DrawLayer(const Assets *assets, const BgLayer *layer,
         if (ty < 0 || ty >= layer->map_h)
             continue;
         for (int tx = tx0; tx <= tx1; tx++) {
-            if (tx < 0 || tx >= layer->map_w)
+            int map_tx = tx;
+            if (wrap_x) {
+                map_tx %= layer->map_w;
+                if (map_tx < 0)
+                    map_tx += layer->map_w;
+            } else if (tx < 0 || tx >= layer->map_w) {
                 continue;
-            uint16_t word = layer->tiles[ty * layer->map_w + tx];
+            }
+            uint16_t word = layer->tiles[ty * layer->map_w + map_tx];
             int tile = word & 0x3FF;
             int pal = (word >> 10) & 7;
             if (pal >= DC_BG_PALETTES)
@@ -75,8 +82,37 @@ static void DrawPlayer(const Assets *assets, const Level *level,
     DrawTexturePro(texture, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
 }
 
+static void DrawProjectiles(const Assets *assets, const GameCamera *camera,
+                            const ProjectilePool *projectiles) {
+    if (!assets->projectile_anim.ready)
+        return;
+
+    for (int i = 0; i < PROJECTILE_POOL_SIZE; i++) {
+        const Projectile *p = &projectiles->slots[i];
+        if (!p->active || p->age <= 0)
+            continue; /* the spawn frame shows no projectile sprite */
+        const AnimStep *step = ProjectileAnim_Step(&assets->projectile_anim,
+                                                   p->age - 1);
+        if (!step)
+            continue;
+
+        float x = (float)p->x_fx / 256.0f - (float)step->anchor_x - camera->x;
+        float y = (float)p->y_fx / 256.0f - (float)step->anchor_y - camera->y;
+        Rectangle src = {0, 0, (float)step->texture.width,
+                         (float)step->texture.height};
+        if (p->vx_fx < 0) {
+            src.x = (float)step->texture.width;
+            src.width = -src.width;
+        }
+        Rectangle dst = {x, y, (float)step->texture.width,
+                         (float)step->texture.height};
+        DrawTexturePro(step->texture, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
+    }
+}
+
 void Render_Game(const Assets *assets, const Level *level, const GameCamera *camera,
-                 const Player *player, bool debug_collision) {
+                 const Player *player, const ProjectilePool *projectiles,
+                 bool debug_collision) {
     static int layer_mask = -1;
     if (layer_mask < 0) {
         const char *env = getenv("DC_LAYER_MASK");
@@ -97,6 +133,7 @@ void Render_Game(const Assets *assets, const Level *level, const GameCamera *cam
     }
 
     DrawPlayer(assets, level, camera, player);
+    DrawProjectiles(assets, camera, projectiles);
 
     if (debug_collision) {
         const Collision *c = &level->collision;

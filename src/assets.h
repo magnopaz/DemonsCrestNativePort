@@ -15,6 +15,7 @@ typedef struct Assets {
     Texture2D player;
     Texture2D item;
     PlayerAnim player_anim;
+    ProjectileAnim projectile_anim;
     bool ready;
 } Assets;
 

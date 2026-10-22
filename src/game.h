@@ -9,17 +9,20 @@
 #include "input.h"
 #include "level.h"
 #include "player.h"
+#include "projectile.h"
 #include "raylib.h"
 
 typedef struct Game {
     Assets assets;
     Level level;
     Player player;
+    ProjectilePool projectiles;
     GameCamera camera;
     Input input;
     InputState input_state;
     RenderTexture2D target;
     FILE *trace;
+    FILE *projectile_trace;
     unsigned frame;
     bool ready;
 } Game;

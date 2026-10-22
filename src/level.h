@@ -66,5 +66,9 @@ void Level_Unload(Level *level);
 
 uint8_t Level_AttrAt(const Level *level, float world_x, float world_y);
 bool Level_IsSolidAt(const Level *level, float world_x, float world_y);
+bool Level_IsWallAt(const Level *level, float world_x, float world_y);
+bool Level_FloorAt(const Level *level, float world_x, float feet_y,
+                   float *surface_y);
+int Level_SurfaceOffset(uint8_t attr, int local_x);
 
 #endif

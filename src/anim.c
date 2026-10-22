@@ -7,7 +7,7 @@
 #include "cJSON.h"
 
 static const char *const kClipNames[ANIM_CLIP_COUNT] = {
-    "idle", "walk", "jump", "hover", "fall", "land", "attack"
+    "idle", "walk", "jump", "hover", "fall", "land", "attack", "spell"
 };
 
 static char *ReadText(const char *path) {
@@ -149,4 +149,90 @@ const AnimStep *Anim_Step(const PlayerAnim *anim, int clip, int index) {
     if (index >= c->step_count)
         index = c->step_count - 1;
     return &anim->steps[c->first_step + index];
+}
+
+bool ProjectileAnim_Load(ProjectileAnim *anim, const char *dir) {
+    memset(anim, 0, sizeof(*anim));
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/fireball_anim.json", dir);
+    char *text = ReadText(path);
+    if (!text)
+        return false;
+
+    cJSON *root = cJSON_Parse(text);
+    free(text);
+    if (!root)
+        return false;
+
+    cJSON *steps = cJSON_GetObjectItemCaseSensitive(root, "steps");
+    if (!cJSON_IsArray(steps)) {
+        cJSON_Delete(root);
+        return false;
+    }
+    anim->loop = cJSON_IsTrue(
+        cJSON_GetObjectItemCaseSensitive(root, "loop"));
+
+    int count = cJSON_GetArraySize(steps);
+    if (count <= 0 || count > DC_PROJECTILE_MAX_STEPS) {
+        cJSON_Delete(root);
+        return false;
+    }
+
+    bool ok = true;
+    for (int i = 0; i < count && ok; i++) {
+        cJSON *item = cJSON_GetArrayItem(steps, i);
+        cJSON *tex = cJSON_GetObjectItemCaseSensitive(item, "texture");
+        AnimStep *step = &anim->steps[i];
+        if (!cJSON_IsString(tex) ||
+            !ReadInt(item, "anchor_x", &step->anchor_x) ||
+            !ReadInt(item, "anchor_y", &step->anchor_y)) {
+            ok = false;
+            break;
+        }
+        if (!ReadInt(item, "duration", &step->duration) ||
+            step->duration < 1)
+            step->duration = 1;
+
+        char tex_path[1024];
+        snprintf(tex_path, sizeof(tex_path), "%s/%s", dir,
+                 tex->valuestring);
+        step->texture = LoadTexture(tex_path);
+        if (!IsTextureValid(step->texture)) {
+            fprintf(stderr, "anim: failed to load %s\n", tex_path);
+            ok = false;
+            break;
+        }
+        SetTextureFilter(step->texture, TEXTURE_FILTER_POINT);
+        anim->step_count++;
+    }
+
+    cJSON_Delete(root);
+    if (!ok) {
+        ProjectileAnim_Unload(anim);
+        return false;
+    }
+    anim->ready = anim->step_count > 0;
+    return anim->ready;
+}
+
+void ProjectileAnim_Unload(ProjectileAnim *anim) {
+    for (int i = 0; i < anim->step_count; i++) {
+        if (IsTextureValid(anim->steps[i].texture))
+            UnloadTexture(anim->steps[i].texture);
+    }
+    memset(anim, 0, sizeof(*anim));
+}
+
+const AnimStep *ProjectileAnim_Step(const ProjectileAnim *anim, int index) {
+    if (!anim->ready || anim->step_count <= 0)
+        return NULL;
+    if (index < 0)
+        index = 0;
+    if (index >= anim->step_count) {
+        if (!anim->loop)
+            index = anim->step_count - 1;
+        else
+            index %= anim->step_count;
+    }
+    return &anim->steps[index];
 }

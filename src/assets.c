@@ -42,6 +42,10 @@ bool Assets_Load(Assets *assets, const char *dir) {
         fprintf(stderr,
                 "assets: player_anim.json missing; using the static idle sprite\n");
     }
+    if (!ProjectileAnim_Load(&assets->projectile_anim, dir)) {
+        fprintf(stderr,
+                "assets: fireball_anim.json missing; projectiles render invisible\n");
+    }
     assets->ready = true;
     return true;
 }
@@ -60,5 +64,6 @@ void Assets_Unload(Assets *assets) {
     if (IsTextureValid(assets->item))
         UnloadTexture(assets->item);
     Anim_Unload(&assets->player_anim);
+    ProjectileAnim_Unload(&assets->projectile_anim);
     memset(assets, 0, sizeof(*assets));
 }

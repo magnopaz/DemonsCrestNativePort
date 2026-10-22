@@ -31,8 +31,14 @@ void Input_Read(Input *in, InputState *st) {
                 PadDown(GAMEPAD_BUTTON_LEFT_FACE_DOWN);
     bool jump = IsKeyDown(KEY_Z) || IsKeyDown(KEY_SPACE) ||
                 PadDown(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);  /* SNES B */
-    bool attack = IsKeyDown(KEY_X) || IsKeyDown(KEY_J) ||
-                  PadDown(GAMEPAD_BUTTON_RIGHT_FACE_DOWN);   /* SNES A */
+    /* SNES Y ($1E3C -> $105B/$105C) is the Fireball shot. Keyboard X/J and
+     * the west/top gamepad faces mirror the original Y button. */
+    bool shot = IsKeyDown(KEY_X) || IsKeyDown(KEY_J) ||
+                PadDown(GAMEPAD_BUTTON_RIGHT_FACE_LEFT) ||
+                PadDown(GAMEPAD_BUTTON_RIGHT_FACE_UP);
+    /* SNES A ($1E3E -> $105D/$105E) is Talisman/Headbutt, not the shot. */
+    bool special = IsKeyDown(KEY_C) || IsKeyDown(KEY_K) ||
+                   PadDown(GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
     bool debug = IsKeyDown(KEY_F1) || (debug_env > 0);
 
     /* Deterministic input for screenshots/regressions. */
@@ -64,13 +70,41 @@ void Input_Read(Input *in, InputState *st) {
         jump = (demo_frame >= 30 && demo_frame < 31) ||
                (demo_frame >= 100 && demo_frame < 130);
     } else if (demo_mode == 5) {
-        /* Animation regression: walk, attack, jump, then fly upward. */
+        /* Animation regression: walk, special, jump, then fly upward. */
         demo_frame++;
         right = demo_frame >= 20 && demo_frame < 70;
-        attack = (demo_frame >= 85 && demo_frame < 86) ||
-                 (demo_frame >= 160 && demo_frame < 161);
+        special = (demo_frame >= 85 && demo_frame < 86) ||
+                  (demo_frame >= 160 && demo_frame < 161);
         jump = demo_frame >= 110 && demo_frame < 150;
         up = demo_frame >= 120 && demo_frame < 150;
+    } else if (demo_mode == 6) {
+        /* Step 3 physics oracle replay from save0 (capture_anim.py frames
+         * 20614..21216). demo_frame is one ahead of the trace frame. */
+        demo_frame++;
+        right = demo_frame >= 31 && demo_frame < 42;
+        left = demo_frame >= 332 && demo_frame < 343;
+        jump = (demo_frame >= 63 && demo_frame < 65) ||
+               (demo_frame >= 108 && demo_frame < 155) ||
+               (demo_frame >= 202 && demo_frame < 228) ||
+               (demo_frame >= 230 && demo_frame < 231) ||
+               (demo_frame >= 263 && demo_frame < 264) ||
+               (demo_frame >= 359 && demo_frame < 361) ||
+               (demo_frame >= 404 && demo_frame < 451);
+    } else if (demo_mode == 7) {
+        /* Projectile regression: shoot right into the pillar, then left. */
+        demo_frame++;
+        right = demo_frame >= 20 && demo_frame < 45;
+        shot = demo_frame == 50 || demo_frame == 68 || demo_frame == 86;
+        left = demo_frame >= 110 && demo_frame < 140;
+        shot = shot || demo_frame == 150 || demo_frame == 168;
+    } else if (demo_mode == 8) {
+        /* Full-room traversal: walk left, then hover right across pillars. */
+        demo_frame++;
+        left = demo_frame >= 20 && demo_frame < 220;
+        right = demo_frame >= 260 && demo_frame < 1200;
+        jump = (demo_frame >= 260 && demo_frame < 285) ||
+               (demo_frame >= 286 && demo_frame < 287) ||
+               (demo_frame >= 1000 && demo_frame < 1001);
     }
 
     in->left = left;
@@ -79,10 +113,14 @@ void Input_Read(Input *in, InputState *st) {
     in->down = down;
     in->jump_held = jump;
     in->jump_pressed = jump && !st->prev_jump;
-    in->attack_pressed = attack && !st->prev_attack;
+    in->shot_held = shot;
+    in->shot_pressed = shot && !st->prev_shot;
+    in->special_held = special;
+    in->special_pressed = special && !st->prev_special;
     in->debug_collision = debug;
 
     st->prev_jump = jump;
-    st->prev_attack = attack;
+    st->prev_shot = shot;
+    st->prev_special = special;
     st->prev_debug = debug;
 }
