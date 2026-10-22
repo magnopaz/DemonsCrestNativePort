@@ -21,6 +21,7 @@ add_executable(demonscrest
     src/main.c
     src/game.c
     src/assets.c
+    src/anim.c
     src/level.c
     src/input.c
     src/player.c

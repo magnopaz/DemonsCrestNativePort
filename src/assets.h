@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "anim.h"
 #include "raylib.h"
 
 #define DC_BG_PALETTES 8
@@ -13,6 +14,7 @@ typedef struct Assets {
     Texture2D obj_pal[DC_OBJ_PALETTES];
     Texture2D player;
     Texture2D item;
+    PlayerAnim player_anim;
     bool ready;
 } Assets;
 

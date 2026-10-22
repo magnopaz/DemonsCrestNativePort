@@ -13,7 +13,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RECOMP_DIR="${RECOMP_DIR:-$ROOT/../DemonsCrestSNESRecomp}"
-DEFAULT_ROM="/Data/OpenCodeProjects/roms/Demon's Crest (USA).sfc"
+DEFAULT_ROM="projetos/opencode/roms/Demon's Crest (USA).sfc"
 ROM="${ROM:-$DEFAULT_ROM}"
 OUT="${OUT:-$ROOT/captures/graveyard}"
 BIN="${RECOMP_BIN:-$RECOMP_DIR/build-trace/DemonsCrestSNESRecomp}"

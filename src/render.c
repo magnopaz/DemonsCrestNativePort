@@ -55,17 +55,24 @@ static void DrawLayer(const Assets *assets, const BgLayer *layer,
 
 static void DrawPlayer(const Assets *assets, const Level *level,
                        const GameCamera *camera, const Player *player) {
-    float x = player->x - level->player_feet_x - camera->x;
-    float y = player->y - level->player_feet_y - camera->y;
-    Rectangle src = {0, 0, (float)assets->player.width,
-                     (float)assets->player.height};
+    const AnimStep *step = NULL;
+    if (assets->player_anim.ready && player->anim_clip >= 0)
+        step = Anim_Step(&assets->player_anim, player->anim_clip,
+                         player->anim_step);
+
+    Texture2D texture = step ? step->texture : assets->player;
+    float anchor_x = step ? (float)step->anchor_x : level->player_feet_x;
+    float anchor_y = step ? (float)step->anchor_y : level->player_feet_y;
+
+    float x = player->x - anchor_x - camera->x;
+    float y = player->y - anchor_y - camera->y;
+    Rectangle src = {0, 0, (float)texture.width, (float)texture.height};
     if (player->facing < 0) {
-        src.x = (float)assets->player.width;
+        src.x = (float)texture.width;
         src.width = -src.width;
     }
-    Rectangle dst = {x, y, (float)assets->player.width,
-                     (float)assets->player.height};
-    DrawTexturePro(assets->player, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
+    Rectangle dst = {x, y, (float)texture.width, (float)texture.height};
+    DrawTexturePro(texture, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
 }
 
 void Render_Game(const Assets *assets, const Level *level, const GameCamera *camera,

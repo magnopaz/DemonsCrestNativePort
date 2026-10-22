@@ -45,6 +45,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
 void Game_Update(Game *game) {
     Input_Read(&game->input, &game->input_state);
     Player_Update(&game->player, &game->level, &game->input);
+    Player_Animate(&game->player, &game->assets.player_anim);
     Camera_Update(&game->camera, &game->level, &game->player);
     if (game->trace) {
         fprintf(game->trace, "%u,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f\n",

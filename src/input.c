@@ -58,6 +58,14 @@ void Input_Read(Input *in, InputState *st) {
         demo_frame++;
         jump = (demo_frame >= 30 && demo_frame < 31) ||
                (demo_frame >= 100 && demo_frame < 130);
+    } else if (demo_mode == 5) {
+        /* Animation regression: walk, attack, jump, then fly upward. */
+        demo_frame++;
+        right = demo_frame >= 20 && demo_frame < 70;
+        attack = (demo_frame >= 85 && demo_frame < 86) ||
+                 (demo_frame >= 160 && demo_frame < 161);
+        jump = demo_frame >= 110 && demo_frame < 150;
+        up = demo_frame >= 120 && demo_frame < 150;
     }
 
     in->left = left;

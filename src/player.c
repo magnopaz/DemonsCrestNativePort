@@ -38,6 +38,71 @@ void Player_Init(Player *player, const Level *level) {
     player->state = PLAYER_IDLE;
     player->anim_time = 0.0f;
     player->hurt_timer = 0.0f;
+    player->attack_timer = 0;
+    player->land_timer = 0;
+    player->anim_clip = -1;
+    player->anim_step = 0;
+    player->anim_timer = 0;
+}
+
+void Player_Animate(Player *player, const PlayerAnim *anim) {
+    if (!anim->ready)
+        return;
+
+    AnimClipId clip;
+    switch (player->state) {
+    case PLAYER_WALK:
+        clip = ANIM_WALK;
+        break;
+    case PLAYER_JUMP:
+        /* The same state covers the rise and the descent; the recovered
+         * state machine switches to hover before the fall gets here. */
+        clip = player->vy < -0.05f ? ANIM_JUMP : ANIM_FALL;
+        break;
+    case PLAYER_HOVER:
+    case PLAYER_FLY:
+        clip = ANIM_HOVER;
+        break;
+    case PLAYER_LAND:
+        clip = ANIM_LAND;
+        break;
+    case PLAYER_ATTACK:
+        clip = ANIM_ATTACK;
+        break;
+    default:
+        clip = ANIM_IDLE;
+        break;
+    }
+
+    const AnimClip *c = &anim->clips[clip];
+    if (c->step_count <= 0) {
+        clip = ANIM_IDLE;
+        c = &anim->clips[clip];
+    }
+    if (!anim->ready || c->step_count <= 0)
+        return;
+
+    if (player->anim_clip != (int)clip) {
+        player->anim_clip = (int)clip;
+        player->anim_step = 0;
+        player->anim_timer = 0;
+    }
+    if (c->step_count <= 1)
+        return;
+
+    const AnimStep *step = &anim->steps[c->first_step + player->anim_step];
+    player->anim_timer++;
+    if (player->anim_timer < step->duration)
+        return;
+
+    player->anim_timer = 0;
+    player->anim_step++;
+    if (player->anim_step >= c->step_count) {
+        if (c->loop)
+            player->anim_step = 0;
+        else
+            player->anim_step = c->step_count - 1;
+    }
 }
 
 void Player_Update(Player *player, const Level *level, const Input *input) {
@@ -52,6 +117,15 @@ void Player_Update(Player *player, const Level *level, const Input *input) {
     const float friction = 0.28f;
     const float gravity = 0.25f;
     const float jump_speed = 4.0f;
+
+    if (player->attack_timer > 0)
+        player->attack_timer--;
+    if (player->land_timer > 0)
+        player->land_timer--;
+
+    /* One attack animation per press; the visual is always the full clip. */
+    if (input->attack_pressed && player->attack_timer == 0)
+        player->attack_timer = 31;
 
     if (input->left && !input->right) {
         player->vx -= accel;
@@ -77,7 +151,8 @@ void Player_Update(Player *player, const Level *level, const Input *input) {
     }
 
     if (!player->on_ground) {
-        if (input->jump_held && player->jump_boosting && player->vy < 0.0f) {
+        if (input->jump_held && player->jump_boosting && !player->flying &&
+            player->vy < 0.0f) {
             player->vy -= 0.10f;
             if (player->vy < -jump_speed)
                 player->vy = -jump_speed;
@@ -148,6 +223,7 @@ void Player_Update(Player *player, const Level *level, const Input *input) {
             player->on_ground = true;
             player->flying = false;
             player->jump_boosting = false;
+            player->land_timer = 8;
         } else if (player->vy < 0.0f) {
             player->y = old_y;
             player->vy = 0.0f;
@@ -165,16 +241,21 @@ void Player_Update(Player *player, const Level *level, const Input *input) {
             player->vy = 0.0f;
             player->flying = false;
             player->jump_boosting = false;
+            player->land_timer = 8;
         }
     }
 
     if (player->on_ground) {
         if (fabsf(player->vx) > 0.08f) {
             player->state = PLAYER_WALK;
+        } else if (player->land_timer > 0) {
+            player->state = PLAYER_LAND;
         } else {
             player->state = PLAYER_IDLE;
         }
     }
+    if (player->attack_timer > 0)
+        player->state = PLAYER_ATTACK;
 
     /* Keep Firebrand inside the captured room. A proper screen-transition
      * system will replace these hard bounds later. */

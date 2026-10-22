@@ -38,6 +38,10 @@ bool Assets_Load(Assets *assets, const char *dir) {
         Assets_Unload(assets);
         return false;
     }
+    if (!Anim_Load(&assets->player_anim, dir)) {
+        fprintf(stderr,
+                "assets: player_anim.json missing; using the static idle sprite\n");
+    }
     assets->ready = true;
     return true;
 }
@@ -55,5 +59,6 @@ void Assets_Unload(Assets *assets) {
         UnloadTexture(assets->player);
     if (IsTextureValid(assets->item))
         UnloadTexture(assets->item);
+    Anim_Unload(&assets->player_anim);
     memset(assets, 0, sizeof(*assets));
 }
