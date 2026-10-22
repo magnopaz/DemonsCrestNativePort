@@ -103,7 +103,8 @@ python3 tools/dc_extract/extract.py \
   --rom "/path/to/Demon's Crest (USA).sfc" \
   --dump captures/graveyard \
   --prefix stage_600 \
-  --area 2 \
+  --area 1 \
+  --screens 9,10 \
   --out assets/generated
 ```
 

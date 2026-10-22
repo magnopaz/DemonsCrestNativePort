@@ -43,6 +43,15 @@ void Player_Init(Player *player, const Level *level) {
     player->anim_clip = -1;
     player->anim_step = 0;
     player->anim_timer = 0;
+
+    if (PlayerCollides(level, player->x, player->y)) {
+        player->y = floorf(player->y / 16.0f) * 16.0f;
+    }
+    if (PlayerCollides(level, player->x, player->y + 1.0f) ||
+        SolidPoint(level, player->x - PLAYER_HALF_W, player->y + 1.0f) ||
+        SolidPoint(level, player->x + PLAYER_HALF_W, player->y + 1.0f)) {
+        player->on_ground = true;
+    }
 }
 
 void Player_Animate(Player *player, const PlayerAnim *anim) {
@@ -205,6 +214,7 @@ void Player_Update(Player *player, const Level *level, const Input *input) {
     }
 
     /* Vertical move. */
+    bool was_on_ground = player->on_ground;
     float old_y = player->y;
     player->y += player->vy;
     if (PlayerCollides(level, player->x, player->y)) {
@@ -223,7 +233,8 @@ void Player_Update(Player *player, const Level *level, const Input *input) {
             player->on_ground = true;
             player->flying = false;
             player->jump_boosting = false;
-            player->land_timer = 8;
+            if (!was_on_ground)
+                player->land_timer = 8;
         } else if (player->vy < 0.0f) {
             player->y = old_y;
             player->vy = 0.0f;
@@ -241,7 +252,8 @@ void Player_Update(Player *player, const Level *level, const Input *input) {
             player->vy = 0.0f;
             player->flying = false;
             player->jump_boosting = false;
-            player->land_timer = 8;
+            if (!was_on_ground)
+                player->land_timer = 8;
         }
     }
 

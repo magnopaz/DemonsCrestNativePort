@@ -10,10 +10,15 @@ static bool PadDown(int button) {
 
 void Input_Read(Input *in, InputState *st) {
     static int demo_mode = -1;
+    static int debug_env = -1;
     static int demo_frame = 0;
     if (demo_mode < 0) {
         const char *env = getenv("DC_DEMO");
         demo_mode = env ? atoi(env) : 0;
+    }
+    if (debug_env < 0) {
+        const char *env = getenv("DC_DEBUG_COLLISION");
+        debug_env = env ? atoi(env) : 0;
     }
 
     bool left = IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A) ||
@@ -28,7 +33,7 @@ void Input_Read(Input *in, InputState *st) {
                 PadDown(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);  /* SNES B */
     bool attack = IsKeyDown(KEY_X) || IsKeyDown(KEY_J) ||
                   PadDown(GAMEPAD_BUTTON_RIGHT_FACE_DOWN);   /* SNES A */
-    bool debug = IsKeyDown(KEY_F1);
+    bool debug = IsKeyDown(KEY_F1) || (debug_env > 0);
 
     /* Deterministic input for screenshots/regressions. */
     if (demo_mode == 1) {

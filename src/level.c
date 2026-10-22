@@ -240,9 +240,8 @@ uint8_t Level_AttrAt(const Level *level, float world_x, float world_y) {
 }
 
 bool Level_IsSolidAt(const Level *level, float world_x, float world_y) {
-    /* The attribute byte is not fully decoded yet. In the graveyard, attr 1 is
-     * the ground/walkable mass and the low values 7..0x16 are ledges/slopes;
-     * treating every non-zero block as solid gives a useful first collision
-     * pass. Water/ladder attributes are refined once the oracle traces them. */
-    return Level_AttrAt(level, world_x, world_y) != 0;
+    /* Low 5 bits ($80:8FDB / $80:962B) select the collision shape (0 = empty,
+     * 1 = full block, 2..0x1b = slopes/ledges). High 3 bits (0xE0) are
+     * environment flags (e.g. 0xA0 has shape 0 and is empty air). */
+    return (Level_AttrAt(level, world_x, world_y) & 0x1F) != 0;
 }

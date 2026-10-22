@@ -17,6 +17,10 @@ int main(int argc, char **argv) {
     SetTraceLogLevel(LOG_WARNING);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(1024, 896, "Demon's Crest - Fan Game");
+    if (!IsWindowReady()) {
+        fprintf(stderr, "main: InitWindow failed (check DISPLAY)\n");
+        return 1;
+    }
     SetWindowMinSize(512, 448);
     SetTargetFPS(60);
 

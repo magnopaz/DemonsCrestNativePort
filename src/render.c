@@ -108,7 +108,7 @@ void Render_Game(const Assets *assets, const Level *level, const GameCamera *cam
             for (int cx = cx0; cx <= cx1; cx++) {
                 if (cx < 0 || cy < 0 || cx >= c->width || cy >= c->height)
                     continue;
-                if (!c->attrs[cy * c->width + cx])
+                if (!(c->attrs[cy * c->width + cx] & 0x1F))
                     continue;
                 DrawRectangleLines(
                     (int)(cx * c->cell - camera->x),

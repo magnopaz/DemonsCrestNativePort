@@ -16,7 +16,7 @@ Usage:
   python3 tools/dc_extract/extract.py \
     --rom "/path/to/Demon's Crest (USA).sfc" \
     --dump captures/graveyard --prefix stage_600 \
-    --area 2 --out assets/generated
+    --area 1 --screens 9,10 --out assets/generated
 """
 
 from __future__ import annotations
@@ -340,8 +340,9 @@ def main() -> int:
     ap.add_argument("--rom", required=True, type=Path)
     ap.add_argument("--dump", required=True, type=Path)
     ap.add_argument("--prefix", default="stage_600")
-    ap.add_argument("--area", type=int, default=2)
-    ap.add_argument("--screens", help="screen slots, e.g. 1,2 (default: bottom row first two)")
+    ap.add_argument("--area", type=int, default=1,
+                    help="ROM area index at $81:A291 (default 1 for graveyard stage_600)")
+    ap.add_argument("--screens", help="screen slots, e.g. 9,10 (default: bottom row first two)")
     ap.add_argument("--player-oam", default="1-11",
                     help="OAM slots composing the player (default 1-11)")
     ap.add_argument("--player-palette", type=int, default=2,
