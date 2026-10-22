@@ -53,3 +53,18 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+build/
+build-*/
+assets/generated/
+captures/
+*.log
+*.ppm
+*.bmp
+
+# raylib TakeScreenshot writes into the working directory
+/*.png
+
+__pycache__/
+*.pyc
+docs
