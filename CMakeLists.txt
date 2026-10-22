@@ -46,6 +46,6 @@ endif()
 # The generated ROM-derived assets are intentionally not part of the build.
 # They are created by tools/dc_extract/extract.py and loaded at runtime.
 add_custom_target(extract-assets
-    COMMAND ${CMAKE_COMMAND} -E echo "Run: python3 tools/dc_extract/extract.py --rom <rom> --dump captures/graveyard --out assets/generated"
+    COMMAND ${CMAKE_COMMAND} -E echo "Run: python3 tools/dc_extract/extract.py --rom <rom> --dump captures/graveyard --area 1 --screens 9,10 --out assets/generated"
     VERBATIM
 )

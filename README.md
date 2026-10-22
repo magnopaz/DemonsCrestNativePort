@@ -15,37 +15,64 @@ frame-accurate oracle for movement and timing.
 ## Current state
 
 - 256×224 render target, integer-scaled, 60 Hz update.
-- Extracted graveyard starting room from area 2.
-- BG1 + BG2 tilemaps rendered from the captured VRAM.
-- Player sprite extracted from OAM.
-- Walk, jump, hover and fly with a first-pass collision map.
-- Firebrand animation set extracted from `save0`: idle, 6-pose walk cycle,
-  jump rise, hover/fly, fall, landing and attack.
-- Movement constants recovered from the original player code:
-  walk 1.398 px/frame, gravity 0.25 px/frame², terminal fall 6.0 px/frame.
+- Extracted graveyard starting room from ROM **Area 1** (`screens 8, 9` =
+  bottom-row `slots 9, 10`), with aligned collision floor (`by=10`,
+  `y=160..175`) and stone pillar (`cx=24`, `x=384..399`, `y=128..159`) directly
+  beneath the urn at `(385, 111)`.
+- BG1 + BG2 tilemaps rendered from the captured VRAM (`rom.screen_tilemap` for
+  Area 1 `screens 8, 9` matches the loaded BG1 VRAM viewport on `1957/2048`
+  words identically — no tile remap exists).
+- Player and item sprites extracted from OAM.
+- Walk, jump, hover and fly with collision shape masking (`attr & 0x1F`) and
+  viewport bounds.
+- Firebrand animation set extracted from `save0` (ROM Area 3, `screens 52, 53`):
+  idle, 6-pose walk cycle, jump rise, hover/fly, fall, landing and attack.
+- Bank `$80` (`$80:DB00..F310`) player state machine and constants recovered
+  from the ROM:
+  - walk speed `$1020`: `0x00B3` (0.699 px/frame initial step) → `0x0166`
+    (1.398 px/frame cap),
+  - jump initial velocity `$1022 = 0x059C` (5.609 px/frame; `0x02CE`
+    underwater), with immediate `vy = 0` cut on B release while rising
+    (`$80:E227`),
+  - gravity `$1026 = 0x0038` (0.21875 px/frame²; `0x002A` underwater), terminal
+    fall `0xFA00` (-6.0 px/frame),
+  - mid-air hover (`State 0x06` at `$80:E1A3` / `$80:E29F`): pressing B in air
+    zeroes `$1022` (`vy = 0`) and bypasses gravity; pressing B again returns to
+    falling (`State 0x04`). (`$85:C1D4` was identified as the dropped heart
+    bounce routine, not player jump.)
 - Saved-state validation from `save0` (normal graveyard gameplay):
-  walk speed measured 1.4 px/frame; **B is jump**, A is attack; a tap-jump
-  is an ~11 px / 14-frame hop, holding B extends it. The native jump is
-  variable-height (tap vs hold).
-- Attack (`A`) plays the captured 31-frame attack animation. The fireball
-  projectile is the next milestone.
+  - walk speed measured 1.40 px/frame,
+  - default SNES bindings (`$80:DB00` via `$1E3A..$1E4C`): **B = Jump/Hover**,
+    **Y = Fireball shot** (`State 0x12`, spawns projectile in `$1080..$1260` via
+    `$80:F1FE`), **A = Talisman/Headbutt** (`State 0x16` / `0x1A`), **X =
+    Subscreen**,
+  - B tap is an ~11 px / 14-frame hop; holding B gives the full jump arc.
 - Camera fixed to the captured viewport (see limitations).
-- Debug collision overlay (`F1`).
+- Debug collision overlay (`F1` or `DC_DEBUG_COLLISION=1`), FPS (`F3`).
 
 This is a playable technical foundation, not a finished game. The next
-milestone is the fireball and projectile collision.
+milestones are porting the exact Bank `$80` state machine into `src/player.c`
+and capturing the `Y`-button fireball shot and projectile from `save0`.
 
 ### Current limitations
 
-- The camera is locked to the captured 256×224 viewport. The VRAM tilemap is a
-  ring buffer for the current view, not a full-room layout; wider scrolling
-  needs either a multi-view capture or the loader's tile remap.
-- Hurt/death and a dedicated fly-up animation are not captured yet; the current
-  set is one directional set mirrored by the renderer.
-- Attack is visual only; there is no fireball projectile yet.
-- No enemies, HUD or audio yet. Those are the next milestones.
-- Collision treats every non-zero block attribute as solid. The attribute bits
-  (slopes, water, one-way ledges) are refined against oracle traces.
+- The camera is locked to the captured 256×224 viewport while `room.json` holds
+  a single 64×32 VRAM snapshot. Because Area 1's ROM block tables match VRAM
+  directly (`1957/2048` words), unlocking full-room scrolling only requires
+  emitting the full 8×2 screen map from `rom.area_info(1)` and wrapping BG2
+  parallax horizontally.
+- `src/player.c` still uses float jump-boost/hover approximations; porting the
+  recovered Bank `$80` state machine (`0x059C` jump with B-release `vy=0` cut,
+  `0x0038` gravity, `State 0x06` zero-G hover toggle) is the next step.
+- The current `attack` clip was captured from `A` (`State 0x16` back-turned
+  Talisman pose); the `Y`-button Fireball spit (`State 0x12`), projectile
+  sprite (`$80:F1FE`), hurt, death and wall-cling clips are still to be
+  captured from `save0`.
+- No enemies, HUD or audio yet.
+- Collision masks `attr & 0x1F` and treats every non-zero shape as a flat
+  16×16 solid; decoding the per-pixel slope height formulas at `$80:962B`
+  (`0x02..0x1b`) will let Firebrand walk smoothly up the graveyard hill and
+  stand at `y=164` on `attr=0x09` instead of snapping to `y=160`.
 
 ## Requirements
 
@@ -154,14 +181,14 @@ Use `--assets <dir>` to load assets from another directory.
 
 ## Controls
 
-| Action | Keyboard | Gamepad |
-|---|---|---|
-| Move | Arrows / WASD | D-pad |
-| Jump / hover / fly | Z or Space | B |
-| Fly upward (hold) | Z + Up | B + Up |
-| Attack | X or J | A |
-| Collision overlay | F1 | — |
-| FPS | F3 | — |
+| Action | Keyboard | Gamepad | Original SNES (`$80:DB00`) |
+|---|---|---|---|
+| Move | Arrows / WASD | D-pad | D-pad |
+| Jump / hover / fly | Z or Space | B | **B** (`$1E3A`) |
+| Fly upward (hold) | Z + Up | B + Up | Crest-dependent |
+| Attack | X or J | A / Y | **Y** = Fireball (`$1E3C`), **A** = Talisman/Headbutt (`$1E3E`) |
+| Collision overlay | F1 | — | — |
+| FPS | F3 | — | — |
 
 ## Development hooks
 
@@ -173,8 +200,11 @@ These environment variables exist for deterministic testing:
 | `DC_SCREENSHOT=name.png` | Save the last presented frame (raylib writes it in the working directory) |
 | `DC_TRACE_CSV=path` | Write per-frame player/camera state as CSV |
 | `DC_DEMO=1` | Walk right, jump, then fly (long demo) |
-| `DC_DEMO=2` | Walk right, jump and land (short demo) |
+| `DC_DEMO=2` | Walk right into the pillar, jump and land (short demo) |
+| `DC_DEMO=3` | Mirrors the physics probe timing |
+| `DC_DEMO=4` | Tap-jump vs hold-jump comparison |
 | `DC_DEMO=5` | Animation regression: walk, attack, jump, fly |
+| `DC_DEBUG_COLLISION=1` | Enable the `F1` collision overlay in headless runs |
 | `DC_LAYER_MASK=1\|2\|3` | Draw BG2 only / BG1 only / both |
 | `SNESRECOMP_LAYER_MASK` | On the recomp side, isolate BG/OBJ layers for comparison |
 
