@@ -153,8 +153,16 @@ static void SpawnBoss(ObjectPool *pool, const LevelObject *src) {
     o->max_hp = o->hp;
     o->state = 0;
     pool->boss_alive = true;
-    if (getenv("DC_BOSS_DEFEATED") != NULL)
+    if (getenv("DC_BOSS_DEFEATED") != NULL) {
+        /* Test hook: the boss starts already defeated so the clear flow can be
+         * exercised without fighting. Set the full defeat state, not just an
+         * inactive slot. */
         o->active = false;
+        o->hp = 0;
+        pool->boss_alive = false;
+        pool->boss_defeated = true;
+        pool->events |= OBJECT_EVENT_BOSS_DEFEATED;
+    }
 }
 
 void Objects_Init(ObjectPool *pool, const Level *level) {

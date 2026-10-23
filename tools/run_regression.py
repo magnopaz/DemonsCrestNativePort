@@ -222,8 +222,17 @@ def main() -> int:
                 areas12.append(a)
         check(areas12 and areas12[0] == 0,
               f"demo12: campaign did not start in Area 0 ({areas12})")
-        check(17 in areas12,
-              f"demo12: boss-gate transition to Area 17 missing ({areas12})")
+        # With the boss-defeat hook the area clears immediately, so the run
+        # pages through GAME_CLEAR into the overworld instead of walking to a
+        # gate. Assert that flow.
+        modes12 = [int(r["mode"]) for r in rows12]
+        check(3 in modes12, f"demo12: area 0 never reached GAME_CLEAR ({sorted(set(modes12))})")
+        # GAME_CLEAR -> overworld needs an Enter press; the dedicated check
+        # below covers that transition, so only assert the clear here.
+        d_clear = run_demo(base, out, 13, 30, {"DC_STATE": "clear"})
+        clear_modes = [int(r["mode"]) for r in csv_rows(d_clear["player"])]
+        check(5 in clear_modes,
+              f"campaign: GAME_CLEAR did not open the overworld ({sorted(set(clear_modes))})")
 
         # ---- Campaign: direct multi-row area loads ----
         for area in (2, 3):
@@ -238,8 +247,19 @@ def main() -> int:
         # ---- Campaign: title -> New Game -> Area 0 ----
         d13 = run_demo(base, out, 13, 120, {"DC_TITLE": "1"})
         rows13 = csv_rows(d13["player"])
-        check(bool(rows13) and int(rows13[0]["area"]) == 0,
+        check(any(int(r["area"]) == 0 for r in rows13),
               "demo13: title NEW GAME did not enter Area 0")
+
+        # ---- Boss entries clear when the boss is defeated ----
+        boss_proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_campaign.py"),
+             "--binary", str(binary), "--assets", str(assets),
+             "--areas", "0,3,4,23,36,46,49", "--frames", "120",
+             "--tmp", str(out)],
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=300)
+        check(boss_proc.returncode == 0,
+              "campaign: boss entries did not clear\n" + boss_proc.stdout[-600:])
 
         # ---- Overworld stage select travels to a real stage entry ----
         st = run_demo(base, out, 30, 40, {"DC_STATE": "overworld"})
@@ -320,7 +340,8 @@ def main() -> int:
                        {"DC_AREA": "0", "DC_CAMPAIGN": "1",
                         "DC_BOSS_HP": "1"})
         rows14 = csv_rows(d14["player"])
-        check(bool(rows14) and len(rows14) < 300,
+        modes14 = [int(r["mode"]) for r in rows14]
+        check(bool(rows14) and any(m != 1 for m in modes14),
               "demo12/boss: Somulo defeat did not leave GAME_PLAYING")
 
         d10 = run_demo(base, out, 10, 260,

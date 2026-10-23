@@ -2144,6 +2144,25 @@ playable.
 
 ---
 
+### Step 22 — Campaign completion test (done)
+
+- The per-frame trace moved out of `Game_UpdateSimulation` into
+  `Game_TraceFrame`, called at the end of `Game_Update`. Rows are now written
+  for every state (title, clear, overworld, dialogue), so tests can observe
+  mode transitions; the CSV gained a `mode` column (`GameState`).
+- `DC_BOSS_DEFEATED` now sets the full defeat state (hp 0, `boss_alive=false`,
+  `boss_defeated=true`, event raised) instead of only deactivating the slot, so
+  the clear flow is deterministic for every boss species.
+- New `tools/check_campaign.py`: for every stage entry that spawns a boss it runs
+  `DC_CAMPAIGN=1 DC_BOSS_DEFEATED=1` and requires the trace to reach
+  `GAME_CLEAR`. Full sweep: **7 boss entries clear, 59 entries are traversal
+  stages**. The regression runs a 7-area subset.
+- Regression additions: boss entries clear, `GAME_CLEAR` → overworld, stage
+  select travel, plus the existing demos/area/fire/save/password checks.
+- Verified: regression PASS, `check_areas` 113/113, `check_campaign` 7/7.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

@@ -393,7 +393,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->trace = fopen(trace_path, "w");
         if (game->trace) {
             fprintf(game->trace,
-                    "frame,player_x,player_y,vx,vy,state,camera_x,camera_y,hp,max_hp,area,form,gold,fire\n");
+                    "frame,player_x,player_y,vx,vy,state,camera_x,camera_y,hp,max_hp,area,form,gold,fire,mode\n");
         } else {
             fprintf(stderr, "game: cannot open trace file %s\n", trace_path);
         }
@@ -609,16 +609,7 @@ static void Game_UpdateSimulation(Game *game) {
         return;
     }
 
-    if (game->trace) {
-        fprintf(game->trace,
-                "%u,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%d,%d,%d,%d,%d,%d\n",
-                game->frame, game->player.x, game->player.y,
-                game->player.vx, game->player.vy, (int)game->player.state,
-                game->camera.x, game->camera.y, game->player.hp,
-                game->player.max_hp, game->level.area_id,
-                game->player.crest_form, game->player.gold,
-                game->player.fire_element);
-    }
+
     if (game->projectile_trace) {
         for (int i = 0; i < PROJECTILE_POOL_SIZE; i++) {
             const Projectile *p = &game->projectiles.slots[i];
@@ -1024,6 +1015,23 @@ static void Game_UpdateOptions(Game *game) {
     }
 }
 
+/* Writes one trace row per frame regardless of game state, so tests can
+ * observe menu/clear/dialogue modes as well as gameplay. */
+static void Game_TraceFrame(Game *game) {
+    if (!game->trace)
+        return;
+    {
+        fprintf(game->trace,
+                "%u,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%d,%d,%d,%d,%d,%d,%d\n",
+                game->frame, game->player.x, game->player.y,
+                game->player.vx, game->player.vy, (int)game->player.state,
+                game->camera.x, game->camera.y, game->player.hp,
+                game->player.max_hp, game->level.area_id,
+                game->player.crest_form, game->player.gold,
+                game->player.fire_element, (int)game->state);
+    }
+}
+
 void Game_Update(Game *game) {
     Input_Read(&game->input, &game->input_state);
     game->state_timer++;
@@ -1162,6 +1170,7 @@ void Game_Update(Game *game) {
         break;
     }
     }
+    Game_TraceFrame(game);
     Audio_Update();
 }
 
