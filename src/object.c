@@ -131,6 +131,7 @@ static void SpawnBoss(ObjectPool *pool, const LevelObject *src) {
     memset(o, 0, sizeof(*o));
     o->active = true;
     o->type = OBJECT_BOSS;
+    pool->boss_present = true;
     o->species = src->species;
     o->flags = src->flags;
     float bx = src->x;

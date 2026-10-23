@@ -41,6 +41,8 @@ typedef struct Assets {
     SpeciesSheet species[DC_SPECIES_MAX];
     int species_count;
     uint8_t room_kind[DC_CAMPAIGN_AREAS]; /* 0 unknown, 1 playable, 2 partial, 3 empty */
+    int stage_entries[80]; /* rooms no other room targets (stage select) */
+    int stage_count;
     Texture2D hud_bar;
     Texture2D hud_slots;
     Texture2D font; /* BG3 ASCII font mask (font.png + font.json) */

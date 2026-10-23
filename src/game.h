@@ -37,6 +37,8 @@ typedef struct Game {
     int menu_cursor;
     int subscreen_row;
     int overworld_node;
+    bool stage_select; /* overworld stage list overlay */
+    int stage_sel;
     float overworld_x;
     float overworld_y;
     float overworld_angle;

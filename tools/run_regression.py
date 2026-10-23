@@ -241,6 +241,12 @@ def main() -> int:
         check(bool(rows13) and int(rows13[0]["area"]) == 0,
               "demo13: title NEW GAME did not enter Area 0")
 
+        # ---- Overworld stage select travels to a real stage entry ----
+        st = run_demo(base, out, 30, 40, {"DC_STATE": "overworld"})
+        st_rows = csv_rows(st["player"])
+        check(bool(st_rows) and int(st_rows[-1]["area"]) == 16,
+              "stage select: travel did not reach area 16")
+
         # ---- Fire crest piece: walking into the pickup grants an element ----
         fire_demo = run_demo(base, out, 1, 200,
                              {"DC_AREA": "3", "DC_START_X": "400",

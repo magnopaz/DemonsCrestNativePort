@@ -821,6 +821,10 @@ def room_stats(doc: dict) -> dict:
         "ground": ground,
         "gate_next_area": doc.get("gate_next_area", -1),
         "transitions": len(doc.get("transitions", [])),
+        "transitions_detail": [
+            {"next_area": tr.get("next_area"), "spawn": tr.get("spawn")}
+            for tr in doc.get("transitions", [])
+        ],
     }
 
 
@@ -1427,9 +1431,24 @@ def main() -> int:
     for meta in room_meta.values():
         kinds[meta["kind"]] += 1
 
+    # Stage entries: rooms no other room targets through a transition or a boss
+    # gate. These are what the overworld stage select can travel to; every room
+    # is reachable from this set (see tools/campaign_graph.py).
+    incoming = set()
+    for meta in room_meta.values():
+        for target in (meta.get("gate_next_area"),):
+            if isinstance(target, int) and target >= 0:
+                incoming.add(target)
+        for tr in meta.get("transitions_detail", []):
+            target = tr.get("next_area")
+            if isinstance(target, int):
+                incoming.add(target)
+    entries = sorted(int(a) for a in room_meta if int(a) not in incoming)
+
     campaign_doc = {
         "rom_sha256": rom.sha256,
         "areas": campaign_areas,
+        "stage_entries": entries,
         "rooms": room_meta,
         "room_kinds": kinds,
         "gargoyle_palettes": rom.gargoyle_palettes(),

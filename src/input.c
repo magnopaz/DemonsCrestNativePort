@@ -148,6 +148,12 @@ void Input_Read(Input *in, InputState *st) {
         right = demo_frame >= 20;
         shot = demo_frame >= 40 && (demo_frame % 24) < 2;
         jump = (demo_frame % 180) >= 120 && (demo_frame % 180) < 150;
+    } else if (demo_mode == 30) {
+        /* Stage-select travel: open the list, move down twice, confirm. */
+        demo_frame++;
+        subscreen = demo_frame == 3;
+        down = demo_frame == 6 || demo_frame == 8;
+        start = demo_frame == 12;
     } else if (demo_mode == 13) {
         /* Title-menu flow: confirm NEW GAME, then walk right. */
         demo_frame++;

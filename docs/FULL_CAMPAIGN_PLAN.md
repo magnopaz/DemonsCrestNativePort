@@ -297,6 +297,8 @@ Acceptance:
 - [ ] Full-campaign regression against the recomp (movement, collisions,
   objects, bosses, transitions). **Partial:** `tools/audit_campaign.py` now
   validates every generated room structurally and can gate CI with `--strict`.
+- [x] Stage-select overlay listing all 66 stage-entry rooms (every area
+  reachable) plus transition fixes for boss-less rooms and door padding.
 - [x] Room classification in `campaign.json` (69 playable / 44 partial / 0
   empty) with audit cross-check and native `empty`-room refusal.
 - [x] Campaign-wide load coverage: `tools/check_areas.py` boots all 113 rooms

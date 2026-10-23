@@ -2117,6 +2117,33 @@ area mapping is pinned down, and the intro before Area 0.
 
 ---
 
+### Step 21 — Stage select and transition fixes (done)
+
+- New tool `tools/campaign_graph.py`: builds the transition/gate graph from the
+  extracted rooms. **All 113 rooms are reachable from 66 stage-entry rooms**
+  (rooms no other room targets) — those entries are now written to
+  `campaign.json["stage_entries"]`.
+- Overworld **stage select** (X toggles it): a paged list of every stage entry
+  with its area number and kind (STAGE/BOSS), UP/DOWN select, LEFT/RIGHT page,
+  ENTER travels, X closes. This makes all extracted content reachable from the
+  map even though the original map layout is not reproduced. `DC_STAGE_SELECT=1`
+  / `DC_STAGE_INDEX=n` open it for captures, and demo 30 drives it in tests.
+- Two transition bugs found by testing the stage select:
+  - Rooms **without a boss** satisfied the boss-gate check, so a small room whose
+    world width was under the spawn point gated out on the first frame. The gate
+    now needs `objects.boss_present`.
+  - Door boxes padded `+20/+8` px, which made a door trigger from the spawn
+    point of small rooms (instant loop). Padding is now `+10/+10`.
+- Regression gained a stage-select travel check (demo 30 lands in area 16 and
+  stays there) on top of the existing campaign traversal.
+- Verified: regression PASS, `check_areas` 113/113, graph reachability 113/113.
+
+Next: replace the placeholder six-node map with the real region/stage layout once
+the map table is decoded; the stage list is the stopgap that keeps every room
+playable.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

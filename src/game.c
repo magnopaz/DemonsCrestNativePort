@@ -489,6 +489,11 @@ bool Game_Init(Game *game, const char *asset_dir) {
 
     /* Dev hook: jump straight into a story page for deterministic captures
      * (`DC_STORY_TEST=<crest index>`, optional `DC_STORY_PAGE`). */
+    if (getenv("DC_STAGE_SELECT"))
+        game->stage_select = true;
+    const char *stage_sel_env = getenv("DC_STAGE_INDEX");
+    if (stage_sel_env && *stage_sel_env)
+        game->stage_sel = atoi(stage_sel_env);
     const char *fire_test = getenv("DC_FIRE_TEST");
     if (fire_test && *fire_test && game->script_ready) {
         int piece = atoi(fire_test);
@@ -644,8 +649,10 @@ static bool PlayerInsideTransition(const Player *player,
                                    const LevelTransition *tr) {
     /* The original box check runs before collision resolution, so a door box
      * embedded in the room's edge wall is reachable while walking into it. */
-    return fabsf(player->x - tr->x) <= tr->half_w + 20.0f &&
-           fabsf(player->y - tr->y) <= tr->half_h + 8.0f;
+    /* Pad by roughly the player's half size, not a whole tile: a +20 x-pad
+     * made doors trigger from the spawn point of small rooms (instant loop). */
+    return fabsf(player->x - tr->x) <= tr->half_w + 10.0f &&
+           fabsf(player->y - tr->y) <= tr->half_h + 10.0f;
 }
 
 static void Game_CheckTransitions(Game *game) {
@@ -664,9 +671,12 @@ static void Game_CheckTransitions(Game *game) {
             }
         }
     }
-    /* Boss gate $81:97DA: advancing requires the area boss to be defeated. */
+    /* Boss gate $81:97DA: advancing requires the area boss to be defeated.
+     * Rooms without a boss never auto-advance: otherwise a small room whose
+     * world width is narrower than the spawn point would gate out instantly. */
     if (game->level.gate_next_area >= 0 &&
-        game->level.gate_next_area < 113 && !game->objects.boss_alive) {
+        game->level.gate_next_area < 113 && game->objects.boss_present &&
+        !game->objects.boss_alive) {
         float gate_x = (float)game->level.world_w - 8.0f;
         if (player->x >= gate_x) {
             Game_TransitionToArea(game, game->level.gate_next_area, 0);
@@ -733,6 +743,45 @@ static void Game_CompleteArea(Game *game) {
 }
 
 static void Game_UpdateOverworld(Game *game) {
+    /* Stage select overlay: X toggles it and it lists every stage entry room
+     * from campaign.json, so all extracted content is reachable even where the
+     * original map layout is not reproduced. */
+    int count = game->assets.stage_count;
+    if (game->input.subscreen_pressed && count > 0) {
+        game->stage_select = !game->stage_select;
+        return;
+    }
+    if (game->stage_select) {
+        if (count <= 0) {
+            game->stage_select = false;
+        } else {
+            if (game->stage_sel >= count)
+                game->stage_sel = count - 1;
+            if (game->stage_sel < 0)
+                game->stage_sel = 0;
+            if (game->input.up && game->stage_sel > 0)
+                game->stage_sel--;
+            if (game->input.down && game->stage_sel + 1 < count)
+                game->stage_sel++;
+            if (game->input.right && game->stage_sel + 6 < count)
+                game->stage_sel += 6;
+            if (game->input.left && game->stage_sel >= 6)
+                game->stage_sel -= 6;
+            if (game->input.start_pressed) {
+                int area = game->assets.stage_entries[game->stage_sel];
+                if (getenv("DC_STAGE_DEBUG"))
+                    fprintf(stderr, "stage: travel frame %u sel %d area %d\n",
+                            game->frame, game->stage_sel, area);
+                if (Game_TransitionToArea(game, area, 0)) {
+                    game->campaign_mode = true;
+                    game->stage_select = false;
+                    return;
+                }
+            }
+            return;
+        }
+    }
+
     const float speed = 1.6f;
     float dx = 0.0f, dy = 0.0f;
     if (game->input.left)
@@ -1123,6 +1172,37 @@ static void DrawCentered(const char *text, int y, int size, Color color) {
                (float)size, 1.0f, color);
 }
 
+static void DrawStageSelect(const Game *game) {
+    int count = game->assets.stage_count;
+    DrawRectangle(0, 0, 256, 224, (Color){6, 8, 14, 255});
+    DrawCentered("STAGE SELECT", 14, 14, (Color){240, 220, 150, 255});
+    DrawCentered(TextFormat("%d stage entries - every area reachable", count), 32, 9,
+                 (Color){150, 200, 240, 255});
+    int first = (game->stage_sel / 6) * 6;
+    for (int i = 0; i < 6 && first + i < count; i++) {
+        int idx = first + i;
+        int area = game->assets.stage_entries[idx];
+        bool sel = idx == game->stage_sel;
+        int kind = Assets_RoomKind(&game->assets, area);
+        const char *tag = kind == 1 ? "STAGE" : kind == 2 ? "BOSS " : "---- ";
+        Color col = sel ? (Color){255, 255, 210, 255}
+                        : (Color){200, 200, 210, 255};
+        if (sel)
+            DrawRectangle(20, 46 + i * 20, 216, 18,
+                          (Color){50, 44, 70, 255});
+        DrawTextEx(GetFontDefault(),
+                   TextFormat("%s AREA %02d", tag, area), (Vector2){26, 49 + i * 20},
+                   14, 1.0f, col);
+    }
+    DrawCentered(TextFormat("PAGE %d / %d", game->stage_sel / 6 + 1,
+                            (count + 5) / 6), 170, 9,
+                 (Color){180, 180, 190, 255});
+    DrawCentered("UP/DOWN SELECT   LEFT/RIGHT PAGE", 188, 9,
+                 (Color){200, 220, 255, 255});
+    DrawCentered("ENTER TRAVEL   X CLOSE", 204, 9,
+                 (Color){200, 220, 255, 255});
+}
+
 static void DrawOverworld(const Game *game) {
     /* Mode 7 style pseudo-3D overworld: horizontal strips shrink toward the
      * horizon, with land/water/path bands and stage nodes. */
@@ -1371,6 +1451,8 @@ void Game_Render(Game *game) {
                     game->state == GAME_SUBSCREEN;
     if (game->state == GAME_OVERWORLD) {
         DrawOverworld(game);
+        if (game->stage_select)
+            DrawStageSelect(game);
     } else {
         Render_Game(&game->assets, &game->level, &game->camera,
                     &game->player, &game->projectiles, &game->objects,

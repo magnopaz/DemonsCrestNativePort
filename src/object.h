@@ -53,6 +53,7 @@ typedef struct ObjectPool {
     int events; /* one-frame sound/effect flags */
     bool boss_alive;
     bool boss_defeated;
+    bool boss_present; /* an OBJECT_BOSS was spawned in this room */
     int last_fire_piece; /* 1..4 = Buster/Tornado/Claw/Demon Fire */
 } ObjectPool;
 

@@ -93,6 +93,16 @@ static void LoadRoomKinds(Assets *assets, const char *dir) {
     UnloadFileText(text);
     if (!root)
         return;
+    const cJSON *entries = cJSON_GetObjectItemCaseSensitive(root, "stage_entries");
+    if (cJSON_IsArray(entries)) {
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, entries) {
+            if (cJSON_IsNumber(it) && assets->stage_count <
+                                          (int)(sizeof(assets->stage_entries) /
+                                                sizeof(assets->stage_entries[0])))
+                assets->stage_entries[assets->stage_count++] = it->valueint;
+        }
+    }
     const cJSON *rooms = cJSON_GetObjectItemCaseSensitive(root, "rooms");
     const cJSON *entry = NULL;
     cJSON_ArrayForEach(entry, rooms) {
