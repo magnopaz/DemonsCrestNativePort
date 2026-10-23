@@ -305,27 +305,85 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                               (int32_t)(sinf(o->timer * 0.08f) * 18.0f * FX_ONE);
                 }
             } else {
-                /* Species $67 Graveyard Ghoul & default enemy handler. */
+                /* Species $67 Graveyard Ghoul: authentic $83:AF74 state 0.
+                 *
+                 * The original dispatches on substate ($06):
+                 *   0  face the player, then wind up for 3 frames ($3B = 3)
+                 *   2  launch: $20 = 0x0050 ($0088 / $0070 variants),
+                 *      $22 = 0x0398 ($04D0 variant), $39 = 5
+                 *   4  airborne: gravity $26 = 0x0040 until ground contact
+                 *      ($04 bit 2), then $B2C7 snaps Y (+7) and sets $3B = 6
+                 *   6  landed: hold for 6 frames, then restart at 0
+                 * The remaining behaviour states (dispatch through $03 and the
+                 * random table $DEA2) are not ported yet; this is the hop.
+                 */
                 if (o->state == 0) {
-                    /* First-pass emergence: hold position, then chase. */
+                    /* First-pass emergence: hold position, then hop-cycle. */
                     if (o->timer >= 24) {
                         o->state = 1;
                         o->timer = 0;
+                        o->substate = 0;
                     }
                     continue;
                 }
 
-                int32_t dx = player->x_fx - o->x_fx;
-                int32_t dy = (player->y_fx - 11 * FX_ONE) - o->y_fx;
-                if (abs(dx) < 220 * FX_ONE) {
-                    if (dx > 8 * FX_ONE)
-                        o->x_fx += 0x0099; /* 0.6 px/frame */
-                    else if (dx < -8 * FX_ONE)
-                        o->x_fx -= 0x0099;
-                    if (dy > 6 * FX_ONE)
-                        o->y_fx += 0x0066; /* 0.4 px/frame */
-                    else if (dy < -6 * FX_ONE)
-                        o->y_fx -= 0x0066;
+                if (o->state == 1) {
+                    /* $B2B1 lifts Y by 9 ($34 -= 9, y-down), sets $06 = 4 and
+                     * then $22 = 0x0398 with gravity $26 = 0x0040: a drop from
+                     * the perch these ghouls hang at. */
+                    if (o->substate == 0) {
+                        o->facing = (player->x_fx >= o->x_fx) ? 1 : -1;
+                        o->substate = 2;
+                        o->phase = 3; /* $3B = 3 windup */
+                    } else if (o->substate == 2) {
+                        if (--o->phase <= 0) {
+                            o->y_fx -= 9 * FX_ONE;
+                            o->vx_fx = o->facing * 0x0050; /* $20 */
+                            o->vy_fx = 0x0398; /* $22: down 3.6 px/frame */
+                            o->substate = 4;
+                            o->phase = 90;
+                        }
+                    } else if (o->substate == 4) {
+                        o->x_fx += o->vx_fx;
+                        o->y_fx += o->vy_fx;
+                        o->vy_fx += 0x0040; /* $26 gravity */
+                        float fx = (float)o->x_fx / FX_ONE;
+                        float fy = (float)o->y_fx / FX_ONE;
+                        float surf;
+                        bool landed =
+                            Level_FloorAt(level, fx, fy + 2.0f, &surf) &&
+                            surf <= fy + 6.0f;
+                        if (landed || --o->phase <= 0) {
+                            if (landed)
+                                o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+                            o->vx_fx = 0;
+                            o->vy_fx = 0;
+                            o->substate = 6;
+                            o->phase = 6; /* $3B = 6 */
+                        }
+                    } else if (--o->phase <= 0) {
+                        /* Landed. The original rotates through behaviour
+                         * states chosen from $03/$DEA2; those are not ported
+                         * yet, so continue with the chase fallback. */
+                        o->state = 2;
+                        o->substate = 0;
+                    }
+                } else if (o->state >= 2) {
+                    /* Placeholder approach until the $DEA2 behaviour states
+                     * are ported: follow the player on both axes. */
+                    int32_t dx = player->x_fx - o->x_fx;
+                    int32_t dy = (player->y_fx - 11 * FX_ONE) - o->y_fx;
+                    o->facing = dx >= 0 ? 1 : -1;
+                    if (abs(dx) < 220 * FX_ONE) {
+                        if (dx > 8 * FX_ONE)
+                            o->x_fx += 0x0099; /* 0.6 px/frame */
+                        else if (dx < -8 * FX_ONE)
+                            o->x_fx -= 0x0099;
+                        if (dy > 6 * FX_ONE)
+                            o->y_fx += 0x0066; /* 0.4 px/frame */
+                        else if (dy < -6 * FX_ONE)
+                            o->y_fx -= 0x0066;
+                    }
                 }
             }
 

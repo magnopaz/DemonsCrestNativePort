@@ -209,7 +209,11 @@ are implemented; most still share the ghoul metasprite.
   implements the common path only.
 - [ ] Port all species handlers from the `$82:8000,X` jump table, starting with
   the real Area 1 species `$67` ghoul handler at `$83:AF74` (current ghoul,
-  skeleton, bat and gargoyle AI are first-pass reimplementations).
+  skeleton, bat and gargoyle AI are first-pass reimplementations). **Partial:**
+  the ghoul's init constants and state 0 drop cycle (`$B2B1`/`$AFCB`/`$B000`:
+  lift 9, vx `0x50`, vy `0x398`, gravity `0x40`, windup 3, land 6) are ported
+  into `src/object.c`, with the full state map documented; states 1–4 and the
+  `$DEA2` behaviour dispatch remain.
 - [x] Extract and implement the base object set: destructible urns, heart and
   crest/Life-Stone pickups, gold drops, moving platforms, Area 0 Somulo boss,
   skeleton patrols, bats and wall gargoyles.

@@ -36,6 +36,9 @@ typedef struct Object {
     int32_t vx_fx, vy_fx;
     int32_t bounce_fx; /* $39: remaining bounce velocity for pickups */
     int state;
+    int substate; /* $06: per-species state machine substate */
+    int phase;    /* countdown for the current substate ($3B/$39) */
+    int facing;   /* $09: 1 right, -1 left */
     int hp;
     int max_hp;
     int timer;

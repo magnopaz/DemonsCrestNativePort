@@ -1866,6 +1866,43 @@ Captured-and-rejected species: `$26`, `$2E`, `$81`, `$24`, `$33`. Reproducing
 the spawner's remaining field writes (or invoking the spawner itself) is the
 next step to cover every species.
 
+### Step 14 — Species `$67` ghoul: authentic drop + porting map (started)
+
+Done:
+
+1. Ported the opening of the real `$83:AF74` handler into `src/object.c`:
+   - emergence (24 frames) then **state 1** = the perch drop described by
+     `$B2B1`/`$AFCB`: Y is lifted 9 px (`$34 -= 9`, object Y is y-down), then
+     `$20 = 0x0050` horizontal, `$22 = 0x0398` downward, gravity `$26 = 0x0040`,
+     windup `$3B = 3`, landing sets `$3B = 6` (`$B2C7` snaps Y by 7),
+   - after landing it falls back to the previous chase as **state 2** until the
+     remaining behaviour states are ported.
+2. Added `substate`/`phase`/`facing` to `Object`. `phase` is required because
+   `timer` is incremented every frame for animation, so a countdown must not
+   share it.
+3. Regression (`demo 10`) passes: the ghoul drops from its perch, closes on the
+   player, damages on contact and dies to fireballs.
+
+Porting map recovered from `$83:AF74` (for the next pass):
+
+| Address | Role |
+|---|---|
+| `$AF89` | state 0 dispatcher on `$06`; substate 0 calls the `$B2E8` gate, else picks a behaviour from `$03` or the random table `$DEA2` (`$BC904B & 0x0F`) |
+| `$AFCB` | substate 2: windup `$3B`, then `$B2B1`, vx `$20 = 0x50/0x88/0x70`, vy `$22 = 0x398/0x4D0`, `$2A = $DE7F` collision shape, `$39 = 5` |
+| `$B000` | substate 4: `JSL $808C14`/`$808CBF` (object integration), ground test `$04 & 4`, then `$B2C7` |
+| `$B065` | state 1 handler (not ported) |
+| `$B0E4` | state 2 handler (not ported) |
+| `$B1AF` | state 3 handler (not ported) |
+| `$B249` | state 4 handler (not ported) |
+| `$B298` | face the player: `$0A` bit 6 = facing right, `$09` = 1/2 |
+| `$B2B1` | lift Y 9, `$06 = 4`, anim 4 |
+| `$B2C7` | land: `$2A = $DE7B`, Y += 7, clear fractional X/Y, `$06 = 6` |
+| `$B2E8` | gate: carry set when `ownX+0x70-playerX >= 0xE0`, `$47 == 0`, or `playerY-ownY` outside `[0, 0x50)` |
+
+Remaining: port states 1-4 and the `$DEA2` behaviour dispatch, which need the
+object integration helpers (`$808C14`/`$808CBF`) and the animation driver
+(`$80F81D`) mapped first.
+
 ---
 
 ## 11. Long-term roadmap
