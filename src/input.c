@@ -21,34 +21,58 @@ void Input_Read(Input *in, InputState *st) {
         debug_env = env ? atoi(env) : 0;
     }
 
-    bool left = IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A) ||
-                PadDown(GAMEPAD_BUTTON_LEFT_FACE_LEFT);
-    bool right = IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D) ||
-                 PadDown(GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
-    bool up = IsKeyDown(KEY_UP) || IsKeyDown(KEY_W) ||
-              PadDown(GAMEPAD_BUTTON_LEFT_FACE_UP);
-    bool down = IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S) ||
-                PadDown(GAMEPAD_BUTTON_LEFT_FACE_DOWN);
-    bool jump = IsKeyDown(KEY_Z) || IsKeyDown(KEY_SPACE) ||
-                PadDown(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);  /* SNES B */
+    /* Left stick mirrors the d-pad when pushed past a small dead zone. */
+    float stick_x = IsGamepadAvailable(0)
+                        ? GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X) : 0.0f;
+    float stick_y = IsGamepadAvailable(0)
+                        ? GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_Y) : 0.0f;
+    /* Deterministic runs (DC_RUN_FRAMES) must not see physical devices: a held
+     * key or a drifting analog stick used to perturb demo scripts. */
+    static int deterministic = -1;
+    if (deterministic < 0)
+        deterministic = getenv("DC_RUN_FRAMES") != NULL;
+    if (deterministic && demo_mode == 0) {
+        /* Still allow explicit demo scripts below; zero the device state. */
+    }
+    bool left = !deterministic && (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A) ||
+                PadDown(GAMEPAD_BUTTON_LEFT_FACE_LEFT)) ||
+                (!deterministic && stick_x < -0.35f);
+    bool right = (!deterministic && (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D) ||
+                  PadDown(GAMEPAD_BUTTON_LEFT_FACE_RIGHT))) ||
+                 (!deterministic && stick_x > 0.35f);
+    bool up = (!deterministic && (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W) ||
+               PadDown(GAMEPAD_BUTTON_LEFT_FACE_UP))) ||
+              (!deterministic && stick_y < -0.35f);
+    bool down = (!deterministic && (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S) ||
+                  PadDown(GAMEPAD_BUTTON_LEFT_FACE_DOWN))) ||
+                (!deterministic && stick_y > 0.35f);
+    bool jump = !deterministic &&
+                (IsKeyDown(KEY_Z) || IsKeyDown(KEY_SPACE) ||
+                 PadDown(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)); /* SNES B */
     /* SNES Y ($1E3C -> $105B/$105C) is the Fireball shot. Keyboard X/J and
      * the west/top gamepad faces mirror the original Y button. */
-    bool shot = IsKeyDown(KEY_X) || IsKeyDown(KEY_J) ||
-                PadDown(GAMEPAD_BUTTON_RIGHT_FACE_LEFT) ||
-                PadDown(GAMEPAD_BUTTON_RIGHT_FACE_UP);
+    bool shot = !deterministic &&
+                (IsKeyDown(KEY_X) || IsKeyDown(KEY_J) ||
+                 PadDown(GAMEPAD_BUTTON_RIGHT_FACE_LEFT) ||
+                 PadDown(GAMEPAD_BUTTON_RIGHT_FACE_UP));
     /* SNES A ($1E3E -> $105D/$105E) is Talisman/Headbutt, not the shot. */
-    bool special = IsKeyDown(KEY_C) || IsKeyDown(KEY_K) ||
-                   PadDown(GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+    bool special = !deterministic &&
+                   (IsKeyDown(KEY_C) || IsKeyDown(KEY_K) ||
+                    PadDown(GAMEPAD_BUTTON_RIGHT_FACE_DOWN));
     /* SNES X ($1E4C -> $80:DC12) opens the Crest/Item subscreen. */
-    bool subscreen = IsKeyDown(KEY_TAB) || IsKeyDown(KEY_I) ||
-                     IsKeyDown(KEY_V);
-    bool form_next = IsKeyDown(KEY_Q) || IsKeyDown(KEY_E) ||
-                     PadDown(GAMEPAD_BUTTON_LEFT_TRIGGER_1) ||
-                     PadDown(GAMEPAD_BUTTON_RIGHT_TRIGGER_1);
-    bool start = IsKeyDown(KEY_ENTER) ||
-                 PadDown(GAMEPAD_BUTTON_MIDDLE_RIGHT);
-    bool pause = IsKeyDown(KEY_ESCAPE) ||
-                 PadDown(GAMEPAD_BUTTON_MIDDLE_LEFT);
+    bool subscreen = !deterministic &&
+                     (IsKeyDown(KEY_TAB) || IsKeyDown(KEY_I) ||
+                      IsKeyDown(KEY_V) ||
+                      PadDown(GAMEPAD_BUTTON_LEFT_TRIGGER_2) ||
+                      PadDown(GAMEPAD_BUTTON_RIGHT_THUMB));
+    bool form_next = !deterministic &&
+                     (IsKeyDown(KEY_Q) || IsKeyDown(KEY_E) ||
+                      PadDown(GAMEPAD_BUTTON_LEFT_TRIGGER_1) ||
+                      PadDown(GAMEPAD_BUTTON_RIGHT_TRIGGER_1));
+    bool start = !deterministic && (IsKeyDown(KEY_ENTER) ||
+                 PadDown(GAMEPAD_BUTTON_MIDDLE_RIGHT));
+    bool pause = !deterministic && (IsKeyDown(KEY_ESCAPE) ||
+                 PadDown(GAMEPAD_BUTTON_MIDDLE_LEFT));
     bool debug = IsKeyDown(KEY_F1) || (debug_env > 0);
 
     /* Deterministic input for screenshots/regressions. */

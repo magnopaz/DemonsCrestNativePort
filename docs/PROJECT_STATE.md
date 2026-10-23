@@ -2397,6 +2397,26 @@ handlers; the ROM state machines remain the fidelity target.
 
 ---
 
+### Step 35 — Gamepad stick, deterministic input, from-scratch build (done)
+
+- **Analog stick:** the left stick now mirrors the d-pad past a 0.35 dead zone,
+  and the subscreen opens from LT/right-stick-click in addition to Tab/I/V.
+  Face buttons were already mapped (A jump, X/Y shot, B special, Start/Pause).
+- **Deterministic input isolation (CI fix):** with `DC_RUN_FRAMES` set,
+  `Input_Read` no longer samples physical devices at all — only the demo script.
+  A held key or a drifting gamepad axis could perturb demo timing and produced
+  intermittent failures (attract cancel, stage-select travel) even though the
+  same run passed manually. Regression now passes repeatedly on both builds.
+- **From-scratch build verified:** a clean `cmake -G Ninja
+  -DDC_RAYLIB_ROOT=C:/raylib/raylib` configure + build in an empty directory
+  produced `demonscrest.exe` and the full regression suite passed against it.
+- **Environment note:** a leftover `DemonsCrestSNESRecomp` process holding a GL
+  context made *every* new game window fail with
+  `Win32: Failed to create interface`; terminating the stale process fixed it.
+  Worth checking first whenever the port suddenly cannot open a window.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
