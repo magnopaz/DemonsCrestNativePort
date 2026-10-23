@@ -90,23 +90,111 @@ bool Game_TransitionToArea(Game *game, int area_id, int spawn_id) {
     return true;
 }
 
-void Game_EncodePassword(const Game *game, char out[20]) {
-    /* Simple deterministic password derived from campaign progression. */
-    unsigned checksum = (unsigned)game->stages_cleared * 37u +
-                        (unsigned)game->player.max_hp * 11u +
-                        (unsigned)game->player.gold;
-    static const char alphabet[] = "BCDFGHJKLMNPQRSTVWXYZ";
-    for (int i = 0; i < 8; i++) {
-        out[i] = alphabet[(checksum >> ((i % 4) * 5)) % 20];
-        checksum = checksum * 1103515245u + 12345u;
+/* Native password: 10 letters from a 20-symbol alphabet encode a 32-bit
+ * progression payload plus an 8-bit FNV-1a checksum (40 bits). The retail
+ * encode/decode algorithm is still to be decoded; this format is stable and
+ * self-checking, so a mistyped code is rejected instead of corrupting a run.
+ *
+ * Payload layout: stages[7:0] max_hp[11:8] crests[17:12] form[20:18]
+ *                 potions[23:21] scrolls[26:24] talismans[31:27] */
+static const char kPasswordAlphabet[] = "BCDFGHJKLMNPQRSTVWXYZ";
+#define DC_PASSWORD_ALPHABET 20
+
+static uint8_t Password_Checksum(uint32_t payload) {
+    uint32_t h = 2166136261u;
+    for (int i = 0; i < 4; i++) {
+        h ^= (payload >> (i * 8)) & 0xFFu;
+        h *= 16777619u;
     }
-    out[0] = alphabet[(game->stages_cleared & 0x1F) % 20];
-    out[1] = alphabet[((game->stages_cleared >> 5) & 0x1F) % 20];
-    out[2] = alphabet[(game->player.max_hp - 6) & 0x1F];
-    out[3] = alphabet[(game->player.crests_mask & 0x1F) % 20];
-    for (int i = 4; i < 8; i++)
-        out[i] = alphabet[(checksum >> (i * 2)) % 20];
-    out[8] = '\0';
+    return (uint8_t)(h & 0xFFu);
+}
+
+void Game_PasswordEncode(uint32_t payload, char out[DC_PASSWORD_LEN + 1]) {
+    uint64_t value = (uint64_t)payload |
+                     ((uint64_t)Password_Checksum(payload) << 32);
+    for (int i = DC_PASSWORD_LEN - 1; i >= 0; i--) {
+        out[i] = kPasswordAlphabet[value % DC_PASSWORD_ALPHABET];
+        value /= DC_PASSWORD_ALPHABET;
+    }
+    out[DC_PASSWORD_LEN] = '\0';
+}
+
+bool Game_PasswordDecode(const char *code, uint32_t *payload) {
+    uint64_t value = 0;
+    int n = 0;
+    for (; code[n] && n < DC_PASSWORD_LEN; n++) {
+        const char *p = strchr(kPasswordAlphabet, code[n]);
+        if (!p)
+            return false;
+        value = value * DC_PASSWORD_ALPHABET +
+                (uint64_t)(p - kPasswordAlphabet);
+    }
+    if (n != DC_PASSWORD_LEN)
+        return false;
+    uint32_t pay = (uint32_t)(value & 0xFFFFFFFFu);
+    if ((uint8_t)(value >> 32) != Password_Checksum(pay))
+        return false;
+    if (payload)
+        *payload = pay;
+    return true;
+}
+
+static int ClampInt(int v, int lo, int hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+uint32_t Game_PasswordPayload(const Game *game) {
+    const Player *p = &game->player;
+    uint32_t v = 0;
+    v |= (uint32_t)(game->stages_cleared & 0xFFu);
+    v |= (uint32_t)ClampInt(p->max_hp, 1, 15) << 8;
+    v |= (uint32_t)(p->crests_mask & 0x3Fu) << 12;
+    v |= (uint32_t)ClampInt(p->crest_form, 0, 7) << 18;
+    v |= (uint32_t)ClampInt(p->potions, 0, 7) << 21;
+    v |= (uint32_t)ClampInt(p->scrolls, 0, 7) << 24;
+    v |= (uint32_t)(p->talisman_mask & 0x1Fu) << 27;
+    return v;
+}
+
+bool Game_ApplyPassword(Game *game, const char *code) {
+    uint32_t payload = 0;
+    if (!Game_PasswordDecode(code, &payload))
+        return false;
+    Player *p = &game->player;
+    game->stages_cleared = (uint8_t)(payload & 0xFFu);
+    p->max_hp = ClampInt((int)((payload >> 8) & 0xFu), 1, 15);
+    p->hp = p->max_hp;
+    p->crests_mask = (uint8_t)((payload >> 12) & 0x3Fu);
+    p->crest_form = (int)((payload >> 18) & 0x7u);
+    if (p->crest_form >= CREST_COUNT)
+        p->crest_form = CREST_BASE;
+    p->potions = (int)((payload >> 21) & 0x7u);
+    p->scrolls = (int)((payload >> 24) & 0x7u);
+    p->talisman_mask = (uint8_t)((payload >> 27) & 0x1Fu);
+    if (!(p->talisman_mask & (1u << p->active_talisman)))
+        p->active_talisman = 0;
+    return true;
+}
+
+void Game_EncodePassword(const Game *game, char out[DC_PASSWORD_LEN + 1]) {
+    Game_PasswordEncode(Game_PasswordPayload(game), out);
+}
+
+bool Game_PasswordSelfTest(void) {
+    uint32_t state = 0x12345678u;
+    for (int i = 0; i < 2000; i++) {
+        state = state * 1664525u + 1013904223u;
+        uint32_t payload = state;
+        char code[DC_PASSWORD_LEN + 1];
+        Game_PasswordEncode(payload, code);
+        uint32_t decoded = 0;
+        if (!Game_PasswordDecode(code, &decoded) || decoded != payload) {
+            fprintf(stderr, "password selftest: FAIL at %d (%s)\n", i, code);
+            return false;
+        }
+    }
+    fprintf(stderr, "password selftest: OK (2000 round-trips)\n");
+    return true;
 }
 
 static const char *Game_SavePath(void) {
@@ -330,6 +418,15 @@ bool Game_Init(Game *game, const char *asset_dir) {
 
     game->ready = true;
     game->has_save = Game_HasSave();
+    const char *password_env = getenv("DC_PASSWORD");
+    if (password_env && *password_env) {
+        if (Game_ApplyPassword(game, password_env)) {
+            game->campaign_mode = true;
+            fprintf(stderr, "game: password applied\n");
+        } else {
+            fprintf(stderr, "game: invalid DC_PASSWORD\n");
+        }
+    }
     const char *demo = getenv("DC_DEMO");
     bool force_title = getenv("DC_TITLE") != NULL;
     bool automated = !force_title &&
@@ -687,6 +784,9 @@ static void Game_UpdateTitle(Game *game, bool up_pressed, bool down_pressed) {
         Game_OpenOverworld(game);
         break;
     case 2:
+        Game_EncodePassword(game, game->password_entry);
+        game->password_pos = 0;
+        game->password_status = 0;
         game->state = GAME_PASSWORD;
         game->state_timer = 0;
         break;
@@ -723,12 +823,35 @@ static void Game_UpdateShop(Game *game, bool left_pressed,
     }
 }
 
-static void Game_UpdatePassword(Game *game) {
-    /* Accept the current generated/entered code with Start. */
+static void Game_UpdatePassword(Game *game, bool up_pressed,
+                               bool down_pressed, bool left_pressed,
+                               bool right_pressed) {
+    if (game->password_entry[0] == '\0') {
+        Game_EncodePassword(game, game->password_entry);
+        game->password_pos = 0;
+    }
+    if (left_pressed && game->password_pos > 0)
+        game->password_pos--;
+    if (right_pressed && game->password_pos < DC_PASSWORD_LEN - 1)
+        game->password_pos++;
+    if (up_pressed || down_pressed) {
+        int dir = down_pressed ? 1 : -1;
+        char *c = &game->password_entry[game->password_pos];
+        const char *p = strchr(kPasswordAlphabet, *c);
+        int idx = p ? (int)(p - kPasswordAlphabet) : 0;
+        idx = (idx + dir + DC_PASSWORD_ALPHABET) % DC_PASSWORD_ALPHABET;
+        *c = kPasswordAlphabet[idx];
+        game->password_status = 0;
+    }
     if (game->input.start_pressed) {
-        game->stages_cleared = (uint8_t)((game->stages_cleared << 1) | 1);
-        game->campaign_mode = true;
-        Game_OpenOverworld(game);
+        if (Game_ApplyPassword(game, game->password_entry)) {
+            game->password_status = 1;
+            game->campaign_mode = true;
+            game->has_save = true;
+            Game_OpenOverworld(game);
+        } else {
+            game->password_status = -1;
+        }
     } else if (game->input.pause_pressed) {
         game->state = GAME_TITLE;
         game->state_timer = 0;
@@ -845,7 +968,8 @@ void Game_Update(Game *game) {
         Game_UpdateShop(game, left_pressed, right_pressed, up_pressed);
         break;
     case GAME_PASSWORD:
-        Game_UpdatePassword(game);
+        Game_UpdatePassword(game, up_pressed, down_pressed, left_pressed,
+                            right_pressed);
         break;
     case GAME_OPTIONS:
         Game_UpdateOptions(game);
@@ -1031,11 +1155,28 @@ static void DrawOverlay(const Game *game) {
                      (Color){170, 170, 170, 255});
     } else if (game->state == GAME_PASSWORD) {
         DrawRectangle(0, 0, 256, 224, (Color){6, 10, 16, 240});
-        DrawCentered("PASSWORD", 44, 20, (Color){230, 220, 170, 255});
-        DrawCentered(game->password_code[0] ? game->password_code
-                                            : "--------",
-                     92, 20, (Color){150, 230, 255, 255});
-        DrawCentered("ENTER ACCEPT   ESC BACK", 168, 10,
+        DrawCentered("PASSWORD", 40, 20, (Color){230, 220, 170, 255});
+        int cw = 16;
+        int start = 128 - (DC_PASSWORD_LEN * cw) / 2;
+        for (int i = 0; i < DC_PASSWORD_LEN; i++) {
+            char ch = game->password_entry[i];
+            if (!ch)
+                ch = '-';
+            bool active = (i == game->password_pos);
+            Color col = active ? (Color){255, 230, 120, 255}
+                               : (Color){150, 230, 255, 255};
+            DrawText(TextFormat("%c", ch), start + i * cw + 5, 86, 20, col);
+            if (active)
+                DrawRectangleLines(start + i * cw, 84, cw, 26, col);
+        }
+        if (game->password_status < 0)
+            DrawCentered("INVALID CODE", 124, 12, (Color){255, 120, 120, 255});
+        else if (game->password_status > 0)
+            DrawCentered("PROGRESS RESTORED", 124, 12,
+                         (Color){150, 255, 170, 255});
+        DrawCentered("UP/DOWN LETTER   LEFT/RIGHT SELECT", 160, 10,
+                     (Color){190, 190, 190, 255});
+        DrawCentered("ENTER APPLY   ESC BACK", 178, 10,
                      (Color){190, 190, 190, 255});
     } else if (game->state == GAME_OPTIONS) {
         DrawRectangle(0, 0, 256, 224, (Color){8, 8, 14, 240});

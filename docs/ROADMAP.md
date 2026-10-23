@@ -176,14 +176,26 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
 - **HUD health bar.** The baked `hud_bar.png` is a brightness mask, so the
   renderer now tints the empty part dark and the filled part red instead of
   drawing a flat white bar.
+- **Native password codec.** Ten letters from `BCDFGHJKLMNPQRSTVWXYZ` encode a
+  32-bit payload (stages, max HP, Crests/form, Urns, Spells, Talismans) plus an
+  FNV-1a checksum; the screen supports letter entry, rejects invalid codes and
+  restores progress. `DC_PASSWORD` applies a code at boot,
+  `DC_PASSWORD_SELFTEST=1` runs 2000 round-trips, and the regression suite
+  cross-checks a Python-generated code against the C decoder.
+- **`$81:AE11` ruled out as the species sprite map.** Cross-area constraint
+  testing (666 area pairs) shows 55% contradictions, so that table is the
+  room's ambient animation list. Object sprite frames are addressed through
+  object fields `$28/$2A/$2E`, which point into the metasprite data at the end
+  of bank `$8B` — the next thread for per-species sprites.
 
 ## Next (ordered by dependency)
 
 1. **Content fidelity**
-   - Bake per-species OAM groups from their `$82:8300` init handlers
-     (skeletons, bats, wall gargoyles, Somulo, Phalanx, Dark Demon) and
-     replace the shared enemy sprite. The dispatch tables and the `$67` init
-     thunk (`$82:F382` → `$83:AF19`) are mapped; the handlers are not.
+   - Bake per-species OAM groups. The init thunks store three `$8B`-bank frame
+     pointers in object fields `$28/$2A/$2E` (species `$67` →
+     `$DE87/$DE7B/$DE6C`), so decoding bank `$8B`'s data block and the CHR
+     base/palette is the shortest path to real enemy sprites
+     (skeletons, bats, wall gargoyles, Somulo, Phalanx, Dark Demon).
    - Add one `capture_anim.py` frame per remaining area to
      `tools/dc_extract/bg2_captures.json`, and extract `$98:E000` mid-stage CHR
      streaming plus tile animation; finish the per-area palettes.

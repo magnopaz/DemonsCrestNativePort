@@ -234,8 +234,10 @@ Current title/pause/Area Clear is a vertical-slice skeleton.
 - [x] Password screen with a generated progression code (retail encode/decode
   algorithm still pending) and campaign persistence. **Partial:** native
   save/options persistence is implemented (`saves/dc_save.json`, title
-  `CONTINUE`, autosave on clear/overworld/exit, regression-covered); the retail
-  password/SRAM format is still to be decoded.
+  `CONTINUE`, autosave on clear/overworld/exit, regression-covered) and the
+  password screen now has a working 10-letter checksummed codec with entry and
+  `DC_PASSWORD`/self-test hooks; the retail password/SRAM format is still to be
+  decoded.
 - [x] Pause item/crest subscreen (`X` → `$80:DC12`): Crest transformation,
   Fire-Crest element, Talisman selection, Urn use and Scroll casting, wired to
   the BG3 HUD active-slot indicator.
@@ -435,9 +437,10 @@ loading, transitions, crests, boss, overworld and menus) is already in place:
 5. Extract text/font/dialogue/cutscene script data and implement the text
    engine, intro/cutscenes, shop dialogue and all ending variants.
 6. Implement the retail password encode/decode algorithm and save/options
-   persistence. **Save persistence done** (`saves/dc_save.json`, title
-   CONTINUE, autosave, regression test); the retail password/SRAM decode
-   remains.
+   persistence. **Save persistence and a native password codec are done**
+   (`saves/dc_save.json`, title CONTINUE, autosave, 10-letter checksummed
+   password with entry UI, regression + self-test); the retail password/SRAM
+   decode remains.
 7. Extract or replace ROM audio (SPC700 BRR/DSP + sequences, `$80:BD57` SFX)
    and add music/SFX volume options.
 8. Run full-campaign oracle regression across all 113 areas, forms and bosses.

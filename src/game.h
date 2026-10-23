@@ -13,6 +13,9 @@
 #include "object.h"
 #include "raylib.h"
 
+/* Native password: 10 symbols, see Game_PasswordEncode. */
+#define DC_PASSWORD_LEN 10
+
 typedef struct Game {
     Assets assets;
     Level level;
@@ -38,6 +41,9 @@ typedef struct Game {
     float overworld_angle;
     uint8_t stages_cleared;
     char password_code[20];
+    char password_entry[DC_PASSWORD_LEN + 1];
+    int password_pos;
+    int password_status; /* 0 neutral, 1 accepted, -1 invalid */
     bool campaign_mode;
     bool has_save;
     bool prev_up;
@@ -52,7 +58,12 @@ void Game_Update(Game *game);
 void Game_Render(Game *game);
 void Game_Shutdown(Game *game);
 bool Game_TransitionToArea(Game *game, int area_id, int spawn_id);
-void Game_EncodePassword(const Game *game, char out[20]);
+void Game_EncodePassword(const Game *game, char out[DC_PASSWORD_LEN + 1]);
+uint32_t Game_PasswordPayload(const Game *game);
+void Game_PasswordEncode(uint32_t payload, char out[DC_PASSWORD_LEN + 1]);
+bool Game_PasswordDecode(const char *code, uint32_t *payload);
+bool Game_ApplyPassword(Game *game, const char *code);
+bool Game_PasswordSelfTest(void);
 bool Game_SaveProgress(const Game *game);
 bool Game_LoadProgress(Game *game);
 bool Game_HasSave(void);

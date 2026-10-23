@@ -14,6 +14,9 @@ static const char *FindAssetDir(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+    /* Password codec self-test: no window/assets needed, suitable for CI. */
+    if (getenv("DC_PASSWORD_SELFTEST"))
+        return Game_PasswordSelfTest() ? 0 : 1;
     SetTraceLogLevel(LOG_WARNING);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(1024, 896, "Demon's Crest - Fan Game");

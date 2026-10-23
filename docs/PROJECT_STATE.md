@@ -158,6 +158,13 @@ Working today:
 - HUD health bar fix (this session): `hud_bar.png` is a brightness mask
   (grey body, pink highlight); the renderer now tints the empty part dark and
   the filled part red instead of drawing the whole bar white.
+- Password system (this session): a real 40-bit codec — 10 letters from a
+  20-symbol alphabet carrying stages/max HP/crests/form/urns/spells/talismans
+  plus an 8-bit FNV-1a checksum — with a letter-entry screen (up/down changes
+  the letter, left/right moves, Enter applies, invalid codes are rejected),
+  `DC_PASSWORD=<code>` to apply a code at boot and
+  `DC_PASSWORD_SELFTEST=1` for a 2000-round-trip CI check. The retail
+  encode/decode algorithm is still unknown; this is a stable native format.
 - Collision debug overlay (`F1`), FPS (`F3`).
 - Per-frame CSV trace output plus `DC_TRACE_PROJECTILES`/`DC_TRACE_OBJECTS`.
 - Deterministic demo input modes for screenshots and comparison.
@@ -715,6 +722,8 @@ The original SNES default mapping was verified from `$80:DB00..DB40` and `save0`
 | `DC_NO_SAVE=1` | disable save loading/writing |
 | `DC_SAVE_FORCE=1` | allow saving inside deterministic `DC_RUN_FRAMES` runs |
 | `DC_RESUME=1` | boot into the saved run instead of the title screen |
+| `DC_PASSWORD=<code>` | apply a native 10-letter password at boot |
+| `DC_PASSWORD_SELFTEST=1` | run 2000 encode/decode round-trips and exit (`0`/`1`) |
 | `DC_WINDOW_INFO=1` | print window/render-target size and integer scale |
 
 `DC_SCREENSHOT` is handled by raylib, which writes the basename into the
@@ -1352,15 +1361,18 @@ These were already discovered the hard way; do not rediscover them.
     Enemy sprite capture therefore needs either a different save/route or the
     ROM-side animation data, not the current save0.
 
-26. **`$81:AE11` looks like the per-area sprite-group list.**
+26. **`$81:AE11` is the per-area *ambient* sprite list, not the object species list.**
     The table holds 16-bit little-endian pointers per area (`$AEF9` area 0,
     `$AF15` area 1, `$AF22` area 2, `$AF2F` area 3, ...). Each list is a run of
     2-byte pairs terminated by `0x00`; the first byte is a `$8B:8000` metasprite
-    group id and the second is an even frame count. Area 1:
-    `4E/2, 03/4, 61/6, 33/8, 0E/8, 16/8` (group `03` is the ghoul already baked
-    by the extractor). Area 3: `28/2, 29/4, 77/6, 5A/2, 5C/4, 4D/6`. The
-    species→group assignment is still unknown, but this is the ROM-only route to
-    per-area sprite sets.
+    group id and the second is an even frame count (area 1:
+    `4E/2, 03/4, 61/6, 33/8, 0E/8, 16/8`). It is **not** a species→group map:
+    intersecting the group sets of every area where a species occurs leaves
+    contradictory candidates (55% of area pairs share no group at all), so these
+    are the room's ambient animated sprites. Object sprites come from elsewhere:
+    the species `$67` init writes `$8B`-bank frame pointers into object fields
+    `$28/$2A/$2E` (`$DE87/$DE7B/$DE6C`), which land inside the metasprite data
+    block at the end of bank `$8B` — that is the next thread to pull.
 
 ---
 
@@ -1389,9 +1401,10 @@ These were already discovered the hard way; do not rediscover them.
 - Audio is an original procedural development loop/SFX, not extracted ROM
   music; there is no music/sfx menu beyond the master volume option.
 - Text/dialogue, cutscenes and the exact retail password algorithm are stubs
-  (the password screen only displays a generated code). Campaign progression
-  persists through the native save file (`saves/dc_save.json`), but that is not
-  the retail SRAM/password format.
+  (the password screen now uses a working native 10-letter codec; the retail
+  format is still unknown). Campaign progression persists through the native
+  save file (`saves/dc_save.json`), but that is not the retail SRAM/password
+  format.
 - No public-release asset path yet.
 
 ---
@@ -1770,6 +1783,33 @@ Remaining polish: a proper CONTINUE/options screen layout, per-slot saves,
 retail SRAM/password parity, and saving mid-room position rather than the room
 spawn.
 
+### Step 12 — Native password codec and entry screen (done)
+
+Done:
+
+1. Replaced the placeholder 8-letter generator with a real codec
+   (`Game_PasswordEncode` / `Game_PasswordDecode` / `Game_ApplyPassword`):
+   - 32-bit payload `stages[7:0] max_hp[11:8] crests[17:12] form[20:18]
+     potions[23:21] scrolls[26:24] talismans[31:27]`,
+   - 8-bit FNV-1a checksum, encoded as 10 base-20 digits from
+     `BCDFGHJKLMNPQRSTVWXYZ` (40 bits total),
+   - invalid or truncated codes are rejected, so a mistyped password cannot
+     corrupt a run.
+2. Password screen is now interactive: up/down cycles the letter under the
+   cursor, left/right moves it, Enter applies a valid code (restoring stages,
+   max HP, Crests/form, Urns, Spells and Talismans, then opening the overworld
+   and autosaving), Esc returns to the title, and the screen reports
+   `INVALID CODE` / `PROGRESS RESTORED`.
+3. `DC_PASSWORD=<code>` applies a code at boot (tests, cheats, support);
+   `DC_PASSWORD_SELFTEST=1` runs 2000 pseudo-random encode/decode round-trips
+   and exits with `0`/`1`, which needs no window or assets.
+4. `tools/run_regression.py` mirrors the encoder in Python and asserts that a
+   generated code restores `max_hp` and `form` in a real run, alongside the
+   binary self-test. The cross-implementation check also catches codec drift.
+
+Still pending: the retail password/SRAM algorithm and the exact retail screen
+layout.
+
 ---
 
 ## 11. Long-term roadmap
@@ -1844,8 +1884,9 @@ Resolved questions (formerly open):
   oracle frame per area instead.
 - **Per-area sprite list**: `$81:AE11` is a 16-bit pointer table to
   (metasprite group, frame count) pairs, one list per area, `0x00`-terminated
-  (see trap #26). This is the ROM-side source for per-species sprite baking
-  once the species→group mapping is recovered.
+  (see trap #26). A cross-area consistency test proved it is the room's ambient
+  animation list, not a species→group map; per-species frames are addressed via
+  object fields `$28/$2A/$2E` pointing into bank `$8B`.
 
 - **How the loader remaps block tile indices to VRAM**: Resolved — there is no
   tile remap. `stage_600` is ROM Area 1 (`screens 8, 9` = `slots 9, 10`), not

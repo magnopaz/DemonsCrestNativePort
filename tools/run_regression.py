@@ -45,6 +45,31 @@ def wrapper(binary: Path) -> list[str]:
     return cmd
 
 
+PASSWORD_ALPHABET = "BCDFGHJKLMNPQRSTVWXYZ"
+
+
+def encode_password(stages_cleared: int, max_hp: int, crests: int, form: int,
+                    potions: int, scrolls: int, talismans: int) -> str:
+    """Mirror of Game_PasswordEncode (32-bit payload + FNV-1a checksum)."""
+    payload = ((stages_cleared & 0xFF)
+               | ((max_hp & 0xF) << 8)
+               | ((crests & 0x3F) << 12)
+               | ((form & 0x7) << 18)
+               | ((potions & 0x7) << 21)
+               | ((scrolls & 0x7) << 24)
+               | ((talismans & 0x1F) << 27))
+    h = 2166136261
+    for i in range(4):
+        h ^= (payload >> (i * 8)) & 0xFF
+        h = (h * 16777619) & 0xFFFFFFFF
+    value = payload | ((h & 0xFF) << 32)
+    out = []
+    for _ in range(10):
+        out.append(PASSWORD_ALPHABET[value % 20])
+        value //= 20
+    return "".join(reversed(out))
+
+
 def run_demo(base: list[str], out: Path, demo: int, frames: int,
              env_extra: dict[str, str] | None = None) -> dict[str, Path]:
     player = out / f"demo{demo}_player.csv"
@@ -247,6 +272,22 @@ def main() -> int:
                       "save: gold was not restored")
                 check(int(first["area"]) == int(data["area"]),
                       "save: area was not restored")
+
+        # ---- Password codec: self-test and applying a code ----
+        env_self = dict(os.environ, DC_PASSWORD_SELFTEST="1")
+        proc = subprocess.run(base, cwd=ROOT, env=env_self,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True,
+                              timeout=60)
+        check(proc.returncode == 0,
+              f"password: codec selftest failed ({proc.stdout.strip()})")
+        code = encode_password(3, 8, 0x3F, 2, 5, 4, 0x1F)
+        d_pw = run_demo(base, out, 2, 4, {"DC_PASSWORD": code})
+        rows_pw = csv_rows(d_pw["player"])
+        check(bool(rows_pw) and int(rows_pw[0]["max_hp"]) == 8,
+              f"password: max_hp not restored from {code}")
+        check(bool(rows_pw) and int(rows_pw[0]["form"]) == 2,
+              f"password: form not restored from {code}")
 
         # ---- Campaign: Somulo defeat ends the area ----
         d14 = run_demo(base, out, 12, 300,

@@ -106,6 +106,11 @@ frame-accurate oracle for movement and timing.
   deterministic `DC_RUN_FRAMES` runs never touch the disk.
 - HUD health bar uses the extracted mask with dark/red tints (missing health is
   dark, current HP is red) instead of the previous flat white bar.
+- Native password system: 10 letters carry stages, max HP, Crests/form, Urns,
+  Spells and Talismans plus an 8-bit checksum, with an interactive entry screen
+  (up/down letter, left/right move, Enter applies, invalid codes rejected).
+  `DC_PASSWORD=<code>` applies a code at boot and `DC_PASSWORD_SELFTEST=1`
+  runs 2000 round-trips for CI. The retail algorithm is still unknown.
 - Windows build on the raylib Windows installer (`tools/build_windows.ps1`,
   `-DDC_RAYLIB_ROOT`), verified with raylib 6.2 + MinGW GCC 16.2.
 - Campaign-specific debug hooks: `DC_AREA`, `DC_CAMPAIGN`, `DC_BOSS_DEFEATED`,
@@ -146,8 +151,10 @@ exact password/save and ROM audio.
 - No audio from the original ROM yet; the current music/SFX are original
   procedural development placeholders.
 - Text/dialogue/cutscenes and the exact retail password algorithm are stubs;
-  the clear/password/ending screens are functional but minimal. Native save
-  persistence (above) is in place, but it is not the retail SRAM format.
+  the clear/password/ending screens are functional but minimal, and the
+  password codec is a native checksummed format rather than the retail code.
+  Native save persistence (above) is in place, but it is not the retail SRAM
+  format.
 - The HUD health bar is scaled from the extracted six-point bar and highlights
   the active Crest form; the exact retail talisman-slot icons are not done.
 
@@ -391,6 +398,8 @@ These environment variables exist for deterministic testing:
 | `DC_NO_SAVE=1` | Disable save loading/writing |
 | `DC_SAVE_FORCE=1` | Allow saving inside deterministic `DC_RUN_FRAMES` runs |
 | `DC_RESUME=1` | Boot straight into the saved run instead of the title |
+| `DC_PASSWORD=<code>` | Apply a native 10-letter password at boot |
+| `DC_PASSWORD_SELFTEST=1` | Run password codec round-trips and exit (CI) |
 | `SNESRECOMP_LAYER_MASK` | On the recomp side, isolate BG/OBJ layers for comparison |
 
 Example:
@@ -413,7 +422,9 @@ The harness runs demos 6, 7, 9, 10, 11 and 12 through `DC_RUN_FRAMES`, writes tr
 CSVs, and asserts known movement, fireball, pickup, enemy, HP, Crest-form and
 campaign-transition invariants. It also checks save/options persistence: one run
 autosaves (with `DC_SAVE_FORCE`), a second run resumes it and the trace must
-report the same area, max HP and gold.
+report the same area, max HP and gold. The password codec is exercised twice:
+the binary self-test, and a Python-generated code applied via `DC_PASSWORD`
+must restore max HP and form.
 It exits with code 77 (CTest skip) when the binary or generated assets are
 missing.
 
