@@ -14,6 +14,8 @@ typedef struct Input {
     bool shot_held;
     bool special_pressed; /* SNES A ($105E): Talisman / Headbutt */
     bool special_held;
+    bool start_pressed;
+    bool pause_pressed;
     bool debug_collision;
 } Input;
 
@@ -21,6 +23,8 @@ typedef struct InputState {
     bool prev_jump;
     bool prev_shot;
     bool prev_special;
+    bool prev_start;
+    bool prev_pause;
     bool prev_debug;
 } InputState;
 

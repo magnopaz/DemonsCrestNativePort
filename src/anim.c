@@ -55,6 +55,11 @@ static bool LoadStepTextures(AnimStep *step, const char *path) {
     UnloadImage(image);
     if (!IsTextureValid(step->texture) || !IsTextureValid(step->flipped)) {
         fprintf(stderr, "anim: failed to create textures for %s\n", path);
+        if (IsTextureValid(step->texture))
+            UnloadTexture(step->texture);
+        if (IsTextureValid(step->flipped))
+            UnloadTexture(step->flipped);
+        memset(step, 0, sizeof(*step));
         return false;
     }
     SetTextureFilter(step->texture, TEXTURE_FILTER_POINT);
@@ -64,18 +69,10 @@ static bool LoadStepTextures(AnimStep *step, const char *path) {
 
 void Anim_Unload(PlayerAnim *anim) {
     for (int i = 0; i < anim->step_count; i++) {
-        Texture2D tex = anim->steps[i].texture;
-        if (!IsTextureValid(tex))
-            continue;
-        bool seen = false;
-        for (int j = 0; j < i; j++) {
-            if (anim->steps[j].texture.id == tex.id) {
-                seen = true;
-                break;
-            }
-        }
-        if (!seen)
-            UnloadTexture(tex);
+        if (IsTextureValid(anim->steps[i].texture))
+            UnloadTexture(anim->steps[i].texture);
+        if (IsTextureValid(anim->steps[i].flipped))
+            UnloadTexture(anim->steps[i].flipped);
     }
     memset(anim, 0, sizeof(*anim));
 }
@@ -212,13 +209,10 @@ bool ProjectileAnim_Load(ProjectileAnim *anim, const char *dir) {
         char tex_path[1024];
         snprintf(tex_path, sizeof(tex_path), "%s/%s", dir,
                  tex->valuestring);
-        step->texture = LoadTexture(tex_path);
-        if (!IsTextureValid(step->texture)) {
-            fprintf(stderr, "anim: failed to load %s\n", tex_path);
+        if (!LoadStepTextures(step, tex_path)) {
             ok = false;
             break;
         }
-        SetTextureFilter(step->texture, TEXTURE_FILTER_POINT);
         anim->step_count++;
     }
 
@@ -235,6 +229,8 @@ void ProjectileAnim_Unload(ProjectileAnim *anim) {
     for (int i = 0; i < anim->step_count; i++) {
         if (IsTextureValid(anim->steps[i].texture))
             UnloadTexture(anim->steps[i].texture);
+        if (IsTextureValid(anim->steps[i].flipped))
+            UnloadTexture(anim->steps[i].flipped);
     }
     memset(anim, 0, sizeof(*anim));
 }

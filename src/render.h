@@ -10,6 +10,7 @@
 
 void Render_Game(const Assets *assets, const Level *level, const GameCamera *camera,
                  const Player *player, const ProjectilePool *projectiles,
-                 const ObjectPool *objects, bool debug_collision);
+                 const ObjectPool *objects, bool show_hud,
+                 bool debug_collision);
 
 #endif

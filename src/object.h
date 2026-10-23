@@ -10,6 +10,10 @@
 
 #define OBJECT_POOL_SIZE 26
 
+#define OBJECT_EVENT_PICKUP 0x01
+#define OBJECT_EVENT_BREAK 0x02
+#define OBJECT_EVENT_ENEMY_HIT 0x04
+
 typedef enum ObjectType {
     OBJECT_NONE = 0,
     OBJECT_URN,
@@ -31,6 +35,7 @@ typedef struct Object {
 
 typedef struct ObjectPool {
     Object slots[OBJECT_POOL_SIZE];
+    int events; /* one-frame sound/effect flags */
 } ObjectPool;
 
 void Objects_Init(ObjectPool *pool, const Level *level);

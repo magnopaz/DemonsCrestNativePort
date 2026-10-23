@@ -80,6 +80,10 @@ Working today:
     knockback and heart drop.
 - BG3 HUD from `save0`: six-point health bar, three crest slots and an active
   spell-slot highlight at the top of the frame.
+- Original procedural audio: looping chiptune theme plus jump/land/shoot/break/
+  pickup/hurt/enemy-hit SFX; no ROM audio data is used.
+- Vertical-slice flow: title screen, pause overlay, Area Clear trigger at the
+  object-list exit (`species $09`, x=1920), and restart from title/clear.
 - Collision debug overlay (`F1`), FPS (`F3`).
 - Per-frame CSV trace output plus `DC_TRACE_PROJECTILES`/`DC_TRACE_OBJECTS`.
 - Deterministic demo input modes for screenshots and comparison.
@@ -91,7 +95,9 @@ Working today:
     (`tools/oracle/export_capture_csv.py`),
   - repeatable probe scripts for the area-2 route and `save0`,
   - debug-server animation capture (`tools/oracle/capture_anim.py`),
-  - animation frame baker (`tools/dc_extract/extract_anim.py`).
+  - animation frame baker (`tools/dc_extract/extract_anim.py`),
+  - deterministic native regression harness (`tools/run_regression.py`,
+    `tools/run_regression.sh`, CTest `regression`).
 - Movement constants and state machine recovered from the original Bank `$80`
   player code (`$80:DB00..F310`) and ported to `src/player.c`.
 - Movement validated against `save0`:
@@ -124,10 +130,11 @@ Not done yet:
 - Real species `$67` enemy handler/animations and hurt/death player clips;
   current ghoul and heart art are first-pass placeholders.
 - Talisman inventory/selection and full HUD wiring beyond the HP bar.
-- Audio.
+- Room transitions, password/menu/title-options flow, remaining areas, bosses,
+  crest forms and the Mode 7 overworld. Audio/music from the original ROM is
+  also not used (current audio is original procedural placeholder).
 - BG2 HDMA per-scanline parallax and the `$1070` walk-speed ramp (slope
   surfaces themselves are done).
-- Full campaign, bosses, menus, password/save, Mode 7 overworld.
 - Public-release asset replacement / legal packaging.
 
 ---
@@ -152,6 +159,7 @@ projetos/opencode/DemonsCrestNativePort
 │   ├── player.c / player.h
 │   ├── projectile.c / projectile.h
 │   ├── object.c / object.h
+│   ├── audio.c / audio.h
 │   ├── camera.c / camera.h
 │   └── render.c / render.h
 ├── tools/
@@ -355,22 +363,24 @@ physics difference.
 - `RenderTexture2D` at 256×224.
 - `TEXTURE_FILTER_POINT`.
 - Integer scale in `main.c`, centered with letterboxing.
-- `SetTargetFPS(60)`; currently one `Game_Update` per presented frame
-  (`main.c`). This is frame-based and deterministic, but not yet an
-  accumulator-based catch-up loop.
+- `SetTargetFPS(0)` plus VSync; a `GetFrameTime()` accumulator drives
+  `Game_Update` at an exact 60 Hz, capped to 0.25 s and 8 catch-up steps to
+  avoid a spiral. `DC_RUN_FRAMES` deliberately stays one update per loop so
+  traces/screenshots are deterministic.
 - Screen is drawn with a vertically flipped source rectangle, as required by
   raylib render textures.
 
 ### Modules
 
-- `main.c` — window, asset directory argument, fixed 60 Hz loop, integer
-  scaling, screenshot/run-frame hooks.
-- `game.c` — asset/level/player/camera ownership, target creation, update,
-  render, trace CSV.
+- `main.c` — window, asset directory argument, fixed 60 Hz accumulator,
+  integer scaling, screenshot/run-frame hooks.
+- `game.c` — asset/level/player/camera ownership, title/playing/paused/clear
+  state machine, target creation, update, render, trace CSV.
 - `assets.c` — loads the eight BG and OBJ palette atlases, player and item
   textures, `player_anim.json`, `fireball_anim.json`; sets point filtering.
 - `anim.c` — parses `player_anim.json` and `fireball_anim.json`, loads
-  per-clip PNGs, and exposes clip/step data with frame-based durations.
+  per-clip PNGs plus pre-baked mirrored textures, and exposes clip/step data
+  with frame-based durations.
 - `level.c` — parses `room.json` with cJSON, stores BG layers, collision,
   camera/play bounds, spawn, player feet offsets and static sprites.
 - `input.c` — keyboard/gamepad mapping, edge detection, deterministic `DC_DEMO`
@@ -382,6 +392,8 @@ physics difference.
   terrain and viewport despawn.
 - `object.c` — 26-slot level object pool: urns, pickups, first-pass enemies,
   `$85:C180` bounce/pickup and fireball hit handling.
+- `audio.c` — procedural chiptune music and SFX; silently disabled when the
+  audio device is unavailable or in deterministic `DC_RUN_FRAMES` runs.
 - `camera.c` — deadzone follow, clamped to level-provided camera bounds.
 - `render.c` — BG tile drawing, static sprites, animated player, fireball
   stream, object sprites, BG3 HUD, debug collision overlay.
@@ -549,6 +561,8 @@ Key Bank `$80` routines:
 | Fly upward (debug only) | hold jump + Up | hold B + Up | Crest-dependent (not base Gargoyle) |
 | Fireball shot | X or J | X / Y (west/top) | **Y** (`$1E3C` → `$105B`/`$105C`) |
 | Talisman / Headbutt | C or K | A (south) | **A** (`$1E3E` → `$105D`/`$105E`) |
+| Start / confirm | Enter | Start | Start |
+| Pause / resume | Escape | Back | Start |
 | Collision overlay | F1 | — | — |
 | FPS | F3 | — | — |
 
@@ -573,6 +587,10 @@ The original SNES default mapping was verified from `$80:DB00..DB40` and `save0`
 | `DC_DEMO=9` | urn → bouncing heart → heal regression |
 | `DC_DEMO=10` | enemy chase/damage/drop regression (pair with `DC_START_X`) |
 | `DC_START_X` / `DC_START_Y` | spawn override for focused tests |
+| `DC_TITLE=1` | force the title screen even with `DC_RUN_FRAMES` |
+| `DC_NO_AUDIO=1` | disable audio device/music/SFX |
+| `DC_AUDIO_DEBUG=1` | print audio device/music status |
+| `DC_AUDIO_FORCE=1` | allow audio during deterministic `DC_RUN_FRAMES` runs |
 | `DC_TRACE_OBJECTS=path` | per-frame active object slots CSV |
 | `DC_TRACE_PROJECTILES=path` | per-frame active projectile slots CSV |
 | `DC_FLY_DEBUG=1` | enable non-canonical B+Up vertical flight |
@@ -1100,9 +1118,9 @@ These were already discovered the hard way; do not rediscover them.
    `--player-palette 2` for this capture and verifies visually.
 
 6. **raylib negative source rectangles are unreliable for tile flipping.**
-   Pre-bake four flip quadrants per BG palette atlas. This fixed garbage on
-   flipped BG2 tiles. The player draw still uses a negative source width; if
-   facing bugs appear, pre-bake the player mirrored frames too.
+   BG atlases pre-bake four flip quadrants. Player and fireball animations now
+   load a second, pre-mirrored texture in `Anim_Load`; the renderer picks it
+   for left-facing sprites, so no negative source width is used.
 
 7. **Player OAM slots are dynamic.**
    The player is the palette-7 group, but its OAM slot range changes with
@@ -1194,10 +1212,12 @@ These were already discovered the hard way; do not rediscover them.
 - The `$1070` terrain probe that selects the `0x00B3` initial walk step /
   `$80:8B85` acceleration path is not wired yet; walking keeps the `0x0166`
   cap on both flat ground and slopes.
-- No audio.
+- Audio is an original procedural development loop/SFX, not extracted ROM
+  music; there is no music/sfx volume menu yet.
+- Title, pause and Area Clear screens exist, but there is no password/save,
+  stage select, map or room-transition menu yet.
 - Slope shapes `0x03..0x14` are decoded; edge/hazard shapes (`0x19`, `0x21`)
   still use conservative full-floor behavior.
-- No title screen, menus, save/password, stage select, map.
 - No full campaign or bosses.
 - No Windows build tested in this session (CMake/raylib are portable, but the
   build was verified on Linux).
@@ -1412,29 +1432,47 @@ Acceptance:
 - Remaining HUD work: real talisman inventory/selection and the exact
   per-talisman icons. The current first-slot highlight is a placeholder.
 
-### Step 8 — Engine hardening & automated regression harness
+### Step 8 — Engine hardening & automated regression harness (done)
 
-- **Fixed-timestep accumulator in `main.c`**: decouple the 60 Hz `Game_Update`
-  step from display refresh rate (`GetFrameTime()` accumulator capped to avoid
-  spiral of death) so 120 Hz / 144 Hz / VSync-off monitors advance gameplay at
-  an exact 60 Hz while `DC_RUN_FRAMES` remains deterministic 1-update-per-loop.
-- **Pre-baked left/right player frames (or verified flip)**: `render.c` still
-  uses negative `src.width` (`DrawTexturePro`) for left-facing player sprites
-  despite Trap #6; verify across drivers or pre-bake mirrored textures in
-  `Anim_Load`.
-- **Single-command regression test (`ctest` / `tools/run_regression.sh`)**:
-  automate running `DC_DEMO` traces and `tools/oracle/compare.py` against
-  checked-in reference CSV assertions so physics/animation regressions fail CI
-  immediately.
+- **Fixed-timestep accumulator in `main.c`**: `SetTargetFPS(0)` + VSync, a
+  `GetFrameTime()` accumulator capped at 0.25 s / 8 catch-up steps, and exact
+  60 Hz `Game_Update`. `DC_RUN_FRAMES` remains deterministic
+  one-update-per-loop for traces/screenshots.
+- **Pre-baked mirrored frames**: `Anim_Load`/`ProjectileAnim_Load` create a
+  mirrored texture per step; `render.c` selects it for left-facing player and
+  fireball draws. The static fallback player also has a pre-flipped texture.
+  No negative `DrawTexturePro` source widths remain.
+- **Single-command regression**: `tools/run_regression.py` (also
+  `tools/run_regression.sh` and CTest `regression`) runs demos 6/7/9/10 and
+  asserts walk/jump/hover, fireball spawn/despawn, urn/heart arc, enemy damage
+  and HP changes. `ctest --output-on-failure` passes. Missing binary/assets
+  return 77 so CTest reports a skip.
+- Acceptance: `ctest` passes in ~33 s, and the local `compare.py` oracle flow
+  remains available for ROM-accurate checks.
 
-### Step 9 — Audio, menus, game flow & full content
+### Step 9 — Audio, menus, game flow & full content (vertical-slice portion started)
 
-- Audio: development loop first, then BRR/DSP sample + sequence extractor or
-  replacement soundtrack for legal public release.
-- Flow: Boot → Title → New Game / Password → Graveyard vertical slice (3–5
-  rooms + boss gate at `$81:97DA`).
-- Full content: remaining areas, bosses, elemental Gargoyle crests, Mode 7
-  overworld, and original fan-game levels/story/art.
+Done in this session:
+
+- **Audio**: `src/audio.c` synthesizes an original looping chiptune theme and
+  jump/land/shoot/break/pickup/hurt/enemy-hit SFX at startup. No ROM audio is
+  used. Audio initializes only when a device is available and is skipped for
+  `DC_RUN_FRAMES`; `DC_NO_AUDIO`, `DC_AUDIO_DEBUG` and `DC_AUDIO_FORCE` are
+  available for testing.
+- **Flow**: `Game` now has Title / Playing / Paused / Clear states. The title
+  screen renders the graveyard behind an overlay and starts on Enter/Start;
+  Escape/Back pauses. The object-list exit (`species $09` at x=1920) triggers
+  an Area Clear screen; Enter restarts.
+- **Menus**: pause overlay and restart-on-clear are implemented. Password,
+  stage select, map and title options are not.
+
+Remaining Step 9 work:
+
+- Room transitions and the rest of Areas 1–3, boss gate `$81:97DA`, bosses,
+  crest forms, Mode 7 overworld, password/save/menu flow.
+- ROM music/SFX extraction (BRR/DSP + sequences) or a replacement soundtrack
+  for public release, plus volume/mute options.
+- Original fan-game levels/story/art.
 
 ---
 
@@ -1446,7 +1484,7 @@ Acceptance:
 | 1 | Engine skeleton: raylib, fixed 60 Hz, BG layers, input, camera | done |
 | 2 | Firebrand core: Bank `$80` state machine, physics, slopes, animations | done: state machine, slopes, shot/spell/fireball |
 | 3 | Combat and objects: fireball, `$1080` objects, enemy, `$85:C180` pickup, HUD | done: fireballs, object pool, urns, hearts, first-pass enemy, HUD |
-| 4 | Vertical slice: full Area 1–3 scrolling rooms, transitions, title/menu, audio | not started |
+| 4 | Vertical slice: full Area 1–3 scrolling rooms, transitions, title/menu, audio | Area 1 room, objects/HUD, title/pause/clear and procedural audio done; transitions/more rooms next |
 | 5 | Full campaign: all areas, bosses, forms, Mode 7, password/save | not started |
 | 6 | Fan-game content: new levels/story/art | not started |
 
@@ -1606,7 +1644,7 @@ When resuming:
 4. Verify assets exist:
    ```sh
    ls assets/generated/room.json assets/generated/player_idle.png \
-      assets/generated/player_anim.json
+      assets/generated/player_anim.json assets/generated/hud_bar.png
    ```
    If missing, run the capture + extract steps in section 4. For animation
    assets specifically:
@@ -1624,7 +1662,9 @@ When resuming:
 8. For oracle work, use `tools/oracle/oracle_save0_short.script` and
    `parse_player_trace.py`, not the area-2 landing route.
 9. For physics changes, compare with `compare.py` and keep a trace before/after.
-10. Do not commit `assets/generated/` or `captures/`.
+10. Run `./tools/run_regression.sh` (or `ctest --output-on-failure` in
+    `build/`) before committing; it must pass.
+11. Do not commit `assets/generated/` or `captures/`.
 
 ---
 
@@ -1656,6 +1696,12 @@ and the `$81:C874` Area 1 object list: four destructible species `$57` urns,
 bouncing `$85:C180` heart pickups that heal HP, and a first-pass species `$67`
 ghoul that chases, damages with knockback and drops hearts. The save0 BG3
 status bar is baked as `hud_bar.png`/`hud_slots.png` and rendered with the
-current HP bar and crest slots. The next milestone is Step 8: fixed timestep,
-pre-baked flips/regression harness and audio; BG2 HDMA parallax, the real
-`$83:AF74` enemy handler and talisman inventory remain polish items.
+current HP bar and crest slots. Step 8 hardens the engine: a fixed 60 Hz
+accumulator decoupled from display refresh, pre-baked mirrored player/fireball
+textures, and a CTest/`tools/run_regression.sh` harness that re-runs demos
+6/7/9/10 and asserts physics, projectile, pickup, enemy and HP invariants.
+Step 9 now has an original procedural chiptune/SFX layer, a title screen,
+pause overlay, and an Area Clear trigger at the graveyard exit. The remaining
+work is room transitions, the rest of Areas 1–3 and bosses, passwords/menus,
+Mode 7, and optional ROM audio extraction/replacement; BG2 HDMA parallax, the
+real `$83:AF74` enemy handler and talisman inventory remain polish items.

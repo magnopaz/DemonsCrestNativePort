@@ -67,17 +67,22 @@ static void DrawPlayer(const Assets *assets, const Level *level,
         step = Anim_Step(&assets->player_anim, player->anim_clip,
                          player->anim_step);
 
-    Texture2D texture = step ? step->texture : assets->player;
-    float anchor_x = step ? (float)step->anchor_x : level->player_feet_x;
-    float anchor_y = step ? (float)step->anchor_y : level->player_feet_y;
+    bool left = player->facing < 0;
+    Texture2D texture;
+    float anchor_x, anchor_y;
+    if (step) {
+        texture = left ? step->flipped : step->texture;
+        anchor_x = (float)step->anchor_x;
+        anchor_y = (float)step->anchor_y;
+    } else {
+        texture = left ? assets->player_flipped : assets->player;
+        anchor_x = level->player_feet_x;
+        anchor_y = level->player_feet_y;
+    }
 
     float x = player->x - anchor_x - camera->x;
     float y = player->y - anchor_y - camera->y;
     Rectangle src = {0, 0, (float)texture.width, (float)texture.height};
-    if (player->facing < 0) {
-        src.x = (float)texture.width;
-        src.width = -src.width;
-    }
     Rectangle dst = {x, y, (float)texture.width, (float)texture.height};
     DrawTexturePro(texture, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
 }
@@ -98,15 +103,10 @@ static void DrawProjectiles(const Assets *assets, const GameCamera *camera,
 
         float x = (float)p->x_fx / 256.0f - (float)step->anchor_x - camera->x;
         float y = (float)p->y_fx / 256.0f - (float)step->anchor_y - camera->y;
-        Rectangle src = {0, 0, (float)step->texture.width,
-                         (float)step->texture.height};
-        if (p->vx_fx < 0) {
-            src.x = (float)step->texture.width;
-            src.width = -src.width;
-        }
-        Rectangle dst = {x, y, (float)step->texture.width,
-                         (float)step->texture.height};
-        DrawTexturePro(step->texture, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
+        Texture2D texture = p->vx_fx < 0 ? step->flipped : step->texture;
+        Rectangle src = {0, 0, (float)texture.width, (float)texture.height};
+        Rectangle dst = {x, y, (float)texture.width, (float)texture.height};
+        DrawTexturePro(texture, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
     }
 }
 
@@ -171,7 +171,8 @@ static void DrawHud(const Assets *assets, const Player *player) {
 
 void Render_Game(const Assets *assets, const Level *level, const GameCamera *camera,
                  const Player *player, const ProjectilePool *projectiles,
-                 const ObjectPool *objects, bool debug_collision) {
+                 const ObjectPool *objects, bool show_hud,
+                 bool debug_collision) {
     static int layer_mask = -1;
     if (layer_mask < 0) {
         const char *env = getenv("DC_LAYER_MASK");
@@ -194,7 +195,8 @@ void Render_Game(const Assets *assets, const Level *level, const GameCamera *cam
     DrawPlayer(assets, level, camera, player);
     DrawProjectiles(assets, camera, projectiles);
     DrawObjects(assets, camera, objects);
-    DrawHud(assets, player);
+    if (show_hud)
+        DrawHud(assets, player);
 
     if (debug_collision) {
         const Collision *c = &level->collision;

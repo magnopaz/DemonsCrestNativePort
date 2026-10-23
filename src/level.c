@@ -227,6 +227,8 @@ bool Level_Load(Level *level, const Assets *assets, const char *dir) {
                 dst->type = LEVEL_OBJECT_URN;
             else if (strcmp(type->valuestring, "enemy") == 0)
                 dst->type = LEVEL_OBJECT_ENEMY;
+            else if (strcmp(type->valuestring, "exit") == 0)
+                dst->type = LEVEL_OBJECT_EXIT;
             else
                 continue;
             if (!ReadFloat(o, "x", &dst->x) ||

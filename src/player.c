@@ -74,6 +74,7 @@ static void IntegrateVertical(Player *player, const Level *level) {
             player->vy_fx = 0;
             player->on_ground = true;
             player->jump_sub = 0;
+            player->landed_event = true;
             SyncPublic(player);
             return;
         }
@@ -162,6 +163,7 @@ static void EnterJump(Player *player, const Level *level) {
     player->vy_fx = -PLAYER_JUMP_FX;
     player->walk_speed_fx = PLAYER_WALK_MAX_FX;
     player->land_timer = 0;
+    player->jump_started = true;
     SyncPublic(player);
 }
 
@@ -271,6 +273,9 @@ void Player_Animate(Player *player, const PlayerAnim *anim) {
 
 void Player_Update(Player *player, const Level *level, const Input *input) {
     player->shot_fired = false;
+    player->jump_started = false;
+    player->landed_event = false;
+    player->hurt_event = false;
     if (player->special_timer > 0)
         player->special_timer--;
     if (player->shot_timer > 0)

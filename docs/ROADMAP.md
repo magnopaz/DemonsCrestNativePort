@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: playable graveyard slice with physics, slopes, fireballs, objects and HUD.
+Status: playable graveyard vertical slice with physics, objects, HUD, audio and flow.
 
 ## Done
 
@@ -34,6 +34,16 @@ Status: playable graveyard slice with physics, slopes, fireballs, objects and HU
   first-pass species `$67` ghoul that chases, damages and drops hearts.
 - BG3 status bar extracted from `save0`: health bar + three crest slots, wired
   to `$1062`/`$1E50` HP and drawn at the top of the frame.
+- Fixed 60 Hz simulation accumulator decoupled from display refresh;
+  `DC_RUN_FRAMES` remains deterministic one-update-per-loop.
+- Pre-baked horizontal player/fireball textures (no negative-source flips).
+- `tools/run_regression.py` + `tools/run_regression.sh` + CTest exercise
+  demos 6, 7, 9 and 10 and assert physics, projectile, pickup and enemy
+  invariants.
+- Original procedural audio: looping chiptune theme plus jump/land/shoot/break/
+  pickup/hurt/enemy-hit SFX; no ROM audio data.
+- Title / Playing / Paused / Area Clear flow with an exit trigger from the
+  Area 1 object list (`species $09`, x=1920).
 
 ## Physics constants and Bank `$80` state machine recovered
 
@@ -87,21 +97,40 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
 
 ## Next (ordered by dependency)
 
-1. **Engine hardening, regression harness & audio**
-   - Add a fixed-timestep 60 Hz accumulator in `main.c`, verify or pre-bake
-     left-facing player frames, and add an automated `compare.py` regression
-     test script.
+1. **Room transitions & remaining vertical-slice content**
+   - Exits/transitions between Area 1–3 rooms, boss gate `$81:97DA`, one boss,
+     password/menu/stage-select flow.
    - Tighten the first-pass enemy into the real species `$67` handler
      (`$83:AF74`) and replace placeholder heart/enemy art with ROM OAM.
-   - Add development audio and finalize the legal public-release asset path.
-
-2. **Flow, content & polish**
-   - Room transitions, title/password/menu flow, remaining Area 1–3 rooms,
-     bosses, crest forms and the Mode 7 overworld.
+2. **Audio & full content**
+   - ROM BRR/DSP/sequence extraction or a replacement soundtrack, plus
+     music/SFX volume options.
+   - Mode 7 overworld, remaining bosses/crests and original fan-game content.
 
 ## Done recently
 
-1. **Object system, urn, heart pickup & HUD (Steps 6–7)**
+1. **Audio, title/pause/clear flow (Step 9, vertical-slice portion)**
+   - `src/audio.c` synthesizes an original looping chiptune theme and seven
+     gameplay SFX; it degrades silently without an audio device and is skipped
+     for deterministic `DC_RUN_FRAMES` runs.
+   - Game states Title / Playing / Paused / Clear. Enter/Start begins, Escape/
+     Back pauses, and the object-list exit at x=1920 triggers Area Clear with
+     restart.
+   - `DC_TITLE`, `DC_NO_AUDIO`, `DC_AUDIO_DEBUG` and `DC_AUDIO_FORCE` expose
+     the flow/audio paths for testing.
+
+2. **Engine hardening & regression harness (Step 8)**
+   - `main.c` now uses a fixed 60 Hz accumulator decoupled from display
+     refresh; `DC_RUN_FRAMES` keeps one update per loop for deterministic
+     captures.
+   - Player and fireball animations load a pre-baked mirrored texture instead
+     of relying on negative `DrawTexturePro` source widths.
+   - `tools/run_regression.py` (also exposed as `tools/run_regression.sh` and
+     CTest `regression`) runs demos 6/7/9/10 and asserts physics, projectile,
+     pickup, enemy and HP invariants. `ctest` passes.
+   - Remaining polish: real enemy/HUD art and audio.
+
+3. **Object system, urn, heart pickup & HUD (Steps 6–7)**
    - `src/object.c` implements a 26-slot pool and loads the `$81:C874` object
      list for Area 1: four destructible urns (`species $57`) and four species
      `$67` enemies.
@@ -116,7 +145,7 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
    - `DC_DEMO=9` exercises urn → heart → heal; `DC_DEMO=10` with
      `DC_START_X` exercises enemy chase, damage and drop.
 
-2. **Full-room Area 1 map, slopes & camera scrolling (Step 5)**
+4. **Full-room Area 1 map, slopes & camera scrolling (Step 5)**
    - `extract.py --full-room` emits the populated 8-screen Area 1 row as a
      2048×256 BG1 map and a 128×16 collision grid. The ROM grid's second row is
      all-zero padding, so it is omitted and recorded in `manifest.json`.
@@ -130,7 +159,7 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
    - Remaining polish: BG2 HDMA per-scanline parallax and the `$1070` walk-speed
      ramp are not wired yet.
 
-3. **Y Fireball shot & projectile pool (Step 4)**
+5. **Y Fireball shot & projectile pool (Step 4)**
    - Captured `Y` in `save0`: the grounded shot animation is 17 frames
      (idle press frame + 6-frame pose A + 10-frame pose B), and the projectile
      spawns on the press frame in object slot `$1080`.
@@ -145,7 +174,7 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
      viewport. `DC_DEMO=7` exercises right shots into the pillar and a
      long left-facing shot; `DC_TRACE_PROJECTILES=path` logs every active slot.
 
-4. **Bank `$80` player state machine ported (Step 3)**
+6. **Bank `$80` player state machine ported (Step 3)**
    - `src/player.c` now stores positions, velocities and walk speed as 8.8
      fixed point and follows the recovered grounded / jump-substate / hover
      flow (`$80:E0EE`, `$80:E1DA`, `$80:E29F`).
@@ -162,7 +191,7 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
      `x=0.00 px`, `y=0.53 px` (threshold 1 px). The residual Y delta is the
      known `$1000` task-idle oscillation, not a physics divergence.
 
-5. **Graveyard Area 1 extraction & collision alignment**
+7. **Graveyard Area 1 extraction & collision alignment**
    - Updated `tools/dc_extract/extract.py` default `--area` to `1` (`screens 8,
      9` = `slots 9, 10`) and regenerated `assets/generated/room.json`.
    - Masked block collision shapes by `attr & 0x1F` (`$80:8FDB`) so `0xA0`
@@ -172,7 +201,7 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
    - Verified stone pillar (`cx=24`, `x=384..399`, `y=128..159`) and floor
      (`by=10`, `y=160..175`) alignment in `physics_check.png`.
 
-6. **Animation extraction**
+8. **Animation extraction**
    - Captured OAM/VRAM/CGRAM per frame through the debug-server state ring.
    - Extracted idle, 6-pose walk, jump rise, hover/fly, fall, landing, Y shot,
      A spell and fireball clips with per-frame anchors and frame durations.

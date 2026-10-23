@@ -27,6 +27,7 @@ add_executable(demonscrest
     src/player.c
     src/projectile.c
     src/object.c
+    src/audio.c
     src/camera.c
     src/render.c
     external/cJSON/cJSON.c
@@ -38,6 +39,19 @@ target_include_directories(demonscrest PRIVATE
 )
 
 target_link_libraries(demonscrest PRIVATE raylib m)
+
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    enable_testing()
+    add_test(NAME regression
+             COMMAND ${Python3_EXECUTABLE}
+                     ${CMAKE_CURRENT_SOURCE_DIR}/tools/run_regression.py
+                     --binary $<TARGET_FILE:demonscrest>
+                     --assets ${CMAKE_CURRENT_SOURCE_DIR}/assets/generated)
+    set_tests_properties(regression PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        SKIP_RETURN_CODE 77)
+endif()
 
 if(MSVC)
     target_compile_options(demonscrest PRIVATE /W4)

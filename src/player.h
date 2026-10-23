@@ -51,6 +51,9 @@ typedef struct Player {
     int invuln_timer;  /* contact-damage immunity */
     int knockback_timer;
     int knockback_dir;
+    bool jump_started; /* one-frame audio/event flags */
+    bool landed_event;
+    bool hurt_event;
 
     int anim_clip;    /* current AnimClipId, -1 before the first frame */
     int anim_step;

@@ -38,6 +38,15 @@ bool Assets_Load(Assets *assets, const char *dir) {
         Assets_Unload(assets);
         return false;
     }
+    Image player_image = LoadImageFromTexture(assets->player);
+    ImageFlipHorizontal(&player_image);
+    assets->player_flipped = LoadTextureFromImage(player_image);
+    UnloadImage(player_image);
+    if (!IsTextureValid(assets->player_flipped)) {
+        Assets_Unload(assets);
+        return false;
+    }
+    SetTextureFilter(assets->player_flipped, TEXTURE_FILTER_POINT);
     if (!LoadOne(&assets->heart, dir, "heart_00.png")) {
         fprintf(stderr, "assets: heart_00.png missing; using item sprite\n");
         assets->heart = assets->item;
@@ -73,6 +82,8 @@ void Assets_Unload(Assets *assets) {
     }
     if (IsTextureValid(assets->player))
         UnloadTexture(assets->player);
+    if (IsTextureValid(assets->player_flipped))
+        UnloadTexture(assets->player_flipped);
     if (IsTextureValid(assets->item))
         UnloadTexture(assets->item);
     if (IsTextureValid(assets->heart) &&

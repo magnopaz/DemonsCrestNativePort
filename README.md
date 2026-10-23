@@ -61,6 +61,16 @@ frame-accurate oracle for movement and timing.
     knockback and drop hearts when killed by fireballs.
 - BG3 HUD extracted from `save0`: six-point health bar plus three crest slots
   at the top of the frame; the active spell slot is highlighted.
+- Fixed 60 Hz simulation with a frame-time accumulator; presentation refresh
+  is decoupled while `DC_RUN_FRAMES` remains deterministic.
+- Player/fireball animation frames have pre-baked mirrored textures, so the
+  renderer no longer uses negative source rectangles.
+- `ctest` / `tools/run_regression.sh` runs deterministic demos and asserts
+  physics, projectile, pickup, enemy and HP invariants.
+- Original procedural audio: a looping chiptune theme plus jump, land, shoot,
+  break, pickup, hurt and enemy-hit SFX (no ROM audio data).
+- Vertical-slice flow: title screen, pause overlay, and an Area Clear trigger
+  at the graveyard exit (`species $09` at `x=1920`).
 - Saved-state validation from `save0` (normal graveyard gameplay):
   - walk speed measured 1.40 px/frame,
   - default SNES bindings (`$80:DB00` via `$1E3A..$1E4C`): **B = Jump/Hover**,
@@ -72,8 +82,8 @@ frame-accurate oracle for movement and timing.
 - Debug collision overlay (`F1` or `DC_DEBUG_COLLISION=1`), FPS (`F3`).
 
 This is a playable technical foundation, not a finished game. The next
-milestone is engine hardening: fixed timestep, automated regression, real
-enemy/HUD art and audio.
+milestone is full vertical-slice flow: room transitions, title/password/menu
+completion, more rooms and bosses.
 
 ### Current limitations
 
@@ -90,7 +100,10 @@ enemy/HUD art and audio.
   (`$83:AF74`) are still to be ported; the current ghoul is a first-pass
   chase/damage/drop implementation with placeholder art. The heart sprite and
   HUD active-slot marker are also placeholders.
-- No audio yet.
+- No audio from the original ROM yet; the current music/SFX are original
+  procedural development placeholders.
+- No room transitions, password/menu flow, title options, more rooms, bosses
+  or full campaign.
 - The HUD health bar is scaled from the extracted six-point bar; talisman
   inventory/selection is not implemented yet, so the first slot is highlighted.
 
@@ -239,6 +252,8 @@ Use `--assets <dir>` to load assets from another directory.
 | Fly upward (debug only) | Z + Up | B + Up | Crest-dependent |
 | Fireball shot | X or J | X / Y (west/top) | **Y** (`$1E3C`) |
 | Talisman / Headbutt | C or K | A (south) | **A** (`$1E3E`) |
+| Start / confirm | Enter | Start | Start |
+| Pause / resume | Escape | Back | Start |
 | Collision overlay | F1 | — | — |
 | FPS | F3 | — | — |
 
@@ -265,6 +280,10 @@ These environment variables exist for deterministic testing:
 | `DC_TRACE_OBJECTS=path` | Write active object slots as CSV |
 | `DC_TRACE_PROJECTILES=path` | Write per-frame active projectile slots as CSV |
 | `DC_FLY_DEBUG=1` | Enable the non-canonical B+Up vertical flight |
+| `DC_TITLE=1` | Force the title screen even with `DC_RUN_FRAMES` |
+| `DC_NO_AUDIO=1` | Disable audio device/music/SFX |
+| `DC_AUDIO_DEBUG=1` | Print audio device/music status |
+| `DC_AUDIO_FORCE=1` | Allow audio in deterministic `DC_RUN_FRAMES` runs |
 | `DC_DEBUG_COLLISION=1` | Enable the `F1` collision overlay in headless runs |
 | `DC_LAYER_MASK=1\|2\|3` | Draw BG2 only / BG1 only / both |
 | `SNESRECOMP_LAYER_MASK` | On the recomp side, isolate BG/OBJ layers for comparison |
@@ -275,6 +294,21 @@ Example:
 DC_DEMO=2 DC_RUN_FRAMES=120 DC_TRACE_CSV=/tmp/native.csv ./build/demonscrest
 ```
 
+### Regression test
+
+After building and extracting assets:
+
+```sh
+./tools/run_regression.sh
+# or
+cd build && ctest --output-on-failure
+```
+
+The harness runs demos 6, 7, 9 and 10 through `DC_RUN_FRAMES`, writes trace
+CSVs, and asserts known movement, fireball, pickup, enemy and HP invariants.
+It exits with code 77 (CTest skip) when the binary or generated assets are
+missing.
+
 ## Layout
 
 ```
@@ -282,6 +316,7 @@ src/                  native engine
 src/anim.c            player_anim.json / fireball_anim.json loaders
 src/projectile.c      7-slot fireball pool
 src/object.c          26-slot urn/enemy/pickup pool
+src/audio.c           procedural music/SFX
 tools/dc_extract/     extraction from ROM + dump (room and animation frames)
 tools/capture_graveyard.sh  recomp dump helper
 tools/oracle/         WRAM/OAM trace parsers, probe routes, comparison and

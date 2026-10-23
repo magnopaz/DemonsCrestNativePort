@@ -125,6 +125,7 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 player->invuln_timer = 60;
                 player->knockback_timer = 8;
                 player->knockback_dir = (ox < px) ? 1 : -1;
+                player->hurt_event = true;
             }
             continue;
         }
@@ -158,6 +159,7 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
             if (player->hp < player->max_hp)
                 player->hp++;
             o->active = false;
+            pool->events |= OBJECT_EVENT_PICKUP;
         }
     }
 }
@@ -182,6 +184,7 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                     fabsf(py - oy) <= URN_HALF + 4.0f) {
                     o->active = false;
                     p->active = false;
+                    pool->events |= OBJECT_EVENT_BREAK;
                     SpawnPickup(pool, ox, oy + URN_HALF);
                     break;
                 }
@@ -189,6 +192,7 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                 if (fabsf(px - ox) <= 12.0f && fabsf(py - oy) <= 12.0f) {
                     p->active = false;
                     o->hp--;
+                    pool->events |= OBJECT_EVENT_ENEMY_HIT;
                     if (o->hp <= 0) {
                         SpawnPickup(pool, ox, oy + 8.0f);
                         o->active = false;

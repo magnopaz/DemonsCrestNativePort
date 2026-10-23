@@ -33,7 +33,8 @@ typedef struct StaticSprite {
 typedef enum LevelObjectType {
     LEVEL_OBJECT_NONE = 0,
     LEVEL_OBJECT_URN,
-    LEVEL_OBJECT_ENEMY
+    LEVEL_OBJECT_ENEMY,
+    LEVEL_OBJECT_EXIT
 } LevelObjectType;
 
 typedef struct LevelObject {

@@ -1,10 +1,20 @@
 #include "game.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "audio.h"
 #include "render.h"
+
+static void Game_Reset(Game *game) {
+    Player_Init(&game->player, &game->level);
+    Projectiles_Init(&game->projectiles);
+    Objects_Init(&game->objects, &game->level);
+    Camera_Init(&game->camera, &game->level);
+    game->state_timer = 0;
+}
 
 bool Game_Init(Game *game, const char *asset_dir) {
     memset(game, 0, sizeof(*game));
@@ -64,23 +74,62 @@ bool Game_Init(Game *game, const char *asset_dir) {
     }
 
     game->ready = true;
+    const char *demo = getenv("DC_DEMO");
+    bool force_title = getenv("DC_TITLE") != NULL;
+    bool automated = !force_title &&
+                     (getenv("DC_RUN_FRAMES") ||
+                      (demo && *demo && strcmp(demo, "0") != 0));
+    game->state = automated ? GAME_PLAYING : GAME_TITLE;
+    game->state_timer = 0;
+
+    Audio_Init();
+    Audio_StartMusic();
     return true;
 }
 
-void Game_Update(Game *game) {
-    Input_Read(&game->input, &game->input_state);
+static void Game_UpdateSimulation(Game *game) {
+    game->objects.events = 0;
     Player_Update(&game->player, &game->level, &game->input);
+    if (game->player.jump_started)
+        Audio_Play(SFX_JUMP);
+    if (game->player.landed_event)
+        Audio_Play(SFX_LAND);
+
+    bool shot = game->player.shot_fired;
     /* Existing shots move first; a shot fired this frame stays at its spawn
      * position for one frame, matching the original object loop. */
     Projectiles_Update(&game->projectiles, &game->level, &game->camera);
-    if (game->player.shot_fired) {
+    if (shot) {
         Projectiles_Spawn(&game->projectiles, &game->player);
         game->player.shot_fired = false;
+        Audio_Play(SFX_SHOOT);
     }
     Objects_CheckProjectiles(&game->objects, &game->projectiles);
     Objects_Update(&game->objects, &game->level, &game->player);
+    if (game->player.hurt_event)
+        Audio_Play(SFX_HURT);
+    if (game->objects.events & OBJECT_EVENT_BREAK)
+        Audio_Play(SFX_BREAK);
+    if (game->objects.events & OBJECT_EVENT_PICKUP)
+        Audio_Play(SFX_PICKUP);
+    if (game->objects.events & OBJECT_EVENT_ENEMY_HIT)
+        Audio_Play(SFX_ENEMY_HIT);
+
     Player_Animate(&game->player, &game->assets.player_anim);
     Camera_Update(&game->camera, &game->level, &game->player);
+
+    for (int i = 0; i < game->level.object_count; i++) {
+        const LevelObject *o = &game->level.objects[i];
+        if (o->type != LEVEL_OBJECT_EXIT)
+            continue;
+        if (fabsf(game->player.x - o->x) < 16.0f &&
+            fabsf(game->player.y - o->y) < 32.0f) {
+            game->state = GAME_CLEAR;
+            game->state_timer = 0;
+            break;
+        }
+    }
+
     if (game->trace) {
         fprintf(game->trace, "%u,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%d,%d\n",
                 game->frame, game->player.x, game->player.y,
@@ -114,15 +163,92 @@ void Game_Update(Game *game) {
     game->frame++;
 }
 
+void Game_Update(Game *game) {
+    Input_Read(&game->input, &game->input_state);
+    game->state_timer++;
+
+    switch ((GameState)game->state) {
+    case GAME_TITLE:
+        if (game->input.start_pressed) {
+            Game_Reset(game);
+            game->state = GAME_PLAYING;
+        }
+        break;
+    case GAME_PLAYING:
+        if (game->input.pause_pressed) {
+            game->state = GAME_PAUSED;
+            game->state_timer = 0;
+        } else {
+            Game_UpdateSimulation(game);
+        }
+        break;
+    case GAME_PAUSED:
+        if (game->input.pause_pressed || game->input.start_pressed) {
+            game->state = GAME_PLAYING;
+            game->state_timer = 0;
+        }
+        break;
+    case GAME_CLEAR:
+        if (game->input.start_pressed) {
+            Game_Reset(game);
+            game->state = GAME_PLAYING;
+        }
+        break;
+    }
+    Audio_Update();
+}
+
+static void DrawCentered(const char *text, int y, int size, Color color) {
+    Vector2 measure = MeasureTextEx(GetFontDefault(), text, (float)size, 1.0f);
+    DrawTextEx(GetFontDefault(), text,
+               (Vector2){(256.0f - measure.x) * 0.5f, (float)y},
+               (float)size, 1.0f, color);
+}
+
+static void DrawOverlay(const Game *game) {
+    if (game->state == GAME_TITLE) {
+        DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, 185});
+        DrawCentered("DEMON'S CREST", 58, 24, (Color){238, 232, 214, 255});
+        DrawCentered("NATIVE FAN PORT", 92, 10, (Color){196, 168, 92, 255});
+        if ((game->state_timer / 30) % 2 == 0)
+            DrawCentered("PRESS ENTER OR START", 128, 10,
+                         (Color){255, 255, 255, 255});
+        DrawCentered("ARROWS MOVE   Z JUMP", 164, 10,
+                     (Color){180, 180, 180, 255});
+        DrawCentered("X SHOOT   C SPELL", 177, 10,
+                     (Color){180, 180, 180, 255});
+        DrawCentered("F1 COLLISION   ESC PAUSE", 190, 10,
+                     (Color){180, 180, 180, 255});
+    } else if (game->state == GAME_PAUSED) {
+        DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, 150});
+        DrawCentered("PAUSED", 96, 24, (Color){238, 232, 214, 255});
+        DrawCentered("ESC OR BACK TO RESUME", 128, 10,
+                     (Color){200, 200, 200, 255});
+    } else if (game->state == GAME_CLEAR) {
+        DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, 185});
+        DrawCentered("AREA CLEAR", 82, 24, (Color){238, 232, 214, 255});
+        DrawCentered("THE GRAVEYARD SLICE ENDS HERE", 116, 10,
+                     (Color){196, 168, 92, 255});
+        if ((game->state_timer / 30) % 2 == 0)
+            DrawCentered("PRESS ENTER TO REPLAY", 148, 10,
+                         (Color){255, 255, 255, 255});
+    }
+}
+
 void Game_Render(Game *game) {
     BeginTextureMode(game->target);
+    bool show_hud = game->state == GAME_PLAYING ||
+                    game->state == GAME_PAUSED;
     Render_Game(&game->assets, &game->level, &game->camera, &game->player,
-                &game->projectiles, &game->objects,
+                &game->projectiles, &game->objects, show_hud,
                 game->input.debug_collision);
+    if (game->state != GAME_PLAYING)
+        DrawOverlay(game);
     EndTextureMode();
 }
 
 void Game_Shutdown(Game *game) {
+    Audio_Shutdown();
     if (game->trace)
         fclose(game->trace);
     if (game->projectile_trace)

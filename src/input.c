@@ -39,6 +39,10 @@ void Input_Read(Input *in, InputState *st) {
     /* SNES A ($1E3E -> $105D/$105E) is Talisman/Headbutt, not the shot. */
     bool special = IsKeyDown(KEY_C) || IsKeyDown(KEY_K) ||
                    PadDown(GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+    bool start = IsKeyDown(KEY_ENTER) ||
+                 PadDown(GAMEPAD_BUTTON_MIDDLE_RIGHT);
+    bool pause = IsKeyDown(KEY_ESCAPE) ||
+                 PadDown(GAMEPAD_BUTTON_MIDDLE_LEFT);
     bool debug = IsKeyDown(KEY_F1) || (debug_env > 0);
 
     /* Deterministic input for screenshots/regressions. */
@@ -131,10 +135,14 @@ void Input_Read(Input *in, InputState *st) {
     in->shot_pressed = shot && !st->prev_shot;
     in->special_held = special;
     in->special_pressed = special && !st->prev_special;
+    in->start_pressed = start && !st->prev_start;
+    in->pause_pressed = pause && !st->prev_pause;
     in->debug_collision = debug;
 
     st->prev_jump = jump;
     st->prev_shot = shot;
     st->prev_special = special;
+    st->prev_start = start;
+    st->prev_pause = pause;
     st->prev_debug = debug;
 }

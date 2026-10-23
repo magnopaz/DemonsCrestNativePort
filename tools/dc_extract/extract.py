@@ -671,7 +671,7 @@ def main() -> int:
         object_list_index = args.area
     if object_list_index is not None:
         row_offset = (row_index * 256) if args.full_room else 0
-        type_by_species = {0x57: "urn", 0x67: "enemy"}
+        type_by_species = {0x57: "urn", 0x67: "enemy", 0x09: "exit"}
         for rec in rom.object_list(object_list_index):
             x = rec["x"]
             y = rec["y"] - row_offset

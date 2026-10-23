@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     SetWindowMinSize(512, 448);
-    SetTargetFPS(60);
+    SetTargetFPS(0); /* presentation is decoupled from the fixed 60 Hz sim */
 
     Game game;
     if (!Game_Init(&game, FindAssetDir(argc, argv))) {
@@ -35,9 +35,32 @@ int main(int argc, char **argv) {
     int run_limit = run_frames_env ? atoi(run_frames_env) : 0;
     const char *shot = getenv("DC_SCREENSHOT");
     int frames = 0;
+    const double step = 1.0 / 60.0;
+    double accumulator = 0.0;
+    const bool deterministic = run_limit > 0;
 
-    while (run_limit > 0 ? (frames < run_limit) : !WindowShouldClose()) {
-        Game_Update(&game);
+    while (deterministic ? (frames < run_limit) : !WindowShouldClose()) {
+        if (deterministic) {
+            /* Headless captures stay exactly one update per loop so
+             * DC_RUN_FRAMES/DC_TRACE_CSV remain reproducible. */
+            Game_Update(&game);
+            frames++;
+        } else {
+            double dt = GetFrameTime();
+            if (dt > 0.25)
+                dt = 0.25; /* avoid a huge catch-up after a stall */
+            accumulator += dt;
+            int updates = 0;
+            while (accumulator >= step && updates < 8) {
+                Game_Update(&game);
+                accumulator -= step;
+                frames++;
+                updates++;
+            }
+            if (updates == 8 && accumulator >= step)
+                accumulator = 0.0; /* drop the backlog rather than spiral */
+        }
+
         Game_Render(&game);
         BeginDrawing();
         ClearBackground((Color){0, 0, 0, 255});
@@ -64,8 +87,7 @@ int main(int argc, char **argv) {
             DrawFPS(8, 8);
         EndDrawing();
 
-        frames++;
-        if (shot && *shot && run_limit > 0 && frames >= run_limit) {
+        if (shot && *shot && deterministic && frames >= run_limit) {
             TakeScreenshot(shot);
             break;
         }
