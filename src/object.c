@@ -578,37 +578,85 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                                                &floor_y) ||
                                 floor_y - spawn_y > 24.0f;
                 if (airborne) {
-                    /* Flyer: drift toward the player, bob around the spawn. */
-                    o->facing = dx >= 0 ? 1 : -1;
-                    if (labs((long)dx) > 8 * FX_ONE)
-                        o->x_fx += o->facing * 0x0070;
-                    float target_y = (float)o->origin_y_fx / FX_ONE +
-                                     sinf(o->timer * 0.07f) * 14.0f;
-                    if (fabsf(player->y - 14.0f - target_y) < 60.0f)
-                        target_y = player->y - 14.0f;
-                    float cur_y = (float)o->y_fx / FX_ONE;
-                    if (target_y > cur_y + 1.0f)
-                        o->y_fx += 0x0050;
-                    else if (target_y < cur_y - 1.0f)
-                        o->y_fx -= 0x0050;
-                } else {
-                    if (near) {
-                        o->facing = dx >= 0 ? 1 : -1;
-                        if (labs((long)dx) > 10 * FX_ONE)
-                            o->x_fx += o->facing * 0x0068;
-                    } else {
-                        if (o->vx_fx == 0)
-                            o->vx_fx = 0x0048;
+                    if (o->state == 2) {
+                        /* Dive attack: locked velocity for a few frames. */
                         o->x_fx += o->vx_fx;
-                        if (labs((long)(o->x_fx - o->origin_x_fx)) >
-                            48 * FX_ONE)
-                            o->vx_fx = -o->vx_fx;
+                        o->y_fx += o->vy_fx;
+                        if (--o->phase <= 0) {
+                            o->state = 0;
+                            o->phase = 90;
+                            o->vx_fx = 0;
+                            o->vy_fx = 0;
+                        }
+                    } else {
+                        /* Flyer: drift toward the player, bob around spawn. */
+                        o->facing = dx >= 0 ? 1 : -1;
+                        if (labs((long)dx) > 8 * FX_ONE)
+                            o->x_fx += o->facing * 0x0070;
+                        float target_y = (float)o->origin_y_fx / FX_ONE +
+                                         sinf(o->timer * 0.07f) * 14.0f;
+                        if (fabsf(player->y - 14.0f - target_y) < 60.0f)
+                            target_y = player->y - 14.0f;
+                        float cur_y = (float)o->y_fx / FX_ONE;
+                        if (target_y > cur_y + 1.0f)
+                            o->y_fx += 0x0050;
+                        else if (target_y < cur_y - 1.0f)
+                            o->y_fx -= 0x0050;
+                        if (o->phase > 0)
+                            o->phase--;
+                        else if (labs((long)dx) < 64 * FX_ONE &&
+                                 labs((long)dy) < 180 * FX_ONE) {
+                            /* Swoop at the player's current position. */
+                            float ddx = (float)dx;
+                            float ddy = (float)dy;
+                            float len = sqrtf(ddx * ddx + ddy * ddy);
+                            if (len < 0.001f)
+                                len = 1.0f;
+                            o->vx_fx = (int32_t)(ddx / len * 3.0f * FX_ONE);
+                            o->vy_fx = (int32_t)(ddy / len * 3.0f * FX_ONE);
+                            o->state = 2;
+                            o->phase = 22;
+                        }
                     }
-                    float gx = (float)o->x_fx / FX_ONE;
-                    float gy = (float)o->y_fx / FX_ONE;
-                    float surf;
-                    if (Level_FloorAt(level, gx, gy + 4.0f, &surf))
-                        o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+                } else {
+                    if (o->state == 2) {
+                        /* Ground lunge: short horizontal burst. */
+                        o->x_fx += o->facing * 0x0200;
+                        float gx = (float)o->x_fx / FX_ONE;
+                        float gy = (float)o->y_fx / FX_ONE;
+                        float surf;
+                        if (Level_FloorAt(level, gx, gy + 4.0f, &surf))
+                            o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+                        if (--o->phase <= 0) {
+                            o->state = 0;
+                            o->phase = 80;
+                        }
+                    } else {
+                        if (near) {
+                            o->facing = dx >= 0 ? 1 : -1;
+                            if (labs((long)dx) > 10 * FX_ONE)
+                                o->x_fx += o->facing * 0x0068;
+                        } else {
+                            if (o->vx_fx == 0)
+                                o->vx_fx = 0x0048;
+                            o->x_fx += o->vx_fx;
+                            if (labs((long)(o->x_fx - o->origin_x_fx)) >
+                                48 * FX_ONE)
+                                o->vx_fx = -o->vx_fx;
+                        }
+                        float gx = (float)o->x_fx / FX_ONE;
+                        float gy = (float)o->y_fx / FX_ONE;
+                        float surf;
+                        if (Level_FloorAt(level, gx, gy + 4.0f, &surf))
+                            o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+                        if (o->phase > 0)
+                            o->phase--;
+                        else if (near && labs((long)dx) > 14 * FX_ONE &&
+                                 labs((long)dx) < 52 * FX_ONE) {
+                            o->state = 2;
+                            o->phase = 14;
+                        }
+                    }
                 }
             }
             ox = (float)o->x_fx / FX_ONE;

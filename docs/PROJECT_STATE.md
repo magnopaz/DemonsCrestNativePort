@@ -2380,6 +2380,23 @@ Species handler addresses for the next ports are recorded here:
 
 ---
 
+### Step 34 — Dive and lunge attacks for generic enemies (done)
+
+- Flyers (no floor under the spawn / floor far below) now **swoop**: when the
+  player is within 64 px horizontally and 180 px vertically and the cooldown has
+  elapsed, they lock a velocity toward the player's position for 22 frames, then
+  recover with a 90-frame cooldown.
+- Grounded generic enemies **lunge**: a 14-frame horizontal burst at 2 px/frame
+  when the player is 14–52 px away, with an 80-frame cooldown.
+- Verified in Area 12 (species `$10`): slot 0 dives from y 327 to 429 (the
+  player's level) and the player loses 1 HP; the other three keep hovering.
+  Regression PASS.
+
+This makes unported species threatening without pretending to be their real
+handlers; the ROM state machines remain the fidelity target.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
