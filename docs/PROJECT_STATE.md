@@ -2514,6 +2514,24 @@ ending to replace the current black overlay.
 
 ---
 
+### Step 39 — Ending coverage in regression; Mode 7 investigation (done)
+
+- The regression suite now asserts that **each of the four ending variants
+  renders** (`DC_STATE=ending`, `DC_ENDING=bad|normal|good|true`, mode 10).
+- **Mode 7 map extraction attempted and not solved:** composing the 128x128 map
+  from save11's VRAM yields noise. In Mode 7 the tilemap and the 8bpp character
+  data share the same VRAM and are accessed through the hardware's interleaved
+  addressing, so a naive "word (y*128+x) = tile, byte tile*64+y*8+x = pixel"
+  decode reads character data as map entries. All three plausible variants
+  (low/high byte, high-byte tile) were rendered and are noise. Cracking it needs
+  a proper Mode 7 reference (the `m7a..m7y` registers are also not exposed by
+  `get_ppu_state`), so the procedural overworld stays for now.
+- Save7 (`Area 48` shop) still shows the NPC object only in some sessions;
+  `capture_area_objects.py` is kept with a dynamic debug port, but species
+  capture from real saves is not yet reliable enough for the asset pipeline.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

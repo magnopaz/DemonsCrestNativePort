@@ -29,7 +29,13 @@ RECOMP = Path(r"M:\Opencode\DemonsCrestSNESRecomp")
 EXE = RECOMP / "build-trace" / "DemonsCrestSNESRecomp.exe"
 ROM = Path(r"M:\Opencode\roms\Demon's Crest (USA).sfc")
 SAVES = RECOMP / "build-trace" / "saves"
-PORT = 4417
+def free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+PORT = free_port()
 
 OBJ_BASE = 0x1080
 OBJ_STRIDE = 0x50
@@ -96,6 +102,8 @@ def main() -> int:
                             cwd=str(RECOMP), env=env, stdout=log, stderr=log)
     try:
         c = Client(connect())
+        if os.environ.get("DC_CAP_DEBUG"):
+            print("  [dbg] connected, raw frame:", c.cmd("frame"))
 
         def visible_ppu():
             for _ in range(240):

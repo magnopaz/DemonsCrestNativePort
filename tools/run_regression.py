@@ -260,6 +260,13 @@ def main() -> int:
         check(at2_modes and at2_modes[-1] == 0,
               f"title: Start did not cancel the attract demo ({sorted(set(at2_modes))})")
 
+        # ---- Ending variants render ----
+        for variant in ("bad", "normal", "good", "true"):
+            er = run_demo(base, out, 0, 12,
+                          {"DC_STATE": "ending", "DC_ENDING": variant})
+            modes_e = [int(r["mode"]) for r in csv_rows(er["player"])]
+            check(10 in modes_e, f"ending: variant {variant} did not render")
+
         # ---- Pause menu SAVE writes progress ----
         pause_save = out / "pause_save.json"
         if pause_save.exists():
