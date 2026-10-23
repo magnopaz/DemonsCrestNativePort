@@ -382,6 +382,8 @@ bool Game_LoadProgress(Game *game) {
     return true;
 }
 
+static void Game_StartEnding(Game *game);
+
 bool Game_Init(Game *game, const char *asset_dir) {
     memset(game, 0, sizeof(*game));
     snprintf(game->asset_dir, sizeof(game->asset_dir), "%s", asset_dir);
@@ -505,7 +507,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         } else if (strcmp(state_env, "gameover") == 0)
             game->state = GAME_OVER;
         else if (strcmp(state_env, "ending") == 0)
-            game->state = GAME_ENDING;
+            Game_StartEnding(game);
     }
     game->state_timer = 0;
 
@@ -857,8 +859,7 @@ static void Game_UpdateOverworld(Game *game) {
         if (nearest == CAMPAIGN_DEMON_KEEP) {
             /* Final keep requires all earlier stages cleared. */
             if ((game->stages_cleared & 0x0F) == 0x0F) {
-                game->state = GAME_ENDING;
-                game->state_timer = 0;
+                Game_StartEnding(game);
                 return;
             }
             return;
@@ -1276,14 +1277,32 @@ void Game_Update(Game *game) {
         break;
     }
     case GAME_ENDING: {
-        int pages = (game->ending_text >= 0)
-                        ? game->script.page_count[game->ending_text] : 0;
+        const EndingData *ed = &game->assets.endings;
+        int variant = game->ending_variant;
+        int lines = ed->loaded ? ed->line_count[variant] : 0;
+        int narr_pages = (lines + 1) / 2;
         if (game->input.start_pressed) {
-            if (game->ending_page + 1 < pages) {
-                game->ending_page++;
+            if (game->ending_phase == 0) {
+                if (game->ending_page + 1 < narr_pages) {
+                    game->ending_page++;
+                } else if (ed->loaded && ed->epilogue[variant] >= 0) {
+                    game->ending_phase = 1;
+                    game->ending_page = 0;
+                } else {
+                    game->ending_phase = 1;
+                    game->ending_page = 0;
+                }
             } else {
-                game->ending_page = 0;
-                game->state = GAME_TITLE;
+                int epi = ed->loaded ? ed->epilogue[variant] : -1;
+                int epi_pages = (epi >= 0 && game->script_ready)
+                                    ? game->script.page_count[epi] : 0;
+                if (game->ending_page + 1 < epi_pages) {
+                    game->ending_page++;
+                } else {
+                    game->ending_page = 0;
+                    game->ending_phase = 0;
+                    game->state = GAME_TITLE;
+                }
             }
         }
         break;
@@ -1402,6 +1421,41 @@ static void DrawOverworld(const Game *game) {
              (Color){235, 210, 120, 255});
     DrawCentered("ARROWS FLY   ENTER LAND   C SHOP", 208, 10,
                  (Color){200, 200, 200, 255});
+}
+
+/* Ending variant from collected power crests (mask bits 1..5):
+ * 0 -> bad, 1-2 -> normal, 3-4 -> good, 5 -> true. */
+static int Game_EndingVariant(const Game *game) {
+    int count = 0;
+    for (int i = 1; i <= 5; i++)
+        if (game->player.crests_mask & (1u << i))
+            count++;
+    if (count >= 5)
+        return 3;
+    if (count >= 3)
+        return 2;
+    if (count >= 1)
+        return 1;
+    return 0;
+}
+
+static void Game_StartEnding(Game *game) {
+    game->ending_variant = Game_EndingVariant(game);
+    const char *env = getenv("DC_ENDING");
+    if (env && *env) {
+        if (strcmp(env, "bad") == 0)
+            game->ending_variant = 0;
+        else if (strcmp(env, "normal") == 0)
+            game->ending_variant = 1;
+        else if (strcmp(env, "good") == 0)
+            game->ending_variant = 2;
+        else if (strcmp(env, "true") == 0)
+            game->ending_variant = 3;
+    }
+    game->ending_page = 0;
+    game->ending_phase = 0;
+    game->state = GAME_ENDING;
+    game->state_timer = 0;
 }
 
 /* Brief area-entry banner: fades in, holds, fades out. */
@@ -1601,21 +1655,34 @@ static void DrawOverlay(const Game *game) {
             DrawCentered("PRESS ENTER", 196, 10,
                          (Color){200, 200, 200, 255});
     } else if (game->state == GAME_ENDING) {
-        DrawRectangle(0, 0, 256, 224, (Color){4, 6, 12, 240});
-        DrawCentered("THE DEMON'S CREST", 24, 18,
-                     (Color){240, 220, 150, 255});
-        if (game->ending_text >= 0 && game->script_ready) {
-            /* Real ending narration ($81:8DF2 pages). */
-            Text_DrawPage(&game->assets, &game->script, game->ending_text,
-                          game->ending_page, 16, 56, 224,
-                          (Color){240, 236, 220, 255});
+        DrawRectangle(0, 0, 256, 224, (Color){4, 6, 12, 245});
+        const EndingData *ed = &game->assets.endings;
+        int variant = game->ending_variant;
+        if (!ed->loaded) {
+            DrawCentered("THE DEMON'S CREST", 96, 16,
+                         (Color){240, 220, 150, 255});
+        } else if (game->ending_phase == 0) {
+            int first = game->ending_page * 2;
+            DrawCentered(ed->title[variant], 24, 14,
+                         (Color){240, 220, 150, 255});
+            for (int i = 0; i < 2; i++) {
+                int idx = first + i;
+                if (idx >= ed->line_count[variant])
+                    break;
+                Text_DrawString(&game->assets, ed->lines[variant][idx], 12,
+                                84 + i * 22, (Color){240, 236, 220, 255});
+            }
         } else {
-            DrawCentered("THE PHALANX IS BROKEN", 84, 10,
-                         (Color){200, 220, 255, 255});
+            int epi = ed->epilogue[variant];
+            if (epi >= 0 && game->script_ready) {
+                Text_DrawPage(&game->assets, &game->script, epi,
+                              game->ending_page, 16, 56, 224,
+                              (Color){240, 236, 220, 255});
+            } else {
+                DrawCentered("THE END", 96, 20,
+                             (Color){240, 220, 150, 255});
+            }
         }
-        DrawCentered(TextFormat("MAX HP %d   GOLD %d", game->player.max_hp,
-                                game->player.gold), 184, 10,
-                     (Color){240, 220, 140, 255});
         if ((game->state_timer / 30) % 2 == 0)
             DrawCentered("PRESS ENTER", 206, 10, (Color){200, 200, 200, 255});
     }

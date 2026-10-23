@@ -130,6 +130,50 @@ int Assets_RoomKind(const Assets *assets, int area) {
     return assets->room_kind[area];
 }
 
+/* endings.json: the four campaign endings (narration transcribed from the
+ * reference ending screenshots; epilogue indexes the ROM text script). */
+static void LoadEndings(Assets *assets, const char *dir) {
+    char path[1200];
+    snprintf(path, sizeof(path), "%s/endings.json", dir);
+    if (!FileExists(path))
+        return;
+    char *text = LoadFileText(path);
+    if (!text)
+        return;
+    cJSON *root = cJSON_Parse(text);
+    UnloadFileText(text);
+    if (!root)
+        return;
+    static const char *kIds[DC_ENDING_VARIANTS] = {"bad", "normal", "good",
+                                                  "true"};
+    const cJSON *endings = cJSON_GetObjectItemCaseSensitive(root, "endings");
+    for (int i = 0; i < DC_ENDING_VARIANTS; i++) {
+        const cJSON *e = cJSON_GetObjectItemCaseSensitive(endings, kIds[i]);
+        if (!cJSON_IsObject(e))
+            continue;
+        const cJSON *title = cJSON_GetObjectItemCaseSensitive(e, "title");
+        if (cJSON_IsString(title))
+            snprintf(assets->endings.title[i], sizeof(assets->endings.title[i]),
+                     "%s", title->valuestring);
+        const cJSON *lines = cJSON_GetObjectItemCaseSensitive(e, "lines");
+        int n = 0;
+        const cJSON *line = NULL;
+        cJSON_ArrayForEach(line, lines) {
+            if (!cJSON_IsString(line) || n >= DC_ENDING_MAX_LINES)
+                break;
+            snprintf(assets->endings.lines[i][n],
+                     sizeof(assets->endings.lines[i][n]), "%s",
+                     line->valuestring);
+            n++;
+        }
+        assets->endings.line_count[i] = n;
+        const cJSON *epi = cJSON_GetObjectItemCaseSensitive(e, "epilogue");
+        assets->endings.epilogue[i] = cJSON_IsNumber(epi) ? epi->valueint : -1;
+    }
+    assets->endings.loaded = true;
+    cJSON_Delete(root);
+}
+
 const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species) {
     for (int i = 0; i < assets->species_count; i++) {
         if (assets->species[i].species == species)
@@ -198,6 +242,7 @@ bool Assets_Load(Assets *assets, const char *dir) {
     }
     LoadSpeciesSheets(assets, dir);
     LoadRoomKinds(assets, dir);
+    LoadEndings(assets, dir);
     if (assets->species_count > 0)
         printf("assets: %d per-species sprite sheet(s)\n", assets->species_count);
     assets->ready = true;

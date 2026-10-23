@@ -407,6 +407,7 @@ These environment variables exist for deterministic testing:
 | `DC_PASSWORD=<code>` | Apply a native 10-letter password at boot |
 | `DC_PASSWORD_SELFTEST=1` | Run password codec round-trips and exit (CI) |
 | `DC_NO_STORY=1` | Skip the crest/item story beats |
+| `DC_ENDING=bad\|normal\|good\|true` | Preview an ending variant |
 | `DC_STORY_TEST=<crest>` / `DC_STORY_PAGE=n` | Open a story page directly |
 | `DC_FIRE_TEST=<1..4>` | Open a fire-crest piece page directly |
 | `DC_LAYER_MASK=<bits>` | Draw only selected BG layers (1 = BG2, 2 = BG1) |

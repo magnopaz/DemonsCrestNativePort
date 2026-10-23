@@ -18,6 +18,17 @@ typedef struct SpeciesFrame {
     float anchor_y;
 } SpeciesFrame;
 
+#define DC_ENDING_VARIANTS 4
+#define DC_ENDING_MAX_LINES 12
+
+typedef struct EndingData {
+    char title[DC_ENDING_VARIANTS][16];
+    char lines[DC_ENDING_VARIANTS][DC_ENDING_MAX_LINES][52];
+    int line_count[DC_ENDING_VARIANTS];
+    int epilogue[DC_ENDING_VARIANTS]; /* text_strings index or -1 */
+    bool loaded;
+} EndingData;
+
 typedef struct SpeciesSheet {
     int species;
     int frame_count;
@@ -41,6 +52,7 @@ typedef struct Assets {
     int enemy_frames;
     SpeciesSheet species[DC_SPECIES_MAX];
     int species_count;
+    EndingData endings;
     uint8_t room_kind[DC_CAMPAIGN_AREAS]; /* 0 unknown, 1 playable, 2 partial, 3 empty */
     int stage_entries[80]; /* rooms no other room targets (stage select) */
     int stage_count;

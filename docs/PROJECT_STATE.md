@@ -2486,6 +2486,34 @@ can be trusted in the extraction pipeline).
 
 ---
 
+### Step 38 — Four endings (done, gating approximate)
+
+The user clarified that the rooms previously assumed to be "boss areas" are
+**ending sequences**, and linked the four reference endings (Bad / Normal / Good
+/ True). Reference frame sets were downloaded and transcribed
+(`dcbuild/endings/*_sheet*.png`), and the narration is now a data asset:
+
+- `tools/dc_extract/build_endings.py` writes `endings.json` with the four
+  variants, word-wrapped to the 8px font (30 chars), plus an epilogue index.
+  The bad ending's epilogue uses the ROM string at `$81:8DF2`
+  ("I NEVER EXPECTED THAT PHALANX WOULD BE DEFEATED..."), which the reference
+  frames confirmed is that text.
+- `src/assets.c` loads it into `EndingData`; `src/game.c` selects the variant
+  from the collected power crests (`0 -> bad`, `1-2 -> normal`, `3-4 -> good`,
+  `5 -> true` — an approximation of the real conditions), pages through two
+  narration lines per screen, then shows the epilogue (or `THE END`).
+- `DC_ENDING=bad|normal|good|true` previews a variant; `DC_STATE=ending` picks
+  one from the save's crests. All four variants screenshot correctly.
+- The narration itself is not plain ASCII in the ROM (the battle lines at
+  `$BE:B947..C128` are), so it is transcribed from reference captures and this
+  provenance is recorded in `endings.json`.
+
+Next: pin the real ending conditions (they likely depend on specific crests /
+talismans, not just a count) and capture the ending artwork from saves at each
+ending to replace the current black overlay.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

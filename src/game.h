@@ -59,6 +59,8 @@ typedef struct Game {
     int shop_full_vellum;
     int shop_message;
     int ending_text;   /* cached ROM narration index */
+    int ending_variant; /* 0 bad, 1 normal, 2 good, 3 true */
+    int ending_phase;   /* 0 narration, 1 epilogue/end card */
     int ending_page;
     int dialogue_text;   /* script entry shown by GAME_DIALOGUE */
     int dialogue_page;
