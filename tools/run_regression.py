@@ -250,6 +250,19 @@ def main() -> int:
         check(any(int(r["area"]) == 0 for r in rows13),
               "demo13: title NEW GAME did not enter Area 0")
 
+        # ---- Pause menu SAVE writes progress ----
+        pause_save = out / "pause_save.json"
+        if pause_save.exists():
+            pause_save.unlink()
+        run_demo(base, out, 32, 20,
+                 {"DC_STATE": "pause", "DC_CAMPAIGN": "1",
+                  "DC_SAVE_PATH": str(pause_save), "DC_SAVE_FORCE": "1"})
+        check(pause_save.is_file(), "pause: SAVE did not write a save file")
+        if pause_save.is_file():
+            data = json.loads(pause_save.read_text())
+            check(isinstance(data.get("area"), int),
+                  "pause: save file has no area field")
+
         # ---- End-to-end campaign playthrough ----
         play = subprocess.run(
             [sys.executable, str(ROOT / "tools" / "check_playthrough.py"),

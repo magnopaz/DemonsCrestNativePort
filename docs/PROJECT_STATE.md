@@ -2226,6 +2226,27 @@ ending all work through the real game code.
 
 ---
 
+### Step 26 — Pause menu with manual save (done)
+
+The pause menu now offers **RESUME / SAVE / RETURN TO MAP** (or **QUIT TO TITLE**
+outside campaign mode):
+
+- `SAVE` writes the same versioned progress file as the area-clear autosave and
+  shows a `SAVED` hint for 90 frames (the menu stays open).
+- `RETURN TO MAP` opens the overworld in campaign mode; outside it the game
+  returns to the title.
+- `Pause` (the SNES Start key) resumes directly, as before.
+- `DC_STATE=pause` opens the menu for captures, and demo 32 (down + confirm)
+  drives the save path in the regression: the suite asserts a save file with an
+  `area` field is produced.
+
+![Pause menu](out/pause_menu.png)
+
+Note: deterministic runs skip saving unless `DC_SAVE_FORCE=1` is set, which is
+why the regression sets it.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

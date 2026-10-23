@@ -488,6 +488,8 @@ bool Game_Init(Game *game, const char *asset_dir) {
             Game_OpenOverworld(game);
         } else if (strcmp(state_env, "subscreen") == 0)
             game->state = GAME_SUBSCREEN;
+        else if (strcmp(state_env, "pause") == 0)
+            game->state = GAME_PAUSED;
         else if (strcmp(state_env, "shop") == 0)
             game->state = GAME_SHOP;
         else if (strcmp(state_env, "password") == 0)
@@ -1152,25 +1154,37 @@ void Game_Update(Game *game) {
         }
         break;
     }
-    case GAME_PAUSED:
+    case GAME_PAUSED: {
+        /* RESUME / SAVE / MAP (or TITLE outside campaign mode). */
+        const int kItems = 3;
         if (up_pressed && game->menu_cursor > 0)
             game->menu_cursor--;
-        if (down_pressed && game->menu_cursor < 1)
+        if (down_pressed && game->menu_cursor < kItems - 1)
             game->menu_cursor++;
         if (game->input.pause_pressed) {
             game->state = GAME_PLAYING;
             game->state_timer = 0;
-        } else if (game->input.start_pressed) {
-            if (game->menu_cursor == 0) {
-                game->state = GAME_PLAYING;
-            } else {
-                game->menu_cursor = 0;
-                game->campaign_mode = true;
-                Game_OpenOverworld(game);
-            }
-            game->state_timer = 0;
+            break;
         }
+        if (!game->input.start_pressed)
+            break;
+        if (game->menu_cursor == 0) {
+            game->state = GAME_PLAYING;
+        } else if (game->menu_cursor == 1) {
+            if (Game_SaveProgress(game))
+                game->pause_flash = 90;
+            break; /* stay on the pause menu */
+        } else {
+            game->menu_cursor = 0;
+            if (game->campaign_mode) {
+                Game_OpenOverworld(game);
+            } else {
+                game->state = GAME_TITLE;
+            }
+        }
+        game->state_timer = 0;
         break;
+    }
     case GAME_SUBSCREEN:
         Game_UpdateSubscreen(game, left_pressed, right_pressed, up_pressed,
                              down_pressed);
@@ -1231,6 +1245,8 @@ void Game_Update(Game *game) {
         break;
     }
     }
+    if (game->pause_flash > 0)
+        game->pause_flash--;
     Game_TraceFrame(game);
     Game_SyncMusic(game);
     Audio_Update();
@@ -1402,8 +1418,14 @@ static void DrawOverlay(const Game *game) {
                                           : (Color){200, 200, 200, 255};
         Color c1 = game->menu_cursor == 1 ? (Color){255, 230, 120, 255}
                                           : (Color){200, 200, 200, 255};
+        Color c2 = game->menu_cursor == 2 ? (Color){255, 230, 120, 255}
+                                          : (Color){200, 200, 200, 255};
         DrawCentered("RESUME", 124, 10, c0);
-        DrawCentered("RETURN TO OVERWORLD", 140, 10, c1);
+        DrawCentered("SAVE", 140, 10, c1);
+        DrawCentered(game->campaign_mode ? "RETURN TO MAP" : "QUIT TO TITLE",
+                     156, 10, c2);
+        if (game->pause_flash > 0)
+            DrawCentered("SAVED", 184, 10, (Color){150, 230, 170, 255});
     } else if (game->state == GAME_CLEAR) {
         DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, 185});
         DrawCentered("AREA CLEAR", 62, 24, (Color){238, 232, 214, 255});

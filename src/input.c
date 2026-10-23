@@ -148,6 +148,11 @@ void Input_Read(Input *in, InputState *st) {
         right = demo_frame >= 20;
         shot = demo_frame >= 40 && (demo_frame % 24) < 2;
         jump = (demo_frame % 180) >= 120 && (demo_frame % 180) < 150;
+    } else if (demo_mode == 32) {
+        /* Pause menu: pick SAVE and confirm. */
+        demo_frame++;
+        down = demo_frame == 2;
+        start = demo_frame == 6;
     } else if (demo_mode == 31) {
         /* Overworld landing: confirm the node under the ship. */
         demo_frame++;
