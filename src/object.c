@@ -72,6 +72,27 @@ static void SpawnEnemy(ObjectPool *pool, const LevelObject *src) {
     o->vx_fx = (src->flags & 1) ? 0x0080 : -0x0080;
 }
 
+/* Hostile projectile spawned by the species $67 ghoul ($82877B in the
+ * original): the child object runs its own species handler, so the native port
+ * models it as a straight-flying object with the captured $67 sprite. */
+static void SpawnEnemyShot(ObjectPool *pool, float x, float y, int32_t vx,
+                           int32_t vy) {
+    Object *o = Alloc(pool);
+    if (!o)
+        return;
+    memset(o, 0, sizeof(*o));
+    o->active = true;
+    o->type = OBJECT_ENEMY_SHOT;
+    o->species = 0x67;
+    o->x_fx = (int32_t)lroundf(x * FX_ONE);
+    o->y_fx = (int32_t)lroundf(y * FX_ONE);
+    o->origin_x_fx = o->x_fx;
+    o->origin_y_fx = o->y_fx;
+    o->vx_fx = vx;
+    o->vy_fx = vy;
+    o->hp = 1;
+}
+
 static void SpawnPlatform(ObjectPool *pool, const LevelObject *src) {
     Object *o = Alloc(pool);
     if (!o)
@@ -379,19 +400,103 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                             o->phase = 3;
                         }
                     }
-                } else if (o->state >= 2) {
-                    /* Placeholder approach until the $DEA2 behaviour states
-                     * are ported: follow the player on both axes. */
+                } else if (o->state == 2) {
+                    /* $B0F1/$B102/$B120: face the player, then fire three
+                     * projectiles on a 64-frame cadence ($3C = 0x40, $3D = 3,
+                     * spawn at x +-0x13, y - 0x14), then hop again.
+                     * Outside firing range the $DEA2 behaviour states would
+                     * take over; until those are ported it closes distance with
+                     * the placeholder approach so the player can still engage. */
+                    int32_t dx = player->x_fx - o->x_fx;
+                    o->facing = dx >= 0 ? 1 : -1;
+                    if (labs((long)dx) > 200 * FX_ONE) {
+                        int32_t dy = (player->y_fx - 11 * FX_ONE) - o->y_fx;
+                        if (dx > 8 * FX_ONE)
+                            o->x_fx += 0x0099;
+                        else if (dx < -8 * FX_ONE)
+                            o->x_fx -= 0x0099;
+                        if (dy > 6 * FX_ONE)
+                            o->y_fx += 0x0066;
+                        else if (dy < -6 * FX_ONE)
+                            o->y_fx -= 0x0066;
+                    } else if (o->phase > 0) {
+                        o->phase--;
+                    } else if (o->burst < 3) {
+                        /* $82877B spawns at x +-0x13, y - 0x14 (pixels). The
+                         * child flies toward Firebrand here so the volley is a
+                         * real threat even though the child handler itself is
+                         * not ported yet. */
+                        float ox2 = (float)o->x_fx / FX_ONE +
+                                    (float)(o->facing * 19) / 1.0f;
+                        float oy2 = (float)o->y_fx / FX_ONE - 20.0f;
+                        float dxp = player->x - ox2;
+                        float dyp = (player->y - 10.0f) - oy2;
+                        float len = sqrtf(dxp * dxp + dyp * dyp);
+                        if (len < 0.001f)
+                            len = 1.0f;
+                        int32_t svx = (int32_t)(dxp / len * 1.5f * FX_ONE);
+                        int32_t svy = (int32_t)(dyp / len * 1.5f * FX_ONE);
+                        SpawnEnemyShot(pool, ox2, oy2, svx, svy);
+                        o->burst++;
+                        o->phase = 64; /* $3C = 0x40 */
+                    } else {
+                        o->state = 3; /* $B0DE: $05 = 4 (leap attack) */
+                        o->substate = 0;
+                        o->hops = 0;
+                        o->burst = 0;
+                    }
+                } else if (o->state == 3) {
+                    /* $B065 state 1: face the player, 32-frame windup, then a
+                     * big leap ($20 = 0x0120, $22 = 0x0540, collision $DE7F);
+                     * on landing ($B0AF) hold 16 frames and go back to firing
+                     * ($B0DD sets $05 = 4). */
+                    if (o->substate == 0) {
+                        o->facing = player->x_fx >= o->x_fx ? 1 : -1;
+                        o->substate = 2;
+                        o->phase = 0x20; /* $3B = 0x20 */
+                    } else if (o->substate == 2) {
+                        if (--o->phase <= 0) {
+                            o->vx_fx = o->facing * 0x0120; /* $20 */
+                            o->vy_fx = 0x0540; /* $22: 5.25 px/frame, y-down dive */
+                            o->substate = 4;
+                            o->phase = 120;
+                        }
+                    } else if (o->substate == 4) {
+                        o->x_fx += o->vx_fx;
+                        o->y_fx += o->vy_fx;
+                        o->vy_fx += 0x0040; /* $26 gravity */
+                        float fx = (float)o->x_fx / FX_ONE;
+                        float fy = (float)o->y_fx / FX_ONE;
+                        float surf;
+                        bool landed =
+                            Level_FloorAt(level, fx, fy + 2.0f, &surf) &&
+                            surf <= fy + 6.0f;
+                        if (landed || --o->phase <= 0) {
+                            if (landed)
+                                o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+                            o->vx_fx = 0;
+                            o->vy_fx = 0;
+                            o->substate = 6;
+                            o->phase = 0x10; /* $3B = 0x10 */
+                        }
+                    } else if (--o->phase <= 0) {
+                        o->state = 2;
+                        o->substate = 0;
+                        o->burst = 0;
+                        o->phase = 0;
+                    }
+                } else if (o->state >= 4) {
+                    /* Remaining $DEA2 behaviour states: approach fallback. */
                     int32_t dx = player->x_fx - o->x_fx;
                     int32_t dy = (player->y_fx - 11 * FX_ONE) - o->y_fx;
                     o->facing = dx >= 0 ? 1 : -1;
                     if (abs(dx) < 220 * FX_ONE) {
                         if (dx > 8 * FX_ONE)
-                            o->x_fx += 0x0099; /* 0.6 px/frame */
+                            o->x_fx += 0x0099;
                         else if (dx < -8 * FX_ONE)
                             o->x_fx -= 0x0099;
                         if (dy > 6 * FX_ONE)
-                            o->y_fx += 0x0066; /* 0.4 px/frame */
+                            o->y_fx += 0x0066;
                         else if (dy < -6 * FX_ONE)
                             o->y_fx -= 0x0066;
                     }
@@ -411,6 +516,28 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 } else {
                     DamagePlayer(player, ox, 1);
                 }
+            }
+            continue;
+        }
+
+        if (o->type == OBJECT_ENEMY_SHOT) {
+            o->timer++;
+            o->x_fx += o->vx_fx;
+            o->y_fx += o->vy_fx;
+            float sx = (float)o->x_fx / FX_ONE;
+            float sy = (float)o->y_fx / FX_ONE;
+            if (o->timer > 240 ||
+                Level_IsSolidAt(level, sx, sy) ||
+                sx < level->play_min_x - 16.0f ||
+                sx > level->play_max_x + 16.0f ||
+                sy < 0.0f || sy > (float)level->world_h) {
+                o->active = false;
+                continue;
+            }
+            if (fabsf(sx - player->x) < 10.0f &&
+                fabsf(sy - (player->y - 10.0f)) < 12.0f) {
+                DamagePlayer(player, sx, 1);
+                o->active = false;
             }
             continue;
         }
@@ -484,6 +611,13 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                         SpawnPickup(pool, ox, oy + 8.0f);
                         o->active = false;
                     }
+                    break;
+                }
+            } else if (o->type == OBJECT_ENEMY_SHOT) {
+                if (fabsf(px - ox) <= 8.0f && fabsf(py - oy) <= 8.0f) {
+                    p->active = false;
+                    o->active = false;
+                    pool->events |= OBJECT_EVENT_ENEMY_HIT;
                     break;
                 }
             } else if (o->type == OBJECT_BOSS) {

@@ -302,16 +302,28 @@ def main() -> int:
         rows10 = csv_rows(d10["player"])
         hp10 = [int(r["hp"]) for r in rows10]
         check(any(hp10[i] < hp10[i - 1] for i in range(1, len(hp10))),
-              "demo10: enemy contact did not damage the player")
+              "demo10: the species 67 ghoul did not damage the player")
         check(any(hp10[i] > hp10[i - 1] for i in range(1, len(hp10))),
               "demo10: no healing pickup was collected")
-        enemies = [r for r in csv_rows(d10["objects"]) if r["type"] == "3"]
-        last_by_slot = {}
-        for r in enemies:
-            last_by_slot[r["slot"]] = int(r["frame"])
-        check(bool(last_by_slot), "demo10: no enemy objects spawned")
-        check(any(frame < 259 for frame in last_by_slot.values()),
-              "demo10: no enemy died during the run")
+        enemies10 = [r for r in csv_rows(d10["objects"]) if r["type"] == "3"]
+        check(bool(enemies10), "demo10: no enemy objects spawned")
+        # The authentic $83:AF74 ghoul is a ranged attacker: state 2 fires
+        # species $67 projectiles (object type 7). Contact damage still happens
+        # when it leaps, but kills need a ground target, checked below.
+        shots = [r for r in csv_rows(d10["objects"]) if r["type"] == "7"]
+        check(bool(shots), "demo10: the ghoul never fired a projectile")
+
+        # ---- Ground enemy kill: area 2 skeletons die to fireballs ----
+        d10b = run_demo(base, out, 10, 260,
+                        {"DC_AREA": "2", "DC_START_X": "360",
+                         "DC_START_Y": "430"})
+        enemies_b = [r for r in csv_rows(d10b["objects"]) if r["type"] == "3"]
+        last_b = {}
+        for r in enemies_b:
+            last_b[r["slot"]] = int(r["frame"])
+        check(bool(last_b), "area2: no enemies spawned")
+        check(any(frame < 259 for frame in last_b.values()),
+              "area2: no ground enemy died to fireballs")
 
     if failures:
         print("regression: FAIL")

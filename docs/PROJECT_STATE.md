@@ -1923,6 +1923,28 @@ Further decoding (round 1):
   species, which explains why the injected capture of `$67` looked like a
   floating round object rather than a humanoid.
 
+Implementation (round 2):
+
+- New `OBJECT_ENEMY_SHOT` (type 7): hostile projectile carrying the captured
+  species `$67` sprite, flying toward Firebrand at 1.5 px/frame, despawning on
+  solid terrain/out of bounds/240 frames, damaging on overlap, and destroyable
+  by the player's fireballs.
+- Ghoul state 2 now runs the fire sequence: face the player, 3 volleys on the
+  `$3C = 0x40` cadence, spawn offsets `x ±0x13`, `y - 0x14` (pixels), then a
+  leap. Outside ~200 px it closes distance with the placeholder approach so the
+  player can still engage.
+- Ghoul state 3 is the leap attack from `$B065`: 32-frame windup, `vx = 0x120`,
+  `vy = 0x540` (y-down dive), gravity `0x40`, 16-frame landing hold, then back
+  to firing.
+- Regression updated to the authentic behaviour: demo 10 asserts the ghoul fires
+  projectiles and damages the player (kills now require a ground target), and a
+  new area-2 run asserts skeletons die to fireballs (`DC_AREA=2`,
+  `DC_START_X=360`).
+
+Known gap: the ghoul lands on its perch at y≈96 and cannot descend to Firebrand
+on the floor, because the `$DEA2` behaviour states that would move it between
+ledges are still unported. Its volleys are the main threat in that room.
+
 Remaining: port states 1-4 fully and the `$DEA2` behaviour dispatch, which need
 the object integration helpers (`$808C14`/`$808CBF`) and the animation driver
 (`$80F81D`) mapped first.

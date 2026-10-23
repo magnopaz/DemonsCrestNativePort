@@ -186,7 +186,23 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
         float x = (float)o->x_fx / 256.0f - camera->x;
         float y = (float)o->y_fx / 256.0f - camera->y;
 
-        if (o->type == OBJECT_URN) {
+        if (o->type == OBJECT_ENEMY_SHOT) {
+            const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, o->species);
+            if (sheet && sheet->frame_count > 0) {
+                const SpeciesFrame *sf = &sheet->frames[0];
+                float dx = x - sf->anchor_x;
+                float dy = y - sf->anchor_y;
+                Rectangle src = {0, 0, (float)sf->texture.width,
+                                 (float)sf->texture.height};
+                Rectangle dst = {dx, dy, (float)sf->texture.width,
+                                 (float)sf->texture.height};
+                DrawTexturePro(sf->texture, src, dst, (Vector2){0, 0}, 0.0f,
+                               (Color){255, 220, 255, 255});
+            } else {
+                DrawCircleV((Vector2){x, y}, 5.0f, (Color){240, 160, 220, 255});
+                DrawCircleV((Vector2){x, y}, 2.0f, WHITE);
+            }
+        } else if (o->type == OBJECT_URN) {
             Texture2D tex = assets->item;
             DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
                         (int)lroundf(y - tex.height * 0.5f), WHITE);
