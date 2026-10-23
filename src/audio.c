@@ -18,6 +18,7 @@ static Sound sfx[SFX_COUNT];
 static Music music;
 static unsigned char *music_wav;
 static bool music_loaded;
+static float master_vol = 1.0f;
 
 static void Put16(unsigned char *p, uint16_t v) {
     p[0] = (unsigned char)(v & 0xFF);
@@ -213,4 +214,18 @@ void Audio_StartMusic(void) {
         return;
     if (!IsMusicStreamPlaying(music))
         PlayMusicStream(music);
+}
+
+void Audio_SetVolume(float volume) {
+    if (volume < 0.0f)
+        volume = 0.0f;
+    if (volume > 1.0f)
+        volume = 1.0f;
+    master_vol = volume;
+    if (ready)
+        SetMasterVolume(master_vol);
+}
+
+float Audio_GetVolume(void) {
+    return master_vol;
 }

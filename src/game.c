@@ -8,16 +8,97 @@
 #include "audio.h"
 #include "render.h"
 
+static void Game_OpenOverworld(Game *game);
+static void Game_CompleteArea(Game *game);
+
+/* Campaign stage nodes on the Mode 7 overworld map. */
+#define CAMPAIGN_COLOSSEUM 0
+#define CAMPAIGN_GRAVEYARD 1
+#define CAMPAIGN_CATACOMBS 2
+#define CAMPAIGN_RUINS 3
+#define CAMPAIGN_LAKE 4
+#define CAMPAIGN_DEMON_KEEP 5
+
+static const char *const kFireNames[] = {
+    "FIREBALL", "BUSTER", "TORNADO", "CLAW", "DEMON FIRE"
+};
+static const char *const kTalismanNames[] = {
+    "CROWN", "SKULL", "ARMOR", "FANG", "HAND"
+};
+
 static void Game_Reset(Game *game) {
     Player_Init(&game->player, &game->level);
     Projectiles_Init(&game->projectiles);
     Objects_Init(&game->objects, &game->level);
     Camera_Init(&game->camera, &game->level);
+    game->objects.boss_alive = false;
+    game->objects.boss_defeated = false;
     game->state_timer = 0;
+}
+
+bool Game_TransitionToArea(Game *game, int area_id, int spawn_id) {
+    if (area_id < 0 || area_id >= DC_CAMPAIGN_AREAS)
+        return false;
+    /* Preserve campaign progression across the level reload. */
+    Player saved = game->player;
+    int prev_area = game->level.area_id;
+    if (!Level_LoadArea(&game->level, &game->assets, game->asset_dir, area_id)) {
+        Level_LoadArea(&game->level, &game->assets, game->asset_dir, prev_area);
+        Assets_LoadAreaBg(&game->assets, game->level.area_id);
+        return false;
+    }
+    Assets_LoadAreaBg(&game->assets, game->level.area_id);
+    Player_Init(&game->player, &game->level);
+    game->player.max_hp = saved.max_hp > 0 ? saved.max_hp : 6;
+    game->player.hp = saved.hp > 0 ? saved.hp : game->player.max_hp;
+    game->player.crests_mask = saved.crests_mask;
+    game->player.crest_form = saved.crest_form;
+    game->player.talisman_mask = saved.talisman_mask;
+    game->player.active_talisman = saved.active_talisman;
+    game->player.potions = saved.potions;
+    game->player.scrolls = saved.scrolls;
+    game->player.gold = saved.gold;
+    if (game->level.spawn_count > 1 && spawn_id > 0 &&
+        spawn_id < game->level.spawn_count) {
+        game->player.x_fx =
+            (int32_t)lroundf(game->level.spawns[spawn_id].x * 256.0f);
+        game->player.y_fx =
+            (int32_t)lroundf(game->level.spawns[spawn_id].y * 256.0f);
+        game->player.x = game->level.spawns[spawn_id].x;
+        game->player.y = game->level.spawns[spawn_id].y;
+    }
+    Projectiles_Init(&game->projectiles);
+    Objects_Init(&game->objects, &game->level);
+    Camera_Init(&game->camera, &game->level);
+    game->objects.boss_alive = false;
+    game->objects.boss_defeated = false;
+    game->state = GAME_PLAYING;
+    game->state_timer = 0;
+    return true;
+}
+
+void Game_EncodePassword(const Game *game, char out[20]) {
+    /* Simple deterministic password derived from campaign progression. */
+    unsigned checksum = (unsigned)game->stages_cleared * 37u +
+                        (unsigned)game->player.max_hp * 11u +
+                        (unsigned)game->player.gold;
+    static const char alphabet[] = "BCDFGHJKLMNPQRSTVWXYZ";
+    for (int i = 0; i < 8; i++) {
+        out[i] = alphabet[(checksum >> ((i % 4) * 5)) % 20];
+        checksum = checksum * 1103515245u + 12345u;
+    }
+    out[0] = alphabet[(game->stages_cleared & 0x1F) % 20];
+    out[1] = alphabet[((game->stages_cleared >> 5) & 0x1F) % 20];
+    out[2] = alphabet[(game->player.max_hp - 6) & 0x1F];
+    out[3] = alphabet[(game->player.crests_mask & 0x1F) % 20];
+    for (int i = 4; i < 8; i++)
+        out[i] = alphabet[(checksum >> (i * 2)) % 20];
+    out[8] = '\0';
 }
 
 bool Game_Init(Game *game, const char *asset_dir) {
     memset(game, 0, sizeof(*game));
+    snprintf(game->asset_dir, sizeof(game->asset_dir), "%s", asset_dir);
     if (!Assets_Load(&game->assets, asset_dir)) {
         fprintf(stderr, "game: asset load failed (run tools/dc_extract first)\n");
         return false;
@@ -26,6 +107,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         Assets_Unload(&game->assets);
         return false;
     }
+    Assets_LoadAreaBg(&game->assets, game->level.area_id);
     Player_Init(&game->player, &game->level);
     Projectiles_Init(&game->projectiles);
     Objects_Init(&game->objects, &game->level);
@@ -44,7 +126,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->trace = fopen(trace_path, "w");
         if (game->trace) {
             fprintf(game->trace,
-                    "frame,player_x,player_y,vx,vy,state,camera_x,camera_y,hp,max_hp\n");
+                    "frame,player_x,player_y,vx,vy,state,camera_x,camera_y,hp,max_hp,area,form,gold\n");
         } else {
             fprintf(stderr, "game: cannot open trace file %s\n", trace_path);
         }
@@ -80,6 +162,32 @@ bool Game_Init(Game *game, const char *asset_dir) {
                      (getenv("DC_RUN_FRAMES") ||
                       (demo && *demo && strcmp(demo, "0") != 0));
     game->state = automated ? GAME_PLAYING : GAME_TITLE;
+    if (getenv("DC_CAMPAIGN"))
+        game->campaign_mode = true;
+    /* Debug state selection for screenshots of campaign menus. */
+    const char *state_env = getenv("DC_STATE");
+    if (state_env && *state_env) {
+        if (strcmp(state_env, "title") == 0)
+            game->state = GAME_TITLE;
+        else if (strcmp(state_env, "overworld") == 0) {
+            game->campaign_mode = true;
+            Game_OpenOverworld(game);
+        } else if (strcmp(state_env, "subscreen") == 0)
+            game->state = GAME_SUBSCREEN;
+        else if (strcmp(state_env, "shop") == 0)
+            game->state = GAME_SHOP;
+        else if (strcmp(state_env, "password") == 0)
+            game->state = GAME_PASSWORD;
+        else if (strcmp(state_env, "options") == 0)
+            game->state = GAME_OPTIONS;
+        else if (strcmp(state_env, "clear") == 0) {
+            game->campaign_mode = true;
+            Game_CompleteArea(game);
+        } else if (strcmp(state_env, "gameover") == 0)
+            game->state = GAME_OVER;
+        else if (strcmp(state_env, "ending") == 0)
+            game->state = GAME_ENDING;
+    }
     game->state_timer = 0;
 
     Audio_Init();
@@ -114,6 +222,10 @@ static void Game_UpdateSimulation(Game *game) {
         Audio_Play(SFX_PICKUP);
     if (game->objects.events & OBJECT_EVENT_ENEMY_HIT)
         Audio_Play(SFX_ENEMY_HIT);
+    if (game->objects.events & OBJECT_EVENT_BOSS_DEFEATED)
+        Audio_Play(SFX_BREAK);
+    if (game->objects.events & OBJECT_EVENT_CREST_PICKUP)
+        Audio_Play(SFX_PICKUP);
 
     Player_Animate(&game->player, &game->assets.player_anim);
     Camera_Update(&game->camera, &game->level, &game->player);
@@ -122,20 +234,35 @@ static void Game_UpdateSimulation(Game *game) {
         const LevelObject *o = &game->level.objects[i];
         if (o->type != LEVEL_OBJECT_EXIT)
             continue;
-        if (fabsf(game->player.x - o->x) < 16.0f &&
-            fabsf(game->player.y - o->y) < 32.0f) {
+        if (fabsf(game->player.x - o->x) >= 16.0f ||
+            fabsf(game->player.y - o->y) >= 32.0f)
+            continue;
+        /* Boss-gated exits stay closed until the area boss is defeated. */
+        if (game->objects.boss_alive)
+            break;
+        if (!game->campaign_mode) {
             game->state = GAME_CLEAR;
             game->state_timer = 0;
             break;
         }
+        int next = game->level.gate_next_area;
+        if (next >= 0) {
+            Game_TransitionToArea(game, next, 0);
+        } else {
+            game->campaign_mode = true;
+            Game_OpenOverworld(game);
+        }
+        return;
     }
 
     if (game->trace) {
-        fprintf(game->trace, "%u,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%d,%d\n",
+        fprintf(game->trace,
+                "%u,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%d,%d,%d,%d,%d\n",
                 game->frame, game->player.x, game->player.y,
                 game->player.vx, game->player.vy, (int)game->player.state,
                 game->camera.x, game->camera.y, game->player.hp,
-                game->player.max_hp);
+                game->player.max_hp, game->level.area_id,
+                game->player.crest_form, game->player.gold);
     }
     if (game->projectile_trace) {
         for (int i = 0; i < PROJECTILE_POOL_SIZE; i++) {
@@ -163,36 +290,380 @@ static void Game_UpdateSimulation(Game *game) {
     game->frame++;
 }
 
+static bool PlayerInsideTransition(const Player *player,
+                                   const LevelTransition *tr) {
+    /* The original box check runs before collision resolution, so a door box
+     * embedded in the room's edge wall is reachable while walking into it. */
+    return fabsf(player->x - tr->x) <= tr->half_w + 20.0f &&
+           fabsf(player->y - tr->y) <= tr->half_h + 8.0f;
+}
+
+static void Game_CheckTransitions(Game *game) {
+    if (!game->campaign_mode)
+        return;
+    Player *player = &game->player;
+    if (!game->objects.boss_alive) {
+        for (int i = 0; i < game->level.transition_count; i++) {
+            const LevelTransition *tr = &game->level.transitions[i];
+            if (tr->next_area < 0 || tr->next_area >= 113 ||
+                tr->next_area == game->level.area_id)
+                continue;
+            if (PlayerInsideTransition(player, tr)) {
+                Game_TransitionToArea(game, tr->next_area, tr->spawn_id);
+                return;
+            }
+        }
+    }
+    /* Boss gate $81:97DA: advancing requires the area boss to be defeated. */
+    if (game->level.gate_next_area >= 0 &&
+        game->level.gate_next_area < 113 && !game->objects.boss_alive) {
+        float gate_x = (float)game->level.world_w - 8.0f;
+        if (player->x >= gate_x) {
+            Game_TransitionToArea(game, game->level.gate_next_area, 0);
+            return;
+        }
+    }
+}
+
+static void Game_HandleDeath(Game *game) {
+    if (game->player.hp > 0 || game->state != GAME_PLAYING)
+        return;
+    game->state = GAME_OVER;
+    game->state_timer = 0;
+}
+
+static void Game_OpenOverworld(Game *game) {
+    game->state = GAME_OVERWORLD;
+    game->state_timer = 0;
+    game->overworld_x = 96.0f;
+    game->overworld_y = 176.0f;
+    game->overworld_angle = 0.0f;
+    game->overworld_node = CAMPAIGN_GRAVEYARD;
+}
+
+static void Game_CompleteArea(Game *game) {
+    int area = game->level.area_id;
+    if (area >= 0 && area < 8)
+        game->stages_cleared |= (uint8_t)(1u << area);
+    /* Story progression: each cleared area grants the next Gargoyle Crest. */
+    switch (area) {
+    case 0: game->player.crests_mask |= 0x02; break; /* Earth */
+    case 1: game->player.crests_mask |= 0x04; break; /* Aerial */
+    case 2: game->player.crests_mask |= 0x08; break; /* Water */
+    case 3: game->player.crests_mask |= 0x10; break; /* Time */
+    case 4: game->player.crests_mask |= 0x20; break; /* Ultimate */
+    default: break;
+    }
+    Game_EncodePassword(game, game->password_code);
+    game->state = GAME_CLEAR;
+    game->state_timer = 0;
+}
+
+static void Game_UpdateOverworld(Game *game) {
+    const float speed = 1.6f;
+    float dx = 0.0f, dy = 0.0f;
+    if (game->input.left)
+        dx -= speed;
+    if (game->input.right)
+        dx += speed;
+    if (game->input.up)
+        dy -= speed;
+    if (game->input.down)
+        dy += speed;
+    game->overworld_x += dx;
+    game->overworld_y += dy;
+    if (game->overworld_x < 24.0f)
+        game->overworld_x = 24.0f;
+    if (game->overworld_x > 232.0f)
+        game->overworld_x = 232.0f;
+    if (game->overworld_y < 152.0f)
+        game->overworld_y = 152.0f;
+    if (game->overworld_y > 208.0f)
+        game->overworld_y = 208.0f;
+    game->overworld_angle += (game->input.right ? 2.5f : 0.0f) -
+                             (game->input.left ? 2.5f : 0.0f);
+
+    /* Landing-point selection by nearest horizontal node. */
+    static const struct { int node; float x; float y; } kNodes[] = {
+        {CAMPAIGN_COLOSSEUM, 40.0f, 168.0f},
+        {CAMPAIGN_GRAVEYARD, 96.0f, 176.0f},
+        {CAMPAIGN_CATACOMBS, 144.0f, 184.0f},
+        {CAMPAIGN_RUINS, 192.0f, 176.0f},
+        {CAMPAIGN_LAKE, 64.0f, 200.0f},
+        {CAMPAIGN_DEMON_KEEP, 224.0f, 160.0f},
+    };
+    int nearest = 1;
+    float best = 1e9f;
+    for (int i = 0; i < 6; i++) {
+        float ddx = kNodes[i].x - game->overworld_x;
+        float ddy = kNodes[i].y - game->overworld_y;
+        float d2 = ddx * ddx + ddy * ddy;
+        if (d2 < best) {
+            best = d2;
+            nearest = kNodes[i].node;
+        }
+    }
+    game->overworld_node = nearest;
+
+    if (game->input.start_pressed) {
+        if (nearest == CAMPAIGN_DEMON_KEEP) {
+            /* Final keep requires all earlier stages cleared. */
+            if ((game->stages_cleared & 0x0F) == 0x0F) {
+                game->state = GAME_ENDING;
+                game->state_timer = 0;
+                return;
+            }
+            return;
+        }
+        Game_TransitionToArea(game, nearest, 0);
+        game->campaign_mode = true;
+    } else if (game->input.special_pressed) {
+        game->state = GAME_SHOP;
+        game->state_timer = 0;
+    }
+}
+
+static void Game_UpdateSubscreen(Game *game, bool left_pressed,
+                                 bool right_pressed, bool up_pressed,
+                                 bool down_pressed) {
+    Player *p = &game->player;
+    if (left_pressed)
+        Player_CycleForm(p, -1);
+    if (right_pressed)
+        Player_CycleForm(p, 1);
+    if (up_pressed) {
+        if (game->subscreen_row > 0)
+            game->subscreen_row--;
+    }
+    if (down_pressed) {
+        if (game->subscreen_row < 5)
+            game->subscreen_row++;
+    }
+    if (game->input.special_pressed)
+        p->fire_element = (p->fire_element + 1) % 5;
+    if (game->input.shot_pressed) {
+        p->active_talisman = (p->active_talisman + 1) % 5;
+        if (!(p->talisman_mask & (1u << p->active_talisman)))
+            p->active_talisman = 0;
+    }
+    if (game->input.jump_pressed && p->potions > 0) {
+        p->potions--;
+        if (p->hp < p->max_hp)
+            p->hp++;
+        Audio_Play(SFX_PICKUP);
+    }
+    if (game->input.form_next_pressed && p->scrolls > 0) {
+        p->scrolls--;
+        if (p->hp > 0)
+            p->hp--;
+        Audio_Play(SFX_SHOOT);
+    }
+    if (game->input.subscreen_pressed || game->input.start_pressed ||
+        game->input.pause_pressed) {
+        game->state = GAME_PLAYING;
+        game->state_timer = 0;
+    }
+}
+
+static void Game_UpdateTitle(Game *game, bool up_pressed, bool down_pressed) {
+    const int kItemCount = 4;
+    if (up_pressed && game->menu_cursor > 0)
+        game->menu_cursor--;
+    if (down_pressed && game->menu_cursor < kItemCount - 1)
+        game->menu_cursor++;
+    if (!game->input.start_pressed)
+        return;
+    switch (game->menu_cursor) {
+    case 0:
+        game->campaign_mode = true;
+        game->stages_cleared = 0;
+        game->menu_cursor = 0;
+        /* Reset run progression: Player_Init applies the 6 HP / 4 HP,
+         * Base-Crest, 2 Urns and 1 Spell starting kit. */
+        Player_Init(&game->player, &game->level);
+        if (!Game_TransitionToArea(game, CAMPAIGN_COLOSSEUM, 0)) {
+            Game_Reset(game);
+            game->state = GAME_PLAYING;
+        }
+        break;
+    case 1:
+        game->campaign_mode = true;
+        Game_OpenOverworld(game);
+        break;
+    case 2:
+        game->state = GAME_PASSWORD;
+        game->state_timer = 0;
+        break;
+    case 3:
+        game->state = GAME_OPTIONS;
+        game->state_timer = 0;
+        break;
+    default:
+        break;
+    }
+}
+
+static void Game_UpdateShop(Game *game, bool left_pressed,
+                            bool right_pressed, bool up_pressed) {
+    if (left_pressed && game->player.gold >= 30 && game->player.potions < 5) {
+        game->player.gold -= 30;
+        game->player.potions++;
+        Audio_Play(SFX_PICKUP);
+    }
+    if (right_pressed && game->player.gold >= 50 && game->player.scrolls < 5) {
+        game->player.gold -= 50;
+        game->player.scrolls++;
+        Audio_Play(SFX_PICKUP);
+    }
+    if (up_pressed && game->player.gold >= 80 && game->player.max_hp < 10) {
+        game->player.gold -= 80;
+        game->player.max_hp++;
+        game->player.hp = game->player.max_hp;
+        Audio_Play(SFX_PICKUP);
+    }
+    if (game->input.start_pressed || game->input.pause_pressed) {
+        game->campaign_mode = true;
+        Game_OpenOverworld(game);
+    }
+}
+
+static void Game_UpdatePassword(Game *game) {
+    /* Accept the current generated/entered code with Start. */
+    if (game->input.start_pressed) {
+        game->stages_cleared = (uint8_t)((game->stages_cleared << 1) | 1);
+        game->campaign_mode = true;
+        Game_OpenOverworld(game);
+    } else if (game->input.pause_pressed) {
+        game->state = GAME_TITLE;
+        game->state_timer = 0;
+    }
+}
+
+static void Game_UpdateOptions(Game *game) {
+    if (game->input.left)
+        Audio_SetVolume(Audio_GetVolume() - 0.1f);
+    if (game->input.right)
+        Audio_SetVolume(Audio_GetVolume() + 0.1f);
+    if (game->input.start_pressed || game->input.pause_pressed) {
+        game->state = GAME_TITLE;
+        game->state_timer = 0;
+    }
+}
+
 void Game_Update(Game *game) {
     Input_Read(&game->input, &game->input_state);
     game->state_timer++;
 
+    /* Edge-detect direction presses for menu navigation. */
+    bool up_pressed = game->input.up && !game->prev_up;
+    bool down_pressed = game->input.down && !game->prev_down;
+    bool left_pressed = game->input.left && !game->prev_left;
+    bool right_pressed = game->input.right && !game->prev_right;
+    game->prev_up = game->input.up;
+    game->prev_down = game->input.down;
+    game->prev_left = game->input.left;
+    game->prev_right = game->input.right;
+
     switch ((GameState)game->state) {
     case GAME_TITLE:
-        if (game->input.start_pressed) {
-            Game_Reset(game);
-            game->state = GAME_PLAYING;
-        }
+        Game_UpdateTitle(game, up_pressed, down_pressed);
         break;
-    case GAME_PLAYING:
-        if (game->input.pause_pressed) {
+    case GAME_PLAYING: {
+        bool has_exit = false;
+        for (int i = 0; i < game->level.object_count; i++) {
+            if (game->level.objects[i].type == LEVEL_OBJECT_EXIT) {
+                has_exit = true;
+                break;
+            }
+        }
+        if (game->campaign_mode && !has_exit &&
+            game->level.gate_next_area < 0 && game->input.start_pressed) {
+            Game_OpenOverworld(game);
+            break;
+        }
+        if (game->input.subscreen_pressed) {
+            game->state = GAME_SUBSCREEN;
+            game->state_timer = 0;
+        } else if (game->input.pause_pressed) {
             game->state = GAME_PAUSED;
+            game->menu_cursor = 0;
             game->state_timer = 0;
         } else {
+            int area_before = game->level.area_id;
             Game_UpdateSimulation(game);
+            Game_HandleDeath(game);
+            if (game->state != GAME_PLAYING)
+                break;
+            if (game->objects.boss_defeated &&
+                game->level.area_id == area_before) {
+                game->objects.boss_defeated = false;
+                game->player.max_hp = game->player.max_hp < 10
+                                         ? game->player.max_hp + 1
+                                         : game->player.max_hp;
+                game->player.hp = game->player.max_hp;
+                game->campaign_mode = true;
+                Game_CompleteArea(game);
+            } else {
+                Game_CheckTransitions(game);
+            }
         }
         break;
+    }
     case GAME_PAUSED:
-        if (game->input.pause_pressed || game->input.start_pressed) {
+        if (up_pressed && game->menu_cursor > 0)
+            game->menu_cursor--;
+        if (down_pressed && game->menu_cursor < 1)
+            game->menu_cursor++;
+        if (game->input.pause_pressed) {
             game->state = GAME_PLAYING;
             game->state_timer = 0;
+        } else if (game->input.start_pressed) {
+            if (game->menu_cursor == 0) {
+                game->state = GAME_PLAYING;
+            } else {
+                game->menu_cursor = 0;
+                game->campaign_mode = true;
+                Game_OpenOverworld(game);
+            }
+            game->state_timer = 0;
         }
+        break;
+    case GAME_SUBSCREEN:
+        Game_UpdateSubscreen(game, left_pressed, right_pressed, up_pressed,
+                             down_pressed);
+        break;
+    case GAME_OVERWORLD:
+        Game_UpdateOverworld(game);
         break;
     case GAME_CLEAR:
         if (game->input.start_pressed) {
-            Game_Reset(game);
-            game->state = GAME_PLAYING;
+            if (game->campaign_mode) {
+                Game_OpenOverworld(game);
+            } else {
+                Game_Reset(game);
+                game->state = GAME_PLAYING;
+            }
         }
+        break;
+    case GAME_SHOP:
+        Game_UpdateShop(game, left_pressed, right_pressed, up_pressed);
+        break;
+    case GAME_PASSWORD:
+        Game_UpdatePassword(game);
+        break;
+    case GAME_OPTIONS:
+        Game_UpdateOptions(game);
+        break;
+    case GAME_OVER:
+        if (game->input.start_pressed) {
+            game->player.hp = game->player.max_hp;
+            game->campaign_mode = true;
+            Game_OpenOverworld(game);
+        }
+        break;
+    case GAME_ENDING:
+        if (game->input.start_pressed)
+            game->state = GAME_TITLE;
         break;
     }
     Audio_Update();
@@ -205,43 +676,209 @@ static void DrawCentered(const char *text, int y, int size, Color color) {
                (float)size, 1.0f, color);
 }
 
+static void DrawOverworld(const Game *game) {
+    /* Mode 7 style pseudo-3D overworld: horizontal strips shrink toward the
+     * horizon, with land/water/path bands and stage nodes. */
+    ClearBackground((Color){6, 8, 14, 255});
+    for (int y = 0; y < 224; y++) {
+        float t = (float)y / 223.0f;
+        float depth = 1.0f / (0.08f + t * 0.92f);
+        float w = 256.0f * depth;
+        float x = 128.0f - w * 0.5f;
+        Color col;
+        if (y < 70) {
+            col = (Color){14 + (int)(t * 20), 10 + (int)(t * 16),
+                          32 + (int)(t * 30), 255};
+        } else {
+            float band = sinf(t * 38.0f + game->overworld_angle * 0.05f);
+            int g = 60 + (int)(band * 18.0f);
+            col = (Color){18, g, 34, 255};
+            if (fabsf(t - 0.62f) < 0.02f || fabsf(t - 0.78f) < 0.025f)
+                col = (Color){86, 74, 44, 255};
+        }
+        DrawRectangle((int)x, y, (int)w + 1, 1, col);
+    }
+
+    /* World map nodes */
+    static const struct { int node; float x; float y; const char *label; } kNodes[] = {
+        {0, 40.0f, 168.0f, "COLOSSEUM"},
+        {1, 96.0f, 176.0f, "GRAVEYARD"},
+        {2, 144.0f, 184.0f, "CATACOMBS"},
+        {3, 192.0f, 176.0f, "RUINS"},
+        {4, 64.0f, 200.0f, "LAKE"},
+        {5, 224.0f, 160.0f, "DEMON KEEP"},
+    };
+    for (int i = 0; i < 6; i++) {
+        bool active = game->overworld_node == kNodes[i].node;
+        Color col = active ? (Color){255, 220, 90, 255}
+                           : (Color){150, 140, 120, 255};
+        if (kNodes[i].node == 5 &&
+            (game->stages_cleared & 0x0F) != 0x0F)
+            col = (Color){120, 70, 90, 255};
+        DrawCircle((int)kNodes[i].x, (int)kNodes[i].y, active ? 5 : 3, col);
+        if (active)
+            DrawText(kNodes[i].label,
+                     (int)kNodes[i].x - MeasureText(kNodes[i].label, 10) / 2,
+                     (int)kNodes[i].y + 8, 10, (Color){255, 240, 200, 255});
+    }
+
+    /* Firebrand marker */
+    DrawCircle((int)game->overworld_x, (int)game->overworld_y, 4,
+               (Color){240, 90, 60, 255});
+    DrawTriangle((Vector2){game->overworld_x - 4, game->overworld_y - 8},
+                 (Vector2){game->overworld_x + 4, game->overworld_y - 8},
+                 (Vector2){game->overworld_x, game->overworld_y - 2},
+                 (Color){255, 200, 120, 255});
+
+    DrawRectangle(0, 0, 256, 18, (Color){0, 0, 0, 170});
+    DrawText("OVERWORLD", 6, 5, 10, (Color){235, 225, 195, 255});
+    DrawText(TextFormat("GOLD %d", game->player.gold), 170, 5, 10,
+             (Color){235, 210, 120, 255});
+    DrawCentered("ARROWS FLY   ENTER LAND   C SHOP", 208, 10,
+                 (Color){200, 200, 200, 255});
+}
+
+static void DrawSubscreen(const Game *game) {
+    const Player *p = &game->player;
+    DrawRectangle(0, 0, 256, 224, (Color){8, 8, 18, 235});
+    DrawText("CREST / ITEM SUBSCREEN", 12, 8, 10,
+             (Color){230, 210, 150, 255});
+    DrawText(TextFormat("FORM: %s", Player_FormName(p->crest_form)), 12, 28,
+             10, (Color){200, 230, 255, 255});
+    DrawText(TextFormat("FIRE: %s", kFireNames[p->fire_element]), 12, 44, 10,
+             (Color){255, 180, 120, 255});
+    DrawText(TextFormat("TALISMAN: %s", kTalismanNames[p->active_talisman]),
+             12, 60, 10, (Color){200, 255, 200, 255});
+    DrawText(TextFormat("HP %d/%d", p->hp, p->max_hp), 12, 80, 10,
+             (Color){240, 120, 140, 255});
+    DrawText(TextFormat("URNS %d/5   SPELLS %d/5   GOLD %d", p->potions,
+                        p->scrolls, p->gold), 12, 96, 10,
+             (Color){240, 220, 140, 255});
+    DrawText("LEFT/RIGHT FORM  A FIRE  Y TALISMAN", 12, 128, 10,
+             (Color){190, 190, 190, 255});
+    DrawText("Z USE URN  Q CAST SPELL  TAB CLOSE", 12, 144, 10,
+             (Color){190, 190, 190, 255});
+    DrawText("OWNED CRESTS:", 12, 172, 10, (Color){220, 220, 220, 255});
+    for (int i = 0; i < CREST_COUNT; i++) {
+        Color c = (p->crests_mask & (1u << i)) ? (Color){230, 220, 160, 255}
+                                               : (Color){70, 70, 80, 255};
+        DrawRectangle(14 + i * 24, 188, 18, 10, c);
+        if (i == p->crest_form)
+            DrawRectangleLines(13 + i * 24, 187, 20, 12,
+                               (Color){255, 255, 255, 255});
+    }
+}
+
 static void DrawOverlay(const Game *game) {
+    static const char *const kMenu[] = {
+        "NEW GAME", "OVERWORLD MAP", "PASSWORD", "OPTIONS"
+    };
     if (game->state == GAME_TITLE) {
         DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, 185});
-        DrawCentered("DEMON'S CREST", 58, 24, (Color){238, 232, 214, 255});
-        DrawCentered("NATIVE FAN PORT", 92, 10, (Color){196, 168, 92, 255});
-        if ((game->state_timer / 30) % 2 == 0)
-            DrawCentered("PRESS ENTER OR START", 128, 10,
-                         (Color){255, 255, 255, 255});
-        DrawCentered("ARROWS MOVE   Z JUMP", 164, 10,
-                     (Color){180, 180, 180, 255});
-        DrawCentered("X SHOOT   C SPELL", 177, 10,
-                     (Color){180, 180, 180, 255});
-        DrawCentered("F1 COLLISION   ESC PAUSE", 190, 10,
-                     (Color){180, 180, 180, 255});
+        DrawCentered("DEMON'S CREST", 34, 24, (Color){238, 232, 214, 255});
+        DrawCentered("NATIVE FAN PORT", 62, 10, (Color){196, 168, 92, 255});
+        for (int i = 0; i < 4; i++) {
+            Color col = game->menu_cursor == i ? (Color){255, 230, 120, 255}
+                                               : (Color){190, 190, 190, 255};
+            DrawCentered(kMenu[i], 92 + i * 16, 10, col);
+        }
+        DrawCentered("ARROWS SELECT   ENTER CONFIRM", 186, 10,
+                     (Color){150, 150, 150, 255});
+        DrawCentered("F1 COLLISION   ESC PAUSE", 200, 10,
+                     (Color){150, 150, 150, 255});
     } else if (game->state == GAME_PAUSED) {
         DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, 150});
-        DrawCentered("PAUSED", 96, 24, (Color){238, 232, 214, 255});
-        DrawCentered("ESC OR BACK TO RESUME", 128, 10,
-                     (Color){200, 200, 200, 255});
+        DrawCentered("PAUSED", 84, 24, (Color){238, 232, 214, 255});
+        Color c0 = game->menu_cursor == 0 ? (Color){255, 230, 120, 255}
+                                          : (Color){200, 200, 200, 255};
+        Color c1 = game->menu_cursor == 1 ? (Color){255, 230, 120, 255}
+                                          : (Color){200, 200, 200, 255};
+        DrawCentered("RESUME", 124, 10, c0);
+        DrawCentered("RETURN TO OVERWORLD", 140, 10, c1);
     } else if (game->state == GAME_CLEAR) {
         DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, 185});
-        DrawCentered("AREA CLEAR", 82, 24, (Color){238, 232, 214, 255});
-        DrawCentered("THE GRAVEYARD SLICE ENDS HERE", 116, 10,
-                     (Color){196, 168, 92, 255});
+        DrawCentered("AREA CLEAR", 62, 24, (Color){238, 232, 214, 255});
+        DrawCentered(TextFormat("AREA %d CONQUERED", game->level.area_id), 96,
+                     10, (Color){196, 168, 92, 255});
+        DrawCentered(TextFormat("PASSWORD %s", game->password_code), 114, 10,
+                     (Color){160, 220, 255, 255});
+        DrawCentered(TextFormat("MAX HP %d   GOLD %d", game->player.max_hp,
+                                game->player.gold), 132, 10,
+                     (Color){240, 220, 140, 255});
         if ((game->state_timer / 30) % 2 == 0)
-            DrawCentered("PRESS ENTER TO REPLAY", 148, 10,
+            DrawCentered("PRESS ENTER FOR OVERWORLD", 160, 10,
                          (Color){255, 255, 255, 255});
+    } else if (game->state == GAME_SUBSCREEN) {
+        DrawSubscreen(game);
+    } else if (game->state == GAME_SHOP) {
+        DrawRectangle(0, 0, 256, 224, (Color){10, 8, 14, 240});
+        DrawCentered("POTION & SPELL SHOP", 24, 14,
+                     (Color){238, 220, 160, 255});
+        DrawCentered(TextFormat("GOLD %d", game->player.gold), 48, 10,
+                     (Color){255, 224, 120, 255});
+        DrawCentered("LEFT  - BUY URN (30G)", 88, 10,
+                     (Color){200, 220, 255, 255});
+        DrawCentered("RIGHT - BUY SPELL (50G)", 104, 10,
+                     (Color){200, 220, 255, 255});
+        DrawCentered("UP    - LIFE STONE (80G)", 120, 10,
+                     (Color){200, 220, 255, 255});
+        DrawCentered(TextFormat("URNS %d/5  SPELLS %d/5  MAX HP %d",
+                                game->player.potions, game->player.scrolls,
+                                game->player.max_hp), 152, 10,
+                     (Color){240, 220, 140, 255});
+        DrawCentered("ENTER / ESC RETURN", 192, 10,
+                     (Color){170, 170, 170, 255});
+    } else if (game->state == GAME_PASSWORD) {
+        DrawRectangle(0, 0, 256, 224, (Color){6, 10, 16, 240});
+        DrawCentered("PASSWORD", 44, 20, (Color){230, 220, 170, 255});
+        DrawCentered(game->password_code[0] ? game->password_code
+                                            : "--------",
+                     92, 20, (Color){150, 230, 255, 255});
+        DrawCentered("ENTER ACCEPT   ESC BACK", 168, 10,
+                     (Color){190, 190, 190, 255});
+    } else if (game->state == GAME_OPTIONS) {
+        DrawRectangle(0, 0, 256, 224, (Color){8, 8, 14, 240});
+        DrawCentered("OPTIONS", 40, 20, (Color){230, 220, 170, 255});
+        DrawCentered(TextFormat("VOLUME %d%%", (int)(Audio_GetVolume() * 100)),
+                     96, 12, (Color){200, 230, 255, 255});
+        DrawCentered("LEFT/RIGHT ADJUST", 120, 10,
+                     (Color){190, 190, 190, 255});
+        DrawCentered("ENTER / ESC BACK", 168, 10,
+                     (Color){190, 190, 190, 255});
+    } else if (game->state == GAME_OVER) {
+        DrawRectangle(0, 0, 256, 224, (Color){16, 0, 4, 230});
+        DrawCentered("GAME OVER", 76, 24, (Color){240, 90, 90, 255});
+        DrawCentered("THE DEMON'S CREST IS LOST", 108, 10,
+                     (Color){200, 160, 160, 255});
+        if ((game->state_timer / 30) % 2 == 0)
+            DrawCentered("PRESS ENTER TO CONTINUE", 148, 10,
+                         (Color){255, 255, 255, 255});
+    } else if (game->state == GAME_ENDING) {
+        DrawRectangle(0, 0, 256, 224, (Color){4, 6, 12, 240});
+        DrawCentered("THE DEMON'S CREST", 40, 18,
+                     (Color){240, 220, 150, 255});
+        DrawCentered("THE PHALANX IS BROKEN", 84, 10,
+                     (Color){200, 220, 255, 255});
+        DrawCentered(TextFormat("MAX HP %d   GOLD %d", game->player.max_hp,
+                                game->player.gold), 116, 10,
+                     (Color){240, 220, 140, 255});
+        DrawCentered("TRUE ENDING", 152, 12, (Color){150, 255, 190, 255});
+        DrawCentered("PRESS ENTER", 190, 10, (Color){200, 200, 200, 255});
     }
 }
 
 void Game_Render(Game *game) {
     BeginTextureMode(game->target);
     bool show_hud = game->state == GAME_PLAYING ||
-                    game->state == GAME_PAUSED;
-    Render_Game(&game->assets, &game->level, &game->camera, &game->player,
-                &game->projectiles, &game->objects, show_hud,
-                game->input.debug_collision);
+                    game->state == GAME_PAUSED ||
+                    game->state == GAME_SUBSCREEN;
+    if (game->state == GAME_OVERWORLD) {
+        DrawOverworld(game);
+    } else {
+        Render_Game(&game->assets, &game->level, &game->camera,
+                    &game->player, &game->projectiles, &game->objects,
+                    show_hud, game->input.debug_collision);
+    }
     if (game->state != GAME_PLAYING)
         DrawOverlay(game);
     EndTextureMode();

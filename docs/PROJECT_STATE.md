@@ -1,6 +1,6 @@
 # Demon's Crest Fan Game — Project State and Handoff
 
-Last updated: 2026-10-22
+Last updated: 2026-10-23
 Project root: `projetos/opencode/DemonsCrestNativePort`
 Reference recompilation: `projetos/opencode/DemonsCrestSNESRecomp`
 ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
@@ -8,7 +8,8 @@ ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
 This file is the authoritative handoff. It records the final objective, every
 implemented piece, every recovered technical detail, the traps already hit, and
 the ordered next steps. If work resumes later, read this file first, then
-`docs/ROADMAP.md`, then the recompilation project's
+`docs/ROADMAP.md`, then the full-campaign gap plan in
+`docs/FULL_CAMPAIGN_PLAN.md`, then the recompilation project's
 `docs/NATIVE_PORT_PLAN.md`.
 
 ---
@@ -84,6 +85,34 @@ Working today:
   pickup/hurt/enemy-hit SFX; no ROM audio data is used.
 - Vertical-slice flow: title screen, pause overlay, Area Clear trigger at the
   object-list exit (`species $09`, x=1920), and restart from title/clear.
+- Full-campaign foundation (this session):
+  - ROM CHR decompressor (`$80:C2AF`/`$80:C300`) and `$98:C000`/`$98:D000`
+    table decoders in `tools/dc_extract/extract.py`.
+  - All 113 valid areas from `$81:A291`/`$81:A6D8` extracted into
+    `assets/generated/room_area<N>.json` with 2D multi-row/vertical grids,
+    full collision grids, spawn records (`$81:A1A9`), transition boxes
+    (`$81:981A`) and object lists (`$81:C874`).
+  - Per-area BG CHR atlases baked from ROM CHR + ROM palettes
+    (`bg_area<N>_pal<P>.png`), loaded on demand per room.
+  - OAM metasprite table (`$8B:8000`, decoder from `$80:D9A7`) and real item
+    pickup (Crest emblem) / ghoul sprites baked from ROM CHR; the procedural
+    heart/enemy placeholders are gone.
+  - BG2 per-scanline HDMA parallax bands recovered from `$84:AF65`
+    (`BG2HOFS`, channel 1) and rendered as scanline clip bands.
+  - Multi-room runtime: `Level_LoadArea`/`Game_TransitionToArea`, bounding-box
+    transitions, boss-gated `$81:97DA` exits, and a 113-area room loader.
+  - Campaign Area 0 Somulo boss (with HP bar), Area 2 skeleton patrols,
+    Area 3/5 bats and wall gargoyles, moving platforms, crest/life-stone
+    pickups, gold drops, hazard damage (`attr & 0xE0 == 0x20`), breakable
+    terrain (`0x40`), water (`0x60`), and the `$1070` slope acceleration ramp.
+  - Six Gargoyle forms (`CREST_BASE`, `EARTH`, `AIR`, `WATER`, `TIME`,
+    `ULTIMATE`) with form tints, Earth/Ultimate shoulder tackle, Air free
+    flight, Water swimming, Time/Ultimate damage reduction, and a
+    `form_next` cycle key.
+  - Crest/Item subscreen (`X`/Tab) with form, Fire-Crest element, Talisman,
+    Urns, Spells and gold; shop; generated password screen; options volume;
+    game over; ending; and a Mode 7-style overworld flight map with stage
+    nodes, landing and shop access.
 - Collision debug overlay (`F1`), FPS (`F3`).
 - Per-frame CSV trace output plus `DC_TRACE_PROJECTILES`/`DC_TRACE_OBJECTS`.
 - Deterministic demo input modes for screenshots and comparison.
@@ -128,13 +157,14 @@ Working today:
 Not done yet:
 
 - Real species `$67` enemy handler/animations and hurt/death player clips;
-  current ghoul and heart art are first-pass placeholders.
-- Talisman inventory/selection and full HUD wiring beyond the HP bar.
-- Room transitions, password/menu/title-options flow, remaining areas, bosses,
-  crest forms and the Mode 7 overworld. Audio/music from the original ROM is
-  also not used (current audio is original procedural placeholder).
-- BG2 HDMA per-scanline parallax and the `$1070` walk-speed ramp (slope
-  surfaces themselves are done).
+  current ghoul and boss art are reused ROM metasprite frames.
+- Full talisman inventory/selection sprites and the exact retail HUD wiring
+  beyond the HP bar and active slot.
+- Per-form player OAM/animations (current forms are palette tints), text and
+  cutscenes, exact password decoding, and saved-game persistence.
+- Remaining bosses and secret areas, full Mode 7 overworld map data, and ROM
+  music/SFX extraction or replacement. BG2 backdrops for areas other than
+  Area 1 are not extracted yet.
 - Public-release asset replacement / legal packaging.
 
 ---
@@ -148,6 +178,7 @@ projetos/opencode/DemonsCrestNativePort
 ├── LICENSE
 ├── docs/
 │   ├── PROJECT_STATE.md   ← this file
+│   ├── FULL_CAMPAIGN_PLAN.md ← full-campaign remaining work
 │   └── ROADMAP.md
 ├── src/
 │   ├── main.c
@@ -285,10 +316,13 @@ Generated outputs:
 
 ```
 assets/generated/room.json
+assets/generated/room_area0.json ... room_area112.json
+assets/generated/bg_area0_pal*.png ... bg_area112_pal*.png
 assets/generated/bg_pal0.png ... bg_pal7.png
 assets/generated/obj_pal0.png ... obj_pal7.png
 assets/generated/player_idle.png
 assets/generated/item_00.png
+assets/generated/campaign.json
 assets/generated/manifest.json
 ```
 
@@ -560,7 +594,9 @@ Key Bank `$80` routines:
 | Jump / hover / fly | Z or Space | B (right face) | **B** (`$1E3A` → `$1059`/`$105A`) |
 | Fly upward (debug only) | hold jump + Up | hold B + Up | Crest-dependent (not base Gargoyle) |
 | Fireball shot | X or J | X / Y (west/top) | **Y** (`$1E3C` → `$105B`/`$105C`) |
-| Talisman / Headbutt | C or K | A (south) | **A** (`$1E3E` → `$105D`/`$105E`) |
+| Talisman / Headbutt / Earth dash | C or K | A (south) | **A** (`$1E3E` → `$105D`/`$105E`) |
+| Crest/Item subscreen | Tab or I | — | **X** (`$1E4C` → `$80:DC12`) |
+| Cycle Gargoyle form | Q / E | L / R | — |
 | Start / confirm | Enter | Start | Start |
 | Pause / resume | Escape | Back | Start |
 | Collision overlay | F1 | — | — |
@@ -586,6 +622,9 @@ The original SNES default mapping was verified from `$80:DB00..DB40` and `save0`
 | `DC_DEMO=8` | full-room traversal: walk left, then hover right across pillars |
 | `DC_DEMO=9` | urn → bouncing heart → heal regression |
 | `DC_DEMO=10` | enemy chase/damage/drop regression (pair with `DC_START_X`) |
+| `DC_DEMO=11` | Crest-form cycle, Earth dash, Air flight, Aerial shots |
+| `DC_DEMO=12` | campaign traversal / boss-gate flow |
+| `DC_DEMO=13` | title → NEW GAME → Area 0 flow |
 | `DC_START_X` / `DC_START_Y` | spawn override for focused tests |
 | `DC_TITLE=1` | force the title screen even with `DC_RUN_FRAMES` |
 | `DC_NO_AUDIO=1` | disable audio device/music/SFX |
@@ -596,6 +635,16 @@ The original SNES default mapping was verified from `$80:DB00..DB40` and `save0`
 | `DC_FLY_DEBUG=1` | enable non-canonical B+Up vertical flight |
 | `DC_DEBUG_COLLISION=1` | enable the `F1` collision overlay in headless captures |
 | `DC_LAYER_MASK=1|2|3` | BG2 only / BG1 only / both |
+| `DC_AREA=N` | load `room_areaN.json` instead of `room.json` |
+| `DC_CAMPAIGN=1` | enable campaign transitions/overworld progression |
+| `DC_STATE=name` | render a menu state (`title`, `overworld`, `subscreen`, `shop`, `password`, `options`, `clear`, `gameover`, `ending`) |
+| `DC_BOSS_DEFEATED=1` | skip boss spawns (campaign flow testing) |
+| `DC_BOSS_HP=N` | override boss HP |
+| `DC_GOLD=N` | starting gold for shop/subscreen testing |
+| `DC_POTIONS=N` / `DC_SCROLLS=N` | starting Urn/Spell counts |
+| `DC_UNLOCK_ALL=1` | unlock all six Gargoyle forms |
+| `DC_NO_HDMA=1` | disable the BG2 scanline parallax bands |
+| `DC_UNDERWATER=1` | force underwater physics for testing |
 
 `DC_SCREENSHOT` is handled by raylib, which writes the basename into the
 working directory even when an absolute path is supplied.
@@ -861,8 +910,9 @@ Object list and HUD extraction:
 - `extract_anim.py` bakes the save0 BG3 HUD into `hud_bar.png` (six 8×8 health
   tiles at tile column 3, row 2) and `hud_slots.png` (three 2×2 crest slots at
   columns 18..29, rows 1..2), with the brown BG3 backdrop made transparent.
-- Heart/enemy sprites are original placeholders (`heart_00..01.png`,
-  `enemy_00..01.png`) until their ROM OAM frames are captured.
+- Heart/enemy sprites (`heart_00..01.png`, `enemy_00..01.png`) are now baked
+  from ROM OAM/CHR via the `$8B:8000` metasprite decoder (`extract.py`); other
+  species still share the ghoul sheet until their init handlers are baked.
 
 ---
 
@@ -1157,8 +1207,9 @@ These were already discovered the hard way; do not rediscover them.
 14. **The HUD is extracted from `save0`, not `stage_600`.**
     `stage_600` is a cinematic frame with no BG3 status bar; `save0` has the
     health bar and crest slots. `extract_anim.py` bakes them as
-    `hud_bar.png`/`hud_slots.png`. The active spell slot is currently a
-    placeholder highlight (no talisman inventory yet).
+    `hud_bar.png`/`hud_slots.png`. The active Crest/Talisman slot is
+    highlighted from the current form; exact retail slot icons are still
+    approximate.
 
 15. **No audio yet.**
     The game is silent. Do not mistake this for a bug.
@@ -1194,33 +1245,27 @@ These were already discovered the hard way; do not rediscover them.
 
 ## 9. Current limitations
 
-- Full 2048×256 graveyard row scrolls horizontally; the ROM grid's other row is
-  empty padding. Vertical camera range is only 32 px for this row.
-- BG2 parallax is a flat 1:1 offset with wrapping; the original HDMA
-  per-scanline `BG2HOFS` table is not extracted yet.
-- Animation covers idle/walk/jump/hover/fall/land, the 17-frame `Y` shot and
-  the 31-frame `A` spell. Hurt, death and wall-cling clips are still needed;
-  one directional set is mirrored by the renderer.
-- The projectile kind is currently the base fireball only; no charged shot or
-  crest variants yet. Fireball hits urns/enemies but there is no damage type
-  system.
-- Enemy behavior is a first-pass chase/damage/drop implementation, not the full
-  `$83:AF74` species `$67` handler; its sprite and the heart sprite are
-  original placeholders.
-- The HUD shows HP and three static crest slots; talisman inventory/selection
-  is not implemented, so the first slot is highlighted.
-- The `$1070` terrain probe that selects the `0x00B3` initial walk step /
-  `$80:8B85` acceleration path is not wired yet; walking keeps the `0x0166`
-  cap on both flat ground and slopes.
+- All 113 campaign areas extract and load, but BG2 backdrops for areas other
+  than Area 1 are not extracted yet (the layer is transparent there).
+- BG2 parallax in Area 1 now uses the recovered `$84:AF65` HDMA bands; other
+  areas have no per-scanline effect until their BG2 tables are decoded.
+- Player animation covers idle/walk/jump/hover/fall/land, the 17-frame `Y`
+  shot and the 31-frame `A` spell. Hurt, death and wall-cling clips are still
+  needed; the six Gargoyle forms currently reuse the base sheet with palette
+  tints instead of separate form OAM sets.
+- The projectile kind covers normal/charged shots and the Fire-Crest element
+  tint; Tornado platforms and Claw lava-freezing are not fully simulated.
+- Enemy behavior covers the first-pass ghoul plus Area 2 skeletons, bats and
+  wall gargoyles; other species still reuse the shared enemy sprite/AI.
+- The HUD shows HP and three crest slots and highlights the active form; the
+  exact per-talisman icons and retail slot layout are still approximations.
+- The `$1070` terrain probe is wired to `attr & 0xE0 == 0x80` and selects the
+  `0x00B3 → 0x0166` ramp; exact per-shape ramp behaviour still needs oracle
+  comparison.
 - Audio is an original procedural development loop/SFX, not extracted ROM
-  music; there is no music/sfx volume menu yet.
-- Title, pause and Area Clear screens exist, but there is no password/save,
-  stage select, map or room-transition menu yet.
-- Slope shapes `0x03..0x14` are decoded; edge/hazard shapes (`0x19`, `0x21`)
-  still use conservative full-floor behavior.
-- No full campaign or bosses.
-- No Windows build tested in this session (CMake/raylib are portable, but the
-  build was verified on Linux).
+  music; there is no music/sfx menu beyond the master volume option.
+- Text/dialogue, cutscenes, exact password decoding and saved-game persistence
+  are stubs (the password screen only displays a generated code).
 - No public-release asset path yet.
 
 ---
@@ -1443,11 +1488,11 @@ Acceptance:
   fireball draws. The static fallback player also has a pre-flipped texture.
   No negative `DrawTexturePro` source widths remain.
 - **Single-command regression**: `tools/run_regression.py` (also
-  `tools/run_regression.sh` and CTest `regression`) runs demos 6/7/9/10 and
+  `tools/run_regression.sh` and CTest `regression`) runs demos 6/7/9/10/11/12 and
   asserts walk/jump/hover, fireball spawn/despawn, urn/heart arc, enemy damage
   and HP changes. `ctest --output-on-failure` passes. Missing binary/assets
   return 77 so CTest reports a skip.
-- Acceptance: `ctest` passes in ~33 s, and the local `compare.py` oracle flow
+- Acceptance: `ctest` passes in ~60–80 s, and the local `compare.py` oracle flow
   remains available for ROM-accurate checks.
 
 ### Step 9 — Audio, menus, game flow & full content (vertical-slice portion started)
@@ -1474,18 +1519,114 @@ Remaining Step 9 work:
   for public release, plus volume/mute options.
 - Original fan-game levels/story/art.
 
+### Step 10 — Full-campaign foundation (started this session)
+
+Done:
+
+- **ROM extraction**
+  - `tools/dc_extract/extract.py` now implements the native decompressor at
+    `$80:C2AF`/`$80:C300` (16 bytes per call, 8 calls per 16×16 unit, `+0x200`
+    bottom-row skip) and the `$98:C000` (BG CHR) / `$98:D000` (OBJ CHR)
+    24-bit pointer tables.
+  - All 113 valid areas from `$81:A291` + `$81:A6D8` are emitted as
+    `room_area<N>.json`: 2D multi-row and vertical grids (e.g. Area 2 8×2,
+    Area 3 4×5), collision attributes, spawns from `$81:A1A9`, bounding-box
+    transitions from `$81:981A`, boss-gate target from `$81:97DA`, and object
+    species/flags/positions from `$81:C874`.
+  - Per-area BG atlases (`bg_area<N>_pal<P>.png`) are baked from ROM CHR and
+    the ROM BG palette blocks (`$99:9080`, `$99:90A0`, `$99:A900 +
+    ($81:8909[area] & 0xFFC0)`), limited to palettes the area actually uses.
+    `Assets_LoadAreaBg` swaps the 8 atlases on room transitions.
+  - OAM metabug: `$8B:8000` metasprite groups decoded from `$80:D9A7`, with
+    the `$80:DA33` tile-base carry rule and per-part flip bits. Real ROM
+    heart/Crest pickup and ghoul sprites are baked; the procedural
+    `heart_*`/`enemy_*` placeholders are no longer used.
+  - Item palette extracted from `$99:9240`; Gargoyle form palettes from
+    `$99:9100..91BF`.
+- **Level engine**
+  - `Level` now carries `area_id`, `gate_next_area`, `backdrop`, up to 8
+    spawn records and 16 transitions, plus `ObjectType` platform/crest/boss.
+  - `Level_LoadArea`/`Game_TransitionToArea` load any extracted room; the
+    runtime handles mid-room bounding-box transitions, boss-gated exits,
+    respawn logic and per-area BG atlas swaps.
+  - Collision environment flags: hazards (`0x20`, e.g. `0x21`), breakable
+    `0x40` blocks (removed from the grid and BG1 tilemap), water (`0x60`),
+    slope acceleration (`0x80` → `$1070`), plus the `$80:962B` surface table.
+    Underwater physics uses `$1045` constants (`0x02CE` jump, `0x002A`
+    gravity, `0x0300` terminal fall).
+  - BG2 HDMA scanline parallax recovered from `$84:AF65` (32/44/28/46/74
+    line bands with 0.25/0.125/0.25/0.50/1.25 factors) and rendered with
+    per-band clipped tiles. `DC_NO_HDMA=1` disables it.
+  - Room backdrop colour emitted from ROM palette 0; the renderer clears to
+    it instead of a fixed colour.
+- **Player/crest system**
+  - `CrestForm` enum with Base, Earth, Aerial, Water, Time and Ultimate
+    Gargoyle. `Q`/`E` or L/R cycles owned forms; clearing Areas 0–4 unlocks the
+    next Crest, and `DC_UNLOCK_ALL=1` (or `DC_DEMO=11`) unlocks all six for
+    testing.
+  - Earth/Ultimate shoulder tackle (breaks `0x40` blocks ahead), Aerial/
+    Ultimate vertical flight, Water free swimming, Time/Ultimate and Armor
+    Talisman damage reduction, overhead headbutt block breaking, and wall
+    cling (hold A against a tall wall while descending).
+  - Fire-Crest element selector (Fireball, Buster, Tornado, Claw, Demon
+    Fire); Buster/charged shots break `0x40` blocks. Projectiles carry
+    damage/element and are tinted per element.
+  - Crest/Item subscreen (Tab/X) with HP, Urns, Spells, gold, form and
+    Fire-Crest/Talisman selection; Urn heals; Spell spends a scroll.
+- **Enemies, bosses and objects**
+  - 26-slot object pool extended with platforms, crest/life-stone pickups and
+    bosses. Area 0 spawns **Somulo** (HP bar, lunge/leap cycles); Areas 2/3/5
+    add skeleton patrols, bats and wall gargoyles; enemy contact uses the
+    shared damage/knockback/invulnerability path; bosses can be tackled or
+    shot, drop a pickup and set `boss_defeated`.
+  - Urns drop hearts; hearts heal and award gold; crest pickups raise max HP,
+    gold and refill potions.
+- **Campaign flow**
+  - Title menu with New Game / Overworld Map / Password / Options.
+  - Mode 7-style overworld with six landing nodes, Firebrand marker,
+    nearest-node selection, stage locking (Demon Keep requires the first four
+    stages), and shop access.
+  - Pause menu with Resume / Return to Overworld; shop (Urns, Spells, Life
+    Stones); generated password screen; volume options; Game Over;
+    clear screen with password; ending screen; `GAME_ENDING` after Demon
+    Keep when all stages are cleared.
+  - Deterministic `DC_STATE` hook renders each menu for screenshots.
+
+Acceptance:
+
+- `dc_extract` regenerates all 113 area rooms plus per-area atlases from the
+  ROM in ~65 s.
+- `DC_AREA=0/1/2/3` loads the corresponding room and renders its own BG set.
+- `DC_AREA=0 DC_CAMPAIGN=1 DC_BOSS_DEFEATED=1 DC_DEMO=12` walks through the
+  Area 0 boss gate into Area 17 (trace `area` column).
+- `DC_DEMO=11` cycles at least three Crest forms and exercises the
+  Earth/Ultimate dash, Air flight and Aerial shots.
+- `tools/run_regression.py` covers demos 6/7/9/10/11/12 and Area 2/3 loads.
+
+Still placeholder / remaining:
+
+- Enemy and boss animations beyond the shared ghoul sprite; real per-species
+  OAM groups need to be baked from their init handlers.
+- Player form sprites/animations; current forms are palette tints of the base
+  Gargoyle sheet.
+- Text/dialogue/cutscene scripting, exact retail password decode, SRAM-style
+  save persistence, and shop NCP dialogue.
+- ROM audio (SPC700/BRR/DSP) extraction or replacement.
+- Mid-stage `$98:E000` CHR streaming coverage and per-area BG2 backdrops.
+
+
 ---
 
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
 |---|---|---|
-| 0 | Extraction proof: graveyard map + VRAM/CGRAM dump + static render | done (needs `--area 1` re-extract) |
+| 0 | Extraction proof: graveyard map + VRAM/CGRAM dump + static render | done |
 | 1 | Engine skeleton: raylib, fixed 60 Hz, BG layers, input, camera | done |
 | 2 | Firebrand core: Bank `$80` state machine, physics, slopes, animations | done: state machine, slopes, shot/spell/fireball |
-| 3 | Combat and objects: fireball, `$1080` objects, enemy, `$85:C180` pickup, HUD | done: fireballs, object pool, urns, hearts, first-pass enemy, HUD |
-| 4 | Vertical slice: full Area 1–3 scrolling rooms, transitions, title/menu, audio | Area 1 room, objects/HUD, title/pause/clear and procedural audio done; transitions/more rooms next |
-| 5 | Full campaign: all areas, bosses, forms, Mode 7, password/save | not started |
+| 3 | Combat and objects: fireball, `$1080` objects, enemy, `$85:C180` pickup, HUD | done: fireballs, object pool, urns, hearts, enemies, HUD |
+| 4 | Vertical slice: full Area 1–3 scrolling rooms, transitions, title/menu, audio | **campaign foundation done**: 113 areas, transitions, bosses, crests, overworld/menus; audio placeholder |
+| 5 | Full campaign: all areas, bosses, forms, Mode 7, password/save | in progress: all area rooms, crests/overworld/menus present; per-species OAM/AI, text, exact password/save and ROM audio remain |
 | 6 | Fan-game content: new levels/story/art | not started |
 
 A reasonable estimate for the vertical slice is **10–14 full-time weeks** for
@@ -1582,12 +1723,15 @@ Resolved questions (formerly open):
 
 Remaining open technical questions:
 
-- BG2 HDMA per-scanline horizontal scroll table (channel 1, `$210F`
-  `BG2HOFS`); the native renderer currently uses a flat 1:1 offset + wrap.
-- Full object species ID (`$02`) → handler table (`$82:8000,X`) for Area 1
-  graveyard enemies.
-- Fireball interaction with enemies (hitbox, damage, knockback) is not yet
-  researched; only terrain/viewport despawn is implemented.
+- BG2 backdrops and HDMA tables for areas other than Area 1 (Area 1's
+  `$84:AF65` bands are implemented).
+- Full object species ID (`$02`) → handler table (`$82:8000,X`) coverage;
+  current AI is first-pass for skeletons/bats/gargoyles.
+- Exact projectile-enemy/player-object hitbox, damage, knockback and drop
+  tables from `$80:9C93` (current values are approximations).
+- Per-species OAM/animation extraction from `$82:8300` init handlers.
+- Mid-stage `$98:E000` CHR streaming and tile animation (`$81:C125`).
+- Text/dialogue/cutscene encoding, exact password algorithm and save format.
 - Best audio path for distribution (native BRR+sequence synth vs replacement
   tracks).
 - Widescreen support policy and Windows CI/test build path.
@@ -1699,9 +1843,19 @@ status bar is baked as `hud_bar.png`/`hud_slots.png` and rendered with the
 current HP bar and crest slots. Step 8 hardens the engine: a fixed 60 Hz
 accumulator decoupled from display refresh, pre-baked mirrored player/fireball
 textures, and a CTest/`tools/run_regression.sh` harness that re-runs demos
-6/7/9/10 and asserts physics, projectile, pickup, enemy and HP invariants.
+6/7/9/10/11/12 and asserts physics, projectile, pickup, enemy, Crest-form and campaign-transition invariants.
 Step 9 now has an original procedural chiptune/SFX layer, a title screen,
-pause overlay, and an Area Clear trigger at the graveyard exit. The remaining
-work is room transitions, the rest of Areas 1–3 and bosses, passwords/menus,
-Mode 7, and optional ROM audio extraction/replacement; BG2 HDMA parallax, the
-real `$83:AF74` enemy handler and talisman inventory remain polish items.
+pause overlay, and an Area Clear trigger at the graveyard exit. Step 10 moves
+from the vertical slice to a **full-campaign foundation**: the extractor now
+implements the ROM CHR decompressor, emits all 113 valid areas as 2D room
+documents (multi-row/vertical grids, spawns, transitions, boss gates and
+object lists), and bakes per-area BG atlases from ROM CHR/palettes. The OAM
+metasprite decoder (`$8B:8000`) provides the real item/Crest and ghoul sprites;
+Area 1 BG2 uses the recovered `$84:AF65` HDMA scanline bands. The runtime can
+load any area, transition on bounding boxes or `$81:97DA` boss gates, run Area 0
+Somulo and basic skeleton/bat/gargoyle encounters, and exposes six Gargoyle
+forms (Earth dash, Air flight, Water swim, Time/Ultimate defense, Fire-Crest
+elements, wall cling, headbutt), a Crest/Item subscreen, shop, password,
+options, Game Over/endings and a Mode 7-style overworld. Remaining work is
+fidelity: per-species OAM/AI, BG2/mid-stage CHR for other areas, text/cutscenes,
+the exact password/save format and ROM audio.

@@ -25,6 +25,8 @@ bool Assets_Load(Assets *assets, const char *dir) {
             return false;
         }
     }
+    snprintf(assets->asset_dir, sizeof(assets->asset_dir), "%s", dir);
+    assets->bg_area_id = -1;
     for (int i = 0; i < DC_OBJ_PALETTES; i++) {
         char name[32];
         snprintf(name, sizeof(name), "obj_pal%d.png", i);
@@ -76,6 +78,12 @@ void Assets_Unload(Assets *assets) {
         if (IsTextureValid(assets->bg_pal[i]))
             UnloadTexture(assets->bg_pal[i]);
     }
+    if (assets->bg_area_ready) {
+        for (int p = 0; p < DC_BG_PALETTES; p++) {
+            if (IsTextureValid(assets->bg_area[p]))
+                UnloadTexture(assets->bg_area[p]);
+        }
+    }
     for (int i = 0; i < DC_OBJ_PALETTES; i++) {
         if (IsTextureValid(assets->obj_pal[i]))
             UnloadTexture(assets->obj_pal[i]);
@@ -100,4 +108,45 @@ void Assets_Unload(Assets *assets) {
     Anim_Unload(&assets->player_anim);
     ProjectileAnim_Unload(&assets->projectile_anim);
     memset(assets, 0, sizeof(*assets));
+}
+
+Texture2D Assets_AreaBg(const Assets *assets, int area, int pal) {
+    (void)area;
+    if (pal < 0 || pal >= DC_BG_PALETTES)
+        return assets->bg_pal[0];
+    if (IsTextureValid(assets->bg_area[pal]))
+        return assets->bg_area[pal];
+    return assets->bg_pal[pal];
+}
+
+void Assets_LoadAreaBg(Assets *assets, int area) {
+    if (area == assets->bg_area_id)
+        return;
+    if (assets->bg_area_ready) {
+        for (int p = 0; p < DC_BG_PALETTES; p++) {
+            if (IsTextureValid(assets->bg_area[p]))
+                UnloadTexture(assets->bg_area[p]);
+            memset(&assets->bg_area[p], 0, sizeof(assets->bg_area[p]));
+        }
+        assets->bg_area_ready = false;
+    }
+    assets->bg_area_id = area;
+    bool any = false;
+    for (int p = 0; p < DC_BG_PALETTES; p++) {
+        char name[48];
+        snprintf(name, sizeof(name), "bg_area%d_pal%d.png", area, p);
+        char path[1200];
+        snprintf(path, sizeof(path), "%s/%s", assets->asset_dir, name);
+        if (!FileExists(path))
+            continue;
+        Texture2D tex = LoadTexture(path);
+        if (!IsTextureValid(tex))
+            continue;
+        SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+        assets->bg_area[p] = tex;
+        any = true;
+    }
+    assets->bg_area_ready = any;
+    if (!any)
+        assets->bg_area_id = -1;
 }

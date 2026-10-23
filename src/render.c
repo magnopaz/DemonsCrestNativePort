@@ -5,26 +5,19 @@
 
 #include "raylib.h"
 
-static void DrawLayer(const Assets *assets, const BgLayer *layer,
-                      const Level *level, const GameCamera *camera) {
-    /* BG1 is the reference layer: its scroll is the camera position. BG2 keeps
-     * the relative scroll it had in the captured frame. */
-    float offset_x = (float)(layer->scroll_x - level->bg[1].scroll_x);
-    float offset_y = (float)(layer->scroll_y - level->bg[1].scroll_y);
-    /* The full-room BG1 is much wider than the captured BG2 ring; loop the
-     * backdrop horizontally instead of running out of tiles. */
-    bool wrap_x = layer->map_w < level->bg[1].map_w;
-
-    float origin_x = camera->x + offset_x;
-    float origin_y = camera->y + offset_y;
-
+static void DrawLayerBand(const Assets *assets, const BgLayer *layer,
+                          int area_id, bool wrap_x, float origin_x,
+                          float origin_y, int y_min, int y_max) {
     int tx0 = (int)floorf(origin_x / 8.0f);
-    int ty0 = (int)floorf(origin_y / 8.0f);
+    int ty0 = (int)floorf((origin_y + (float)y_min) / 8.0f);
     int tx1 = (int)floorf((origin_x + 256.0f) / 8.0f) + 1;
-    int ty1 = (int)floorf((origin_y + 224.0f) / 8.0f) + 1;
+    int ty1 = (int)floorf((origin_y + (float)y_max) / 8.0f) + 1;
 
     for (int ty = ty0; ty <= ty1; ty++) {
         if (ty < 0 || ty >= layer->map_h)
+            continue;
+        float dst_y = (float)ty * 8.0f - origin_y;
+        if (dst_y + 8.0f <= (float)y_min || dst_y >= (float)y_max)
             continue;
         for (int tx = tx0; tx <= tx1; tx++) {
             int map_tx = tx;
@@ -40,8 +33,6 @@ static void DrawLayer(const Assets *assets, const BgLayer *layer,
             int pal = (word >> 10) & 7;
             if (pal >= DC_BG_PALETTES)
                 pal = 0;
-            /* The extractor bakes four flip quadrants per palette:
-             * normal (0,0), H (256,0), V (0,256), HV (256,256). */
             float qx = (word & 0x4000) ? 256.0f : 0.0f;
             float qy = (word & 0x8000) ? 256.0f : 0.0f;
             Rectangle src = {
@@ -51,12 +42,79 @@ static void DrawLayer(const Assets *assets, const BgLayer *layer,
             };
             Rectangle dst = {
                 (float)tx * 8.0f - origin_x,
-                (float)ty * 8.0f - origin_y,
+                dst_y,
                 8.0f, 8.0f
             };
-            DrawTexturePro(assets->bg_pal[pal], src, dst, (Vector2){0, 0}, 0.0f,
-                           WHITE);
+            if (dst.y < (float)y_min) {
+                float clip = (float)y_min - dst.y;
+                src.y += clip;
+                src.height -= clip;
+                dst.y = (float)y_min;
+                dst.height -= clip;
+            }
+            if (dst.y + dst.height > (float)y_max) {
+                float clip = (dst.y + dst.height) - (float)y_max;
+                src.height -= clip;
+                dst.height -= clip;
+            }
+            if (dst.height > 0.0f) {
+                DrawTexturePro(Assets_AreaBg(assets, area_id, pal), src, dst,
+                               (Vector2){0, 0}, 0.0f, WHITE);
+            }
         }
+    }
+}
+
+static void DrawLayer(const Assets *assets, const BgLayer *layer,
+                      const Level *level, const GameCamera *camera) {
+    /* Each layer keeps the relative scroll it had in the captured frame
+     * (`layer->scroll_x - level->camera_x`); the runtime camera then scrolls
+     * all layers together. */
+    float offset_x = (float)layer->scroll_x - level->camera_x;
+    float offset_y = (float)layer->scroll_y - level->camera_y;
+    bool wrap_x = layer->map_w < level->bg[1].map_w ||
+                  layer == &level->bg[0];
+    float origin_y = camera->y + offset_y;
+    if (layer == &level->bg[0] && level->world_h > 256)
+        origin_y = fmodf(camera->y * 0.5f, (float)(layer->map_h * 8 - 224));
+
+    if (layer->hdma_band_count > 0 && getenv("DC_NO_HDMA") == NULL) {
+        int scan_y = 0;
+        float cam_dx = camera->x - level->camera_x;
+        for (int b = 0; b < layer->hdma_band_count && scan_y < 224; b++) {
+            int next_y = scan_y + layer->hdma_bands[b].lines;
+            if (next_y > 224)
+                next_y = 224;
+            float band_x = (float)layer->scroll_x +
+                           cam_dx * layer->hdma_bands[b].factor;
+            DrawLayerBand(assets, layer, level->area_id, wrap_x, band_x,
+                          origin_y, scan_y, next_y);
+            scan_y = next_y;
+        }
+        return;
+    }
+
+    float origin_x = camera->x + offset_x;
+    DrawLayerBand(assets, layer, level->area_id, wrap_x, origin_x, origin_y,
+                  0, 224);
+}
+
+static Color CrestTint(int crest_form, int invuln_timer) {
+    if (invuln_timer > 0 && ((invuln_timer / 2) & 1))
+        return (Color){255, 160, 160, 180};
+    switch (crest_form) {
+    case CREST_EARTH:
+        return (Color){235, 195, 115, 255};
+    case CREST_AIR:
+        return (Color){165, 225, 255, 255};
+    case CREST_WATER:
+        return (Color){135, 240, 220, 255};
+    case CREST_TIME:
+        return (Color){255, 235, 140, 255};
+    case CREST_ULTIMATE:
+        return (Color){245, 175, 255, 255};
+    default:
+        return WHITE;
     }
 }
 
@@ -84,7 +142,8 @@ static void DrawPlayer(const Assets *assets, const Level *level,
     float y = player->y - anchor_y - camera->y;
     Rectangle src = {0, 0, (float)texture.width, (float)texture.height};
     Rectangle dst = {x, y, (float)texture.width, (float)texture.height};
-    DrawTexturePro(texture, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
+    Color tint = CrestTint(player->crest_form, player->invuln_timer);
+    DrawTexturePro(texture, src, dst, (Vector2){0, 0}, 0.0f, tint);
 }
 
 static void DrawProjectiles(const Assets *assets, const GameCamera *camera,
@@ -106,7 +165,15 @@ static void DrawProjectiles(const Assets *assets, const GameCamera *camera,
         Texture2D texture = p->vx_fx < 0 ? step->flipped : step->texture;
         Rectangle src = {0, 0, (float)texture.width, (float)texture.height};
         Rectangle dst = {x, y, (float)texture.width, (float)texture.height};
-        DrawTexturePro(texture, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
+        Color tint = WHITE;
+        switch (p->element) {
+        case 1: tint = (Color){255, 220, 120, 255}; break; /* Buster */
+        case 2: tint = (Color){140, 240, 150, 255}; break; /* Tornado */
+        case 3: tint = (Color){140, 220, 255, 255}; break; /* Claw */
+        case 4: tint = (Color){235, 130, 255, 255}; break; /* Demon Fire */
+        default: break;
+        }
+        DrawTexturePro(texture, src, dst, (Vector2){0, 0}, 0.0f, tint);
     }
 }
 
@@ -127,11 +194,49 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             Texture2D tex = assets->heart;
             DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
                         (int)lroundf(y - tex.height), WHITE);
+        } else if (o->type == OBJECT_CREST_ITEM) {
+            Texture2D tex = assets->heart;
+            Color tint = ((o->timer / 6) & 1)
+                         ? (Color){255, 240, 120, 255}
+                         : (Color){180, 230, 255, 255};
+            DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
+                        (int)lroundf(y - tex.height), tint);
+        } else if (o->type == OBJECT_PLATFORM) {
+            int px = (int)lroundf(x) - 16;
+            int py = (int)lroundf(y);
+            DrawRectangle(px, py, 32, 6, (Color){128, 120, 108, 255});
+            DrawRectangleLines(px, py, 32, 6, (Color){200, 192, 168, 255});
         } else if (o->type == OBJECT_ENEMY && assets->enemy_frames > 0) {
             int frame = (o->timer / 8) % assets->enemy_frames;
             Texture2D tex = assets->enemy[frame];
+            Color tint = WHITE;
+            if (o->species == 0x2C)
+                tint = (Color){210, 230, 255, 255};
+            else if (o->species == 0x07)
+                tint = (Color){255, 180, 200, 255};
             DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
-                        (int)lroundf(y - tex.height * 0.5f), WHITE);
+                        (int)lroundf(y - tex.height * 0.5f), tint);
+        } else if (o->type == OBJECT_BOSS && assets->enemy_frames > 0) {
+            int frame = (o->timer / 6) % assets->enemy_frames;
+            Texture2D tex = assets->enemy[frame];
+            Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+            Rectangle dst = {
+                x - (float)tex.width * 0.75f,
+                y - (float)tex.height * 0.75f,
+                (float)tex.width * 1.5f,
+                (float)tex.height * 1.5f
+            };
+            Color tint = (o->species == 0x33)
+                         ? (Color){255, 190, 140, 255}
+                         : (Color){210, 170, 255, 255};
+            DrawTexturePro(tex, src, dst, (Vector2){0, 0}, 0.0f, tint);
+            /* Boss health bar at top-right */
+            if (o->max_hp > 0 && o->hp > 0) {
+                int bw = 48;
+                int filled = (o->hp * bw) / o->max_hp;
+                DrawRectangle(196, 26, bw + 2, 6, (Color){20, 10, 20, 200});
+                DrawRectangle(197, 27, filled, 4, (Color){230, 60, 80, 255});
+            }
         }
     }
 }
@@ -164,8 +269,11 @@ static void DrawHud(const Assets *assets, const Player *player) {
 
     if (IsTextureValid(assets->hud_slots)) {
         DrawTexture(assets->hud_slots, 144, 8, WHITE);
-        /* Current talisman/spell slot is the first one for now. */
-        DrawRectangleLines(144, 8, 32, 16, (Color){240, 200, 80, 220});
+        /* Highlight the active Crest/Talisman slot (3 visible 32x16 slots). */
+        int slot_idx = player->crest_form % 3;
+        Color slot_col = CrestTint(player->crest_form, 0);
+        slot_col.a = 235;
+        DrawRectangleLines(144 + slot_idx * 32, 8, 32, 16, slot_col);
     }
 }
 
@@ -178,7 +286,7 @@ void Render_Game(const Assets *assets, const Level *level, const GameCamera *cam
         const char *env = getenv("DC_LAYER_MASK");
         layer_mask = env ? atoi(env) : 0x3;
     }
-    ClearBackground((Color){8, 8, 16, 255});
+    ClearBackground(level->backdrop);
 
     for (int i = 0; i < level->bg_count; i++) {
         if (!(layer_mask & (1 << i)))

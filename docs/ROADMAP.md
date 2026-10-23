@@ -1,16 +1,22 @@
 # Roadmap
 
-Status: playable graveyard vertical slice with physics, objects, HUD, audio and flow.
+Status: playable campaign foundation — all 113 areas extracted, multi-room
+transitions, crest forms, boss/overworld/menu flow and per-area BG atlases are
+in place; remaining work is content fidelity (per-species OAM, text, audio).
+
+Full-campaign remaining work is tracked in
+[`docs/FULL_CAMPAIGN_PLAN.md`](FULL_CAMPAIGN_PLAN.md).
 
 ## Done
 
 - Standalone CMake + C11 + raylib project.
-- ROM verification and area-2 extraction from a recomp dump.
+- ROM verification, the native CHR decompressor, and extraction of all 113
+  valid areas from the ROM block tables.
 - 256×224 render target, integer scaling, 60 Hz update.
 - BG1/BG2 tilemaps with per-palette flip atlases.
 - OAM-composed player and item sprites.
 - Walk, jump, hover, fireball shot, first-pass collision and viewport bounds.
-- Deterministic demo input for screenshots (`DC_DEMO=1|2|5|6|7`).
+- Deterministic demo input for screenshots (`DC_DEMO=1|2|5|6|7|8|9|10|11|12|13`).
 - Debug collision overlay (`F1`), FPS (`F3`).
 - Animation capture through the recomp debug server's state ring.
 - Firebrand animation frames: static idle, 6-pose walk cycle, jump rise,
@@ -38,12 +44,42 @@ Status: playable graveyard vertical slice with physics, objects, HUD, audio and 
   `DC_RUN_FRAMES` remains deterministic one-update-per-loop.
 - Pre-baked horizontal player/fireball textures (no negative-source flips).
 - `tools/run_regression.py` + `tools/run_regression.sh` + CTest exercise
-  demos 6, 7, 9 and 10 and assert physics, projectile, pickup and enemy
+  demos 6, 7, 9, 10, 11 and 12 and assert physics, projectile, pickup, enemy, Crest cycling and campaign transitions
   invariants.
 - Original procedural audio: looping chiptune theme plus jump/land/shoot/break/
   pickup/hurt/enemy-hit SFX; no ROM audio data.
 - Title / Playing / Paused / Area Clear flow with an exit trigger from the
   Area 1 object list (`species $09`, x=1920).
+- Full-campaign foundation:
+  - native ROM CHR decompressor (`$80:C2AF`/`$80:C300`) and `$98:C000`/
+    `$98:D000` decoders in `tools/dc_extract/extract.py`;
+  - all 113 valid areas emitted as `room_area<N>.json` with 2D multi-row/
+    vertical grids, collision, spawns (`$81:A1A9`), transitions
+    (`$81:981A`) and object lists (`$81:C874`);
+  - per-area BG atlases from ROM CHR + ROM palettes, loaded on demand;
+  - OAM metasprite decoder (`$8B:8000` via `$80:D9A7`) with real ROM
+    heart/Crest pickup and ghoul sprites;
+  - BG2 HDMA scanline parallax from `$84:AF65` (32/44/28/46/74-line bands);
+  - multi-room `Level_LoadArea`/`Game_TransitionToArea`, boss-gated
+    `$81:97DA` exits, and all 113 rooms loadable;
+  - Area 0 Somulo boss with HP bar, skeleton/bat/gargoyle enemies, moving
+    platforms, crest/life-stone pickups, gold, hazards, water and breakable
+    terrain;
+  - six Gargoyle forms with Earth/Ultimate dash, Air flight, Water swim,
+    Time/Ultimate damage reduction, Fire-Crest elements, wall cling and
+    overhead headbutt;
+  - Crest/Item subscreen (`Tab`/`X`), shop, generated password, options,
+    game over, ending, and a Mode 7-style overworld with six landing nodes.
+
+## Campaign foundation (this session)
+
+- `dc_extract` regenerates 113 area rooms + per-area atlases from the ROM in
+  about 65 s; generated output is ~57 MB and stays git-ignored.
+- `DC_AREA=N` loads a specific campaign room; `DC_CAMPAIGN=1` enables
+  transitions; `DC_BOSS_DEFEATED=1` skips bosses for flow tests; `DC_STATE=`
+  renders each menu; `DC_NO_HDMA=1` disables scanline parallax.
+- `tools/run_regression.py` now also covers demo 11 (Crest cycling), demo 12
+  (Area 0 → Area 17 gate) and direct Area 2/3 loads.
 
 ## Physics constants and Bank `$80` state machine recovered
 
@@ -97,15 +133,23 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
 
 ## Next (ordered by dependency)
 
-1. **Room transitions & remaining vertical-slice content**
-   - Exits/transitions between Area 1–3 rooms, boss gate `$81:97DA`, one boss,
-     password/menu/stage-select flow.
-   - Tighten the first-pass enemy into the real species `$67` handler
-     (`$83:AF74`) and replace placeholder heart/enemy art with ROM OAM.
-2. **Audio & full content**
+1. **Content fidelity**
+   - Bake per-species OAM groups from their `$82:8300` init handlers
+     (skeletons, bats, wall gargoyles, Somulo, Phalanx, Dark Demon) and
+     replace the shared enemy sprite.
+   - Extract BG2 backdrops and mid-stage `$98:E000` CHR streaming for every
+     area; complete the per-area palettes.
+   - Port the real species `$67` handler (`$83:AF74`) and the remaining
+     `$82:8000` species table entries.
+2. **Story and menus**
+   - Text/dialogue/cutscene format from the ROM, town NPCs, shop dialogue,
+     exact password decode and save persistence.
+   - Multiple ending rules (Bad/Normal/True/Dark Demon) driven by crest and
+     item collection.
+3. **Audio & release**
    - ROM BRR/DSP/sequence extraction or a replacement soundtrack, plus
      music/SFX volume options.
-   - Mode 7 overworld, remaining bosses/crests and original fan-game content.
+   - Windows/macOS builds, packaging, and windows CI.
 
 ## Done recently
 
@@ -126,7 +170,7 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
    - Player and fireball animations load a pre-baked mirrored texture instead
      of relying on negative `DrawTexturePro` source widths.
    - `tools/run_regression.py` (also exposed as `tools/run_regression.sh` and
-     CTest `regression`) runs demos 6/7/9/10 and asserts physics, projectile,
+     CTest `regression`) runs demos 6/7/9/10/11/12 and asserts physics, projectile,
      pickup, enemy and HP invariants. `ctest` passes.
    - Remaining polish: real enemy/HUD art and audio.
 

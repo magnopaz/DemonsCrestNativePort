@@ -29,9 +29,13 @@ static void SpawnUrn(ObjectPool *pool, const LevelObject *src) {
     o->active = true;
     o->type = OBJECT_URN;
     o->species = src->species;
+    o->flags = src->flags;
     o->x_fx = (int32_t)lroundf(src->x * FX_ONE);
     o->y_fx = (int32_t)lroundf(src->y * FX_ONE);
+    o->origin_x_fx = o->x_fx;
+    o->origin_y_fx = o->y_fx;
     o->hp = 1;
+    o->max_hp = 1;
 }
 
 static void SpawnPickup(ObjectPool *pool, float x, float bottom_y) {
@@ -56,11 +60,79 @@ static void SpawnEnemy(ObjectPool *pool, const LevelObject *src) {
     o->active = true;
     o->type = OBJECT_ENEMY;
     o->species = src->species;
+    o->flags = src->flags;
     o->x_fx = (int32_t)lroundf(src->x * FX_ONE);
     o->y_fx = (int32_t)lroundf(src->y * FX_ONE);
-    o->hp = 2;
-    o->state = 0; /* emerge */
+    o->origin_x_fx = o->x_fx;
+    o->origin_y_fx = o->y_fx;
+    o->hp = (src->species == 0x26) ? 3 : 2;
+    o->max_hp = o->hp;
+    o->state = 0; /* emerge / init */
     o->timer = 24;
+    o->vx_fx = (src->flags & 1) ? 0x0080 : -0x0080;
+}
+
+static void SpawnPlatform(ObjectPool *pool, const LevelObject *src) {
+    Object *o = Alloc(pool);
+    if (!o)
+        return;
+    memset(o, 0, sizeof(*o));
+    o->active = true;
+    o->type = OBJECT_PLATFORM;
+    o->species = src->species;
+    o->flags = src->flags;
+    o->x_fx = (int32_t)lroundf(src->x * FX_ONE);
+    o->y_fx = (int32_t)lroundf(src->y * FX_ONE);
+    o->origin_x_fx = o->x_fx;
+    o->origin_y_fx = o->y_fx;
+    o->vx_fx = 0x0080;
+}
+
+static void SpawnCrestItem(ObjectPool *pool, const LevelObject *src) {
+    Object *o = Alloc(pool);
+    if (!o)
+        return;
+    memset(o, 0, sizeof(*o));
+    o->active = true;
+    o->type = OBJECT_CREST_ITEM;
+    o->species = src->species;
+    o->flags = src->flags;
+    o->x_fx = (int32_t)lroundf(src->x * FX_ONE);
+    o->y_fx = (int32_t)lroundf(src->y * FX_ONE);
+    o->origin_x_fx = o->x_fx;
+    o->origin_y_fx = o->y_fx;
+}
+
+static void SpawnBoss(ObjectPool *pool, const LevelObject *src) {
+    Object *o = Alloc(pool);
+    if (!o)
+        return;
+    memset(o, 0, sizeof(*o));
+    o->active = true;
+    o->type = OBJECT_BOSS;
+    o->species = src->species;
+    o->flags = src->flags;
+    float bx = src->x;
+    float by = src->y;
+    if (src->species == 0x33 && bx < 120.0f) {
+        bx = 220.0f;
+        by = 160.0f;
+    } else if (src->species == 0xA5 && by < 64.0f) {
+        by = 140.0f;
+    }
+    o->x_fx = (int32_t)lroundf(bx * FX_ONE);
+    o->y_fx = (int32_t)lroundf(by * FX_ONE);
+    o->origin_x_fx = o->x_fx;
+    o->origin_y_fx = o->y_fx;
+    o->hp = (src->species == 0x33) ? 6 : 8;
+    const char *hp_env = getenv("DC_BOSS_HP");
+    if (hp_env && *hp_env)
+        o->hp = atoi(hp_env);
+    o->max_hp = o->hp;
+    o->state = 0;
+    pool->boss_alive = true;
+    if (getenv("DC_BOSS_DEFEATED") != NULL)
+        o->active = false;
 }
 
 void Objects_Init(ObjectPool *pool, const Level *level) {
@@ -71,6 +143,12 @@ void Objects_Init(ObjectPool *pool, const Level *level) {
             SpawnUrn(pool, o);
         else if (o->type == LEVEL_OBJECT_ENEMY)
             SpawnEnemy(pool, o);
+        else if (o->type == LEVEL_OBJECT_PLATFORM)
+            SpawnPlatform(pool, o);
+        else if (o->type == LEVEL_OBJECT_PICKUP_CREST)
+            SpawnCrestItem(pool, o);
+        else if (o->type == LEVEL_OBJECT_BOSS)
+            SpawnBoss(pool, o);
     }
 }
 
@@ -82,50 +160,188 @@ static bool PlayerTouches(const Object *o, const Player *player) {
     return fabsf(ox - px) < 16.0f && fabsf(oy - py) < 20.0f;
 }
 
+static void DamagePlayer(Player *player, float ox, int amount) {
+    if (player->invuln_timer > 0 || player->hp <= 0)
+        return;
+    /* Time/Ultimate Gargoyle and Armor Talisman halve incoming damage. */
+    if ((player->crest_form == CREST_TIME ||
+         player->crest_form == CREST_ULTIMATE ||
+         player->active_talisman == 2) && amount > 1) {
+        amount = (amount + 1) / 2;
+    }
+    player->hp -= amount;
+    if (player->hp < 0)
+        player->hp = 0;
+    player->invuln_timer = 60;
+    player->knockback_timer = 8;
+    player->knockback_dir = (ox < player->x) ? 1 : -1;
+    player->hurt_event = true;
+}
+
 void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
+    pool->boss_alive = false;
     for (int i = 0; i < OBJECT_POOL_SIZE; i++) {
         Object *o = &pool->slots[i];
         if (!o->active)
             continue;
 
+        if (o->type == OBJECT_PLATFORM) {
+            o->timer++;
+            int32_t old_x = o->x_fx;
+            o->x_fx += o->vx_fx;
+            if (abs(o->x_fx - o->origin_x_fx) > 48 * FX_ONE)
+                o->vx_fx = -o->vx_fx;
+            float ox = (float)o->x_fx / FX_ONE;
+            float oy = (float)o->y_fx / FX_ONE;
+            if (player->vy_fx >= 0 &&
+                fabsf(player->x - ox) <= 20.0f &&
+                player->y >= oy - 4.0f && player->y <= oy + 6.0f) {
+                player->y_fx = o->y_fx;
+                player->x_fx += (o->x_fx - old_x);
+                player->y = oy;
+                player->x = (float)player->x_fx / FX_ONE;
+                player->vy_fx = 0;
+                player->vy = 0.0f;
+                player->on_ground = true;
+            }
+            continue;
+        }
+
+        if (o->type == OBJECT_CREST_ITEM) {
+            o->timer++;
+            if (PlayerTouches(o, player)) {
+                if (player->max_hp < 10)
+                    player->max_hp++;
+                player->hp = player->max_hp;
+                player->gold += 50;
+                if (player->potions < 5)
+                    player->potions++;
+                o->active = false;
+                pool->events |= OBJECT_EVENT_PICKUP | OBJECT_EVENT_CREST_PICKUP;
+            }
+            continue;
+        }
+
+        if (o->type == OBJECT_BOSS) {
+            pool->boss_alive = true;
+            o->timer++;
+            int32_t dx = player->x_fx - o->x_fx;
+            int32_t dy = (player->y_fx - 16 * FX_ONE) - o->y_fx;
+            if (o->species == 0x33) {
+                /* Somulo (Area 0 colosseum dragon): lunge and leap cycles. */
+                int phase = o->timer % 120;
+                if (phase < 60) {
+                    o->x_fx += (dx > 0) ? 0x0120 : -0x0120;
+                } else if (phase < 90) {
+                    o->y_fx -= 0x0100;
+                } else {
+                    float surf;
+                    float ox = (float)o->x_fx / FX_ONE;
+                    float oy = (float)o->y_fx / FX_ONE;
+                    o->y_fx += 0x0180;
+                    if (Level_FloorAt(level, ox, oy, &surf) && oy >= surf)
+                        o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+                }
+            } else {
+                /* Hippogriff / Stage Boss: swoop and hover above Firebrand. */
+                if (abs(dx) > 12 * FX_ONE)
+                    o->x_fx += (dx > 0) ? 0x0100 : -0x0100;
+                int32_t target_y = o->origin_y_fx +
+                                   (int32_t)(sinf(o->timer * 0.06f) * 28.0f * FX_ONE);
+                if ((o->timer % 140) > 90)
+                    target_y = player->y_fx - 12 * FX_ONE;
+                if (o->y_fx < target_y)
+                    o->y_fx += 0x00C0;
+                else if (o->y_fx > target_y)
+                    o->y_fx -= 0x00C0;
+                (void)dy;
+            }
+            float ox = (float)o->x_fx / FX_ONE;
+            float oy = (float)o->y_fx / FX_ONE;
+            if (fabsf(ox - player->x) < 20.0f &&
+                fabsf(oy - (player->y - 11.0f)) < 22.0f) {
+                if (player->dash_timer > 0) {
+                    o->hp--;
+                    pool->events |= OBJECT_EVENT_ENEMY_HIT;
+                    player->dash_timer = 0;
+                    if (o->hp <= 0) {
+                        o->active = false;
+                        pool->boss_alive = false;
+                        pool->boss_defeated = true;
+                        pool->events |= OBJECT_EVENT_BOSS_DEFEATED;
+                        SpawnPickup(pool, ox, oy);
+                    }
+                } else {
+                    DamagePlayer(player, ox, 1);
+                }
+            }
+            continue;
+        }
+
         if (o->type == OBJECT_ENEMY) {
             float ox = (float)o->x_fx / FX_ONE;
             float oy = (float)o->y_fx / FX_ONE;
             o->timer++;
-            if (o->state == 0) {
-                /* First-pass emergence: hold position, then chase. */
-                if (o->timer >= 24) {
-                    o->state = 1;
-                    o->timer = 0;
+            if (o->species == 0x2C) {
+                /* Area 2 Skeleton walker: ground patrol. */
+                o->state = 1;
+                o->x_fx += o->vx_fx;
+                ox = (float)o->x_fx / FX_ONE;
+                float surf;
+                if (Level_IsWallAt(level, ox + (o->vx_fx > 0 ? 8.0f : -8.0f),
+                                   oy - 8.0f) ||
+                    abs(o->x_fx - o->origin_x_fx) > 96 * FX_ONE) {
+                    o->vx_fx = -o->vx_fx;
                 }
-                continue;
-            }
+                if (Level_FloorAt(level, ox, oy + 4.0f, &surf))
+                    o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+            } else if (o->species == 0x07) {
+                /* Area 2/3 Bat/Watcher: sine wave swoop. */
+                o->state = 1;
+                int32_t dx = player->x_fx - o->x_fx;
+                if (abs(dx) < 200 * FX_ONE) {
+                    o->x_fx += (dx > 0) ? 0x0080 : -0x0080;
+                    o->y_fx = o->origin_y_fx +
+                              (int32_t)(sinf(o->timer * 0.08f) * 18.0f * FX_ONE);
+                }
+            } else {
+                /* Species $67 Graveyard Ghoul & default enemy handler. */
+                if (o->state == 0) {
+                    /* First-pass emergence: hold position, then chase. */
+                    if (o->timer >= 24) {
+                        o->state = 1;
+                        o->timer = 0;
+                    }
+                    continue;
+                }
 
-            int32_t dx = player->x_fx - o->x_fx;
-            int32_t dy = (player->y_fx - 11 * FX_ONE) - o->y_fx;
-            if (abs(dx) < 220 * FX_ONE) {
-                if (dx > 8 * FX_ONE)
-                    o->x_fx += 0x0099; /* 0.6 px/frame */
-                else if (dx < -8 * FX_ONE)
-                    o->x_fx -= 0x0099;
-                if (dy > 6 * FX_ONE)
-                    o->y_fx += 0x0066; /* 0.4 px/frame */
-                else if (dy < -6 * FX_ONE)
-                    o->y_fx -= 0x0066;
+                int32_t dx = player->x_fx - o->x_fx;
+                int32_t dy = (player->y_fx - 11 * FX_ONE) - o->y_fx;
+                if (abs(dx) < 220 * FX_ONE) {
+                    if (dx > 8 * FX_ONE)
+                        o->x_fx += 0x0099; /* 0.6 px/frame */
+                    else if (dx < -8 * FX_ONE)
+                        o->x_fx -= 0x0099;
+                    if (dy > 6 * FX_ONE)
+                        o->y_fx += 0x0066; /* 0.4 px/frame */
+                    else if (dy < -6 * FX_ONE)
+                        o->y_fx -= 0x0066;
+                }
             }
 
             ox = (float)o->x_fx / FX_ONE;
             oy = (float)o->y_fx / FX_ONE;
             float px = player->x;
             float py = player->y - 10.0f;
-            if (player->invuln_timer == 0 &&
-                fabsf(ox - px) < 14.0f && fabsf(oy - py) < 18.0f) {
-                if (player->hp > 0)
-                    player->hp--;
-                player->invuln_timer = 60;
-                player->knockback_timer = 8;
-                player->knockback_dir = (ox < px) ? 1 : -1;
-                player->hurt_event = true;
+            if (fabsf(ox - px) < 14.0f && fabsf(oy - py) < 18.0f) {
+                if (player->dash_timer > 0) {
+                    o->hp = 0;
+                    o->active = false;
+                    pool->events |= OBJECT_EVENT_ENEMY_HIT;
+                    SpawnPickup(pool, ox, oy + 8.0f);
+                } else {
+                    DamagePlayer(player, ox, 1);
+                }
             }
             continue;
         }
@@ -158,6 +374,7 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
         if (PlayerTouches(o, player)) {
             if (player->hp < player->max_hp)
                 player->hp++;
+            player->gold += 10;
             o->active = false;
             pool->events |= OBJECT_EVENT_PICKUP;
         }
@@ -171,6 +388,7 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
             continue;
         float px = (float)p->x_fx / FX_ONE;
         float py = (float)p->y_fx / FX_ONE;
+        int dmg = p->damage > 0 ? p->damage : 1;
 
         for (int j = 0; j < OBJECT_POOL_SIZE; j++) {
             Object *o = &pool->slots[j];
@@ -191,11 +409,25 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
             } else if (o->type == OBJECT_ENEMY && o->state != 0) {
                 if (fabsf(px - ox) <= 12.0f && fabsf(py - oy) <= 12.0f) {
                     p->active = false;
-                    o->hp--;
+                    o->hp -= dmg;
                     pool->events |= OBJECT_EVENT_ENEMY_HIT;
                     if (o->hp <= 0) {
                         SpawnPickup(pool, ox, oy + 8.0f);
                         o->active = false;
+                    }
+                    break;
+                }
+            } else if (o->type == OBJECT_BOSS) {
+                if (fabsf(px - ox) <= 20.0f && fabsf(py - oy) <= 24.0f) {
+                    p->active = false;
+                    o->hp -= dmg;
+                    pool->events |= OBJECT_EVENT_ENEMY_HIT;
+                    if (o->hp <= 0) {
+                        o->active = false;
+                        pool->boss_alive = false;
+                        pool->boss_defeated = true;
+                        pool->events |= OBJECT_EVENT_BOSS_DEFEATED;
+                        SpawnPickup(pool, ox, oy + 8.0f);
                     }
                     break;
                 }

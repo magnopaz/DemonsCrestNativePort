@@ -12,6 +12,9 @@ frame-accurate oracle for movement and timing.
 **Full project state, recovered technical details, traps and next steps:
 [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md).**
 
+**Full-campaign gap analysis and remaining work:
+[`docs/FULL_CAMPAIGN_PLAN.md`](docs/FULL_CAMPAIGN_PLAN.md).**
+
 ## Current state
 
 - 256×224 render target, integer-scaled, 60 Hz update.
@@ -71,6 +74,24 @@ frame-accurate oracle for movement and timing.
   break, pickup, hurt and enemy-hit SFX (no ROM audio data).
 - Vertical-slice flow: title screen, pause overlay, and an Area Clear trigger
   at the graveyard exit (`species $09` at `x=1920`).
+- Full-campaign foundation:
+  - native ROM CHR decompressor (`$80:C2AF`/`$80:C300`) and `$98:C000`/
+    `$98:D000` table decoders;
+  - all 113 valid ROM areas extracted to `room_area<N>.json` with 2D
+    multi-row/vertical grids, collision, spawns, transitions and object lists;
+  - per-area BG atlases baked from ROM CHR/palettes and swapped per room;
+  - OAM metasprite decoder (`$8B:8000`) with real ROM item/Crest and ghoul
+    sprites;
+  - BG2 HDMA scanline parallax from `$84:AF65` for Area 1;
+  - multi-room transitions, boss gates and boss fights (Area 0 Somulo);
+  - six Gargoyle forms with Earth dash, Air flight, Water swim, Time/Ultimate
+    defense, Fire-Crest elements, wall cling and headbutt;
+  - skeleton/bat/gargoyle enemies, moving platforms, crest/Life-Stone pickups,
+    gold, hazards, water and breakable terrain;
+  - Crest/Item subscreen (`Tab`), shop, password/options/game-over/ending
+    screens and a Mode 7-style overworld with six landing nodes.
+- Campaign-specific debug hooks: `DC_AREA`, `DC_CAMPAIGN`, `DC_BOSS_DEFEATED`,
+  `DC_BOSS_HP`, `DC_STATE`, `DC_NO_HDMA`, `DC_UNDERWATER`.
 - Saved-state validation from `save0` (normal graveyard gameplay):
   - walk speed measured 1.40 px/frame,
   - default SNES bindings (`$80:DB00` via `$1E3A..$1E4C`): **B = Jump/Hover**,
@@ -81,31 +102,33 @@ frame-accurate oracle for movement and timing.
     change): max delta `x=0.00 px`, `y=0.53 px`.
 - Debug collision overlay (`F1` or `DC_DEBUG_COLLISION=1`), FPS (`F3`).
 
-This is a playable technical foundation, not a finished game. The next
-milestone is full vertical-slice flow: room transitions, title/password/menu
-completion, more rooms and bosses.
+This is a playable campaign foundation, not a finished game. The next milestone
+is content fidelity: per-species OAM/AI, BG2/mid-stage CHR, text/cutscenes,
+exact password/save and ROM audio.
 
 ### Current limitations
 
-- BG2 parallax is currently a flat 1:1 offset with horizontal wrapping. The
-  original uses HDMA channel 1 on `$210F` for per-scanline BG2 scroll; that
-  table is not extracted yet.
-- The ROM Area 1 grid is 8×2, but the second grid row is all-zero padding for
-  the graveyard row. The extractor emits the populated 8-screen row
-  (2048×256 px), not a 2048×512 canvas.
-- The `$1070` terrain probe that selects the `0x00B3` initial walk step and
-  `$80:8B85` acceleration path is not wired to the slope surface table yet;
-  flat/slope walking keeps the `0x0166` cap.
+- All 113 areas load, but BG2 backdrops beyond Area 1 are not extracted yet
+  (the layer is transparent there).
+- BG2 parallax now uses the recovered `$84:AF65` HDMA bands in Area 1; other
+  areas still need their own scanline tables.
+- Six Gargoyle forms are implemented with movement/abilities and palette tints,
+  but real per-form OAM sheets and animations are still needed.
+- Per-species enemy AI and sprites are first-pass; skeletons, bats and
+  gargoyles reuse the shared ghoul sheet until their `$82:8300` handlers are
+  baked.
+- The `$1070` probe is wired (`attr & 0xE0 == 0x80`) and selects the
+  `0x00B3 → 0x0166` ramp, but exact per-shape oracle comparison remains.
 - Hurt/death player animations and the real species `$67` handler
   (`$83:AF74`) are still to be ported; the current ghoul is a first-pass
-  chase/damage/drop implementation with placeholder art. The heart sprite and
-  HUD active-slot marker are also placeholders.
+  chase/damage/drop implementation using the real ghoul metasprite. HUD icons
+  and per-species sprites remain approximations.
 - No audio from the original ROM yet; the current music/SFX are original
   procedural development placeholders.
-- No room transitions, password/menu flow, title options, more rooms, bosses
-  or full campaign.
-- The HUD health bar is scaled from the extracted six-point bar; talisman
-  inventory/selection is not implemented yet, so the first slot is highlighted.
+- Text/dialogue/cutscenes, exact password decoding and saved-game persistence
+  are stubs; the clear/password/ending screens are functional but minimal.
+- The HUD health bar is scaled from the extracted six-point bar and highlights
+  the active Crest form; the exact retail talisman-slot icons are not done.
 
 ## Requirements
 
@@ -177,11 +200,20 @@ Outputs:
 
 - `room.json` — full-row BG1 tilemap, looping BG2 backdrop, slope collision
   grid, spawn, camera/play bounds.
-- `bg_pal0..7.png` — 4bpp BG tile atlases.
+- `room_area<N>.json` — one 2D room document per valid ROM area (113 areas),
+  with spawns, transitions, boss gate and object list.
+- `bg_area<N>_pal<P>.png` — per-area BG atlases baked from ROM CHR/palettes
+  (palettes used by that area only).
+- `bg_pal0..7.png` — 4bpp BG tile atlases for the captured Area 1 frame.
 - `obj_pal0..7.png` — 4bpp OBJ tile atlases.
 - `player_idle.png` — Firebrand composed from OAM.
 - `item_00.png` — the visible item composed from OAM.
+- `heart_00..01.png` / `enemy_00..01.png` — real ROM metasprite item and ghoul.
+- `campaign.json` — area list, Gargoyle palettes and Area 1 HDMA bands.
 - `manifest.json` — ROM identity and capture provenance.
+
+A full extractor run writes about 57 MB and takes roughly a minute. The
+generated directory is git-ignored and never distributed.
 
 ## 2b. Capture and extract Firebrand animations
 
@@ -206,9 +238,10 @@ python3 tools/dc_extract/extract_anim.py \
 This writes `player_idle_0.png`, `player_walk_0..5.png`,
 `player_jump_0..2.png`, `player_hover_0.png`, `player_fall_0..1.png`,
 `player_land_0..1.png`, `player_attack_0..2.png`, `player_spell_0..2.png`,
-`fireball_0..8.png`, `heart_00..01.png`, `enemy_00..01.png`,
-`hud_bar.png`, `hud_slots.png`, `player_anim.json` and
-`fireball_anim.json`.
+`fireball_0..8.png`, `hud_bar.png`, `hud_slots.png`, `player_anim.json` and
+`fireball_anim.json`. The real item/Crest and ghoul PNGs
+(`heart_00..01.png`, `enemy_00..01.png`) are baked by `extract.py` from ROM
+CHR/OAM.
 The engine falls back to `player_idle.png` if the player JSON is absent, and
 skips the HUD if `hud_bar.png`/`hud_slots.png` are absent.
 
@@ -251,7 +284,9 @@ Use `--assets <dir>` to load assets from another directory.
 | Jump / hover | Z or Space | B (right face) | **B** (`$1E3A`) |
 | Fly upward (debug only) | Z + Up | B + Up | Crest-dependent |
 | Fireball shot | X or J | X / Y (west/top) | **Y** (`$1E3C`) |
-| Talisman / Headbutt | C or K | A (south) | **A** (`$1E3E`) |
+| Talisman / Headbutt / Earth dash | C or K | A (south) | **A** (`$1E3E`) |
+| Crest/Item subscreen | Tab or I | — | **X** (`$1E4C`) |
+| Cycle Gargoyle form | Q / E | L / R | — |
 | Start / confirm | Enter | Start | Start |
 | Pause / resume | Escape | Back | Start |
 | Collision overlay | F1 | — | — |
@@ -276,6 +311,9 @@ These environment variables exist for deterministic testing:
 | `DC_DEMO=8` | Full-room traversal: walk left, then hover right across pillars |
 | `DC_DEMO=9` | Urn → bouncing heart → heal regression |
 | `DC_DEMO=10` | Enemy chase/damage/drop regression (pair with `DC_START_X`) |
+| `DC_DEMO=11` | Crest-form cycle, Earth dash, Air flight, Aerial shots |
+| `DC_DEMO=12` | Campaign traversal and boss-gate flow |
+| `DC_DEMO=13` | Title → NEW GAME → Area 0 flow |
 | `DC_START_X` / `DC_START_Y` | Override the player spawn for focused tests |
 | `DC_TRACE_OBJECTS=path` | Write active object slots as CSV |
 | `DC_TRACE_PROJECTILES=path` | Write per-frame active projectile slots as CSV |
@@ -286,6 +324,16 @@ These environment variables exist for deterministic testing:
 | `DC_AUDIO_FORCE=1` | Allow audio in deterministic `DC_RUN_FRAMES` runs |
 | `DC_DEBUG_COLLISION=1` | Enable the `F1` collision overlay in headless runs |
 | `DC_LAYER_MASK=1\|2\|3` | Draw BG2 only / BG1 only / both |
+| `DC_AREA=N` | Load `room_areaN.json` instead of `room.json` |
+| `DC_CAMPAIGN=1` | Enable campaign transitions/overworld progression |
+| `DC_STATE=name` | Render a menu state (`title`, `overworld`, `subscreen`, `shop`, `password`, `options`, `clear`, `gameover`, `ending`) |
+| `DC_BOSS_DEFEATED=1` | Skip boss spawns for campaign flow tests |
+| `DC_BOSS_HP=N` | Override boss HP |
+| `DC_GOLD=N` | Starting gold for shop/subscreen testing |
+| `DC_POTIONS=N` / `DC_SCROLLS=N` | Starting Urn/Spell counts |
+| `DC_UNLOCK_ALL=1` | Unlock all six Gargoyle forms |
+| `DC_NO_HDMA=1` | Disable the BG2 scanline parallax bands |
+| `DC_UNDERWATER=1` | Force underwater physics |
 | `SNESRECOMP_LAYER_MASK` | On the recomp side, isolate BG/OBJ layers for comparison |
 
 Example:
@@ -304,8 +352,9 @@ After building and extracting assets:
 cd build && ctest --output-on-failure
 ```
 
-The harness runs demos 6, 7, 9 and 10 through `DC_RUN_FRAMES`, writes trace
-CSVs, and asserts known movement, fireball, pickup, enemy and HP invariants.
+The harness runs demos 6, 7, 9, 10, 11 and 12 through `DC_RUN_FRAMES`, writes trace
+CSVs, and asserts known movement, fireball, pickup, enemy, HP, Crest-form and
+campaign-transition invariants.
 It exits with code 77 (CTest skip) when the binary or generated assets are
 missing.
 
@@ -324,6 +373,7 @@ tools/oracle/         WRAM/OAM trace parsers, probe routes, comparison and
 captures/             per-run recomp dumps (git-ignored)
 assets/generated/     extracted assets (git-ignored)
 docs/PROJECT_STATE.md full handoff: state, findings, traps, next steps
+docs/FULL_CAMPAIGN_PLAN.md full-campaign remaining-work plan
 docs/ROADMAP.md       next milestones
 ```
 

@@ -39,6 +39,12 @@ void Input_Read(Input *in, InputState *st) {
     /* SNES A ($1E3E -> $105D/$105E) is Talisman/Headbutt, not the shot. */
     bool special = IsKeyDown(KEY_C) || IsKeyDown(KEY_K) ||
                    PadDown(GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+    /* SNES X ($1E4C -> $80:DC12) opens the Crest/Item subscreen. */
+    bool subscreen = IsKeyDown(KEY_TAB) || IsKeyDown(KEY_I) ||
+                     IsKeyDown(KEY_V);
+    bool form_next = IsKeyDown(KEY_Q) || IsKeyDown(KEY_E) ||
+                     PadDown(GAMEPAD_BUTTON_LEFT_TRIGGER_1) ||
+                     PadDown(GAMEPAD_BUTTON_RIGHT_TRIGGER_1);
     bool start = IsKeyDown(KEY_ENTER) ||
                  PadDown(GAMEPAD_BUTTON_MIDDLE_RIGHT);
     bool pause = IsKeyDown(KEY_ESCAPE) ||
@@ -123,6 +129,31 @@ void Input_Read(Input *in, InputState *st) {
         demo_frame++;
         int phase = demo_frame - 60;
         shot = phase >= 0 && (phase % 20) < 2;
+    } else if (demo_mode == 11) {
+        /* Campaign systems regression: cycle Crest forms (Earth dash, Air
+         * free flight, Water/Time/Ultimate), headbutt/tackle, and subscreen. */
+        demo_frame++;
+        form_next = (demo_frame == 10 || demo_frame == 40 ||
+                     demo_frame == 90 || demo_frame == 120 ||
+                     demo_frame == 140);
+        right = (demo_frame >= 15 && demo_frame < 35) ||
+                (demo_frame >= 95 && demo_frame < 170);
+        special = (demo_frame == 18 || demo_frame == 150);
+        jump = (demo_frame >= 45 && demo_frame < 85);
+        up = (demo_frame >= 55 && demo_frame < 85);
+        shot = (demo_frame == 100 || demo_frame == 155);
+    } else if (demo_mode == 12) {
+        /* Campaign traversal: walk right across areas, shooting enemies. */
+        demo_frame++;
+        right = demo_frame >= 20;
+        shot = demo_frame >= 40 && (demo_frame % 24) < 2;
+        jump = (demo_frame % 180) >= 120 && (demo_frame % 180) < 150;
+    } else if (demo_mode == 13) {
+        /* Title-menu flow: confirm NEW GAME, then walk right. */
+        demo_frame++;
+        start = demo_frame == 5;
+        right = demo_frame >= 20;
+        shot = demo_frame >= 60 && (demo_frame % 24) < 2;
     }
 
     in->left = left;
@@ -135,6 +166,8 @@ void Input_Read(Input *in, InputState *st) {
     in->shot_pressed = shot && !st->prev_shot;
     in->special_held = special;
     in->special_pressed = special && !st->prev_special;
+    in->subscreen_pressed = subscreen && !st->prev_subscreen;
+    in->form_next_pressed = form_next && !st->prev_form_next;
     in->start_pressed = start && !st->prev_start;
     in->pause_pressed = pause && !st->prev_pause;
     in->debug_collision = debug;
@@ -142,6 +175,8 @@ void Input_Read(Input *in, InputState *st) {
     st->prev_jump = jump;
     st->prev_shot = shot;
     st->prev_special = special;
+    st->prev_subscreen = subscreen;
+    st->prev_form_next = form_next;
     st->prev_start = start;
     st->prev_pause = pause;
     st->prev_debug = debug;

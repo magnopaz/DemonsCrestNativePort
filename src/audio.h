@@ -19,5 +19,7 @@ void Audio_Shutdown(void);
 void Audio_Update(void);
 void Audio_Play(SfxId id);
 void Audio_StartMusic(void);
+void Audio_SetVolume(float volume);
+float Audio_GetVolume(void);
 
 #endif

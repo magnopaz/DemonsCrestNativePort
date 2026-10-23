@@ -14,8 +14,10 @@
 typedef struct Projectile {
     bool active;
     int32_t x_fx;  /* 8.8 world X */
-    int32_t y_fx;  /* 8.8 world Y */
+    int32_t y_fx;  /* 8.8 horizontal/vertical world Y */
     int32_t vx_fx; /* 8.8 horizontal velocity */
+    int damage;
+    int element;
     int age;       /* frames since spawn; 0 = spawn frame, not drawn yet */
 } Projectile;
 
@@ -25,7 +27,7 @@ typedef struct ProjectilePool {
 
 void Projectiles_Init(ProjectilePool *pool);
 void Projectiles_Spawn(ProjectilePool *pool, const Player *player);
-void Projectiles_Update(ProjectilePool *pool, const Level *level,
+void Projectiles_Update(ProjectilePool *pool, Level *level,
                         const GameCamera *camera);
 
 #endif

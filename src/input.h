@@ -14,6 +14,8 @@ typedef struct Input {
     bool shot_held;
     bool special_pressed; /* SNES A ($105E): Talisman / Headbutt */
     bool special_held;
+    bool subscreen_pressed; /* SNES X ($1E4C -> $80:DC12): Crest/Item menu */
+    bool form_next_pressed; /* L/R quick Crest form cycle */
     bool start_pressed;
     bool pause_pressed;
     bool debug_collision;
@@ -23,6 +25,8 @@ typedef struct InputState {
     bool prev_jump;
     bool prev_shot;
     bool prev_special;
+    bool prev_subscreen;
+    bool prev_form_next;
     bool prev_start;
     bool prev_pause;
     bool prev_debug;

@@ -23,13 +23,17 @@ void Projectiles_Spawn(ProjectilePool *pool, const Player *player) {
         p->y_fx = ((int32_t)floorf(player->y) -
                    PLAYER_FIREBALL_Y_OFFSET) * FX_ONE;
         p->vx_fx = PLAYER_FIREBALL_VX_FX * dir;
+        p->element = player->fire_element;
+        p->damage = (player->crest_form == CREST_TIME ||
+                     player->crest_form == CREST_ULTIMATE ||
+                     player->active_talisman == 3) ? 2 : 1;
         p->age = 0;
         p->active = true;
         return; /* $80:F222 allocates the first free slot only */
     }
 }
 
-void Projectiles_Update(ProjectilePool *pool, const Level *level,
+void Projectiles_Update(ProjectilePool *pool, Level *level,
                         const GameCamera *camera) {
     for (int i = 0; i < PROJECTILE_POOL_SIZE; i++) {
         Projectile *p = &pool->slots[i];
@@ -44,6 +48,12 @@ void Projectiles_Update(ProjectilePool *pool, const Level *level,
 
         bool offscreen = x < camera->x || x > camera->x + 256.0f ||
                          y < camera->y || y > camera->y + 224.0f;
+        if (Level_IsBreakableAt(level, x, y) &&
+            (p->element == 1 || p->damage >= 2)) {
+            Level_BreakBlockAt(level, x, y);
+            p->active = false;
+            continue;
+        }
         if (offscreen || Level_IsWallAt(level, x, y)) {
             p->active = false;
             continue;

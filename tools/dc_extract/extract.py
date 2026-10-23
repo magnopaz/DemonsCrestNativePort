@@ -116,6 +116,8 @@ class Rom:
         bank = self.u8(0x81, base + 2)
         offset = lo(bank, ptr)
         count = self.data[offset]
+        if count > 64:
+            count = 0
         records = []
         for k in range(count):
             start = offset + 1 + k * 6
@@ -129,6 +131,206 @@ class Rom:
                 "y": rec[4] | (rec[5] << 8),
             })
         return records
+
+    # -- ROM CHR decompressor ($80:C28C / $80:C2AF / $80:C300) ------------
+    def decompress_stream(self, bank: int, addr: int, calls: int) -> bytes:
+        """Run $80:C300 `calls` times (16 output bytes per call)."""
+        out = bytearray()
+        for _ in range(calls):
+            def rb() -> int:
+                nonlocal bank, addr
+                b = self.data[lo(bank, addr)]
+                addr += 1
+                if addr > 0xFFFF:
+                    addr = 0x8000
+                    bank += 1
+                return b
+            m0, m1, fill = rb(), rb(), rb()
+            for mask in (m0, m1):
+                for bit in range(7, -1, -1):
+                    out.append(rb() if ((mask >> bit) & 1) else fill)
+        return bytes(out)
+
+    def decompress_d000_into(self, raw_vram: bytearray, dst: int,
+                             d000_off: int) -> int:
+        """Decompress one $98:D000 entry (16x16 units) via $80:C2AF layout."""
+        off = lo(0x98, 0xD000 + d000_off)
+        p_lo, p_hi, bank, cnt = struct.unpack_from("<BBBB", self.data, off)
+        addr = p_lo | (p_hi << 8)
+        for _ in range(cnt):
+            for half in range(2):
+                cur = dst ^ (0x200 if half else 0)
+                chunk = self.decompress_stream(bank, addr, 4)
+                # Advance bank/addr by re-running the exact stream steps:
+                for _call in range(4):
+                    m0 = self.data[lo(bank, addr)]
+                    m1 = self.data[lo(bank, addr + 1 if addr < 0xFFFF else 0x8000)]
+                    step = 3 + bin(m0).count("1") + bin(m1).count("1")
+                    for _s in range(step):
+                        addr += 1
+                        if addr > 0xFFFF:
+                            addr = 0x8000
+                            bank += 1
+                raw_vram[cur:cur + 64] = chunk
+            dst += 0x40
+            if dst & 0x200:
+                dst += 0x200
+        return dst
+
+    def decompress_area_bg_vram(self, area: int) -> list[int]:
+        """Decompress BG CHR for `area` via $BD:A04A -> $98:C000 ($80:C28C)."""
+        raw = bytearray(0x10000)
+        y = self.u16(0xBD, 0xA04A + area * 2)
+        dst = 0x0200
+        while True:
+            x = self.u16(0xBD, y)
+            if x & 0x8000:
+                break
+            cnt = self.u8(0xBD, y + 2)
+            off = lo(0x98, 0xC000 + x)
+            p_lo, p_hi, bank = self.data[off:off + 3]
+            ptr = p_lo | (p_hi << 8)
+            chunk = self.decompress_stream(bank, ptr, cnt * 0x20)
+            end = min(len(raw), dst + len(chunk))
+            raw[dst:end] = chunk[:end - dst]
+            dst = end
+            y += 3
+        return list(struct.unpack("<32768H", raw))
+
+    def decompress_area_obj_vram(self, area: int) -> tuple[list[int], dict[int, int]]:
+        """Decompress 16 KiB OBJ CHR ($80:BEF2) and map $81:AE11 slots to base tiles."""
+        raw = bytearray(0x4000)
+        flags = self.u8(0x81, 0xAD9D + area)
+        dst = 0x0000
+        slot_tile: dict[int, int] = {}
+        if flags & 0x01:
+            dst = 0x0C00
+            slot_tile[0x00] = 0x000
+            slot_tile[0x02] = 0x020
+            slot_tile[0x04] = 0x040
+        if flags & 0x08:
+            slot_tile[0x06] = dst // 32
+            dst = self.decompress_d000_into(raw, dst, 0x00)
+        if flags & 0x02:
+            slot_tile[0x08] = dst // 32
+            dst = self.decompress_d000_into(raw, dst, 0xC8)
+        if flags & 0x04:
+            slot_tile[0x0A] = dst // 32
+            dst = self.decompress_d000_into(raw, dst, 0x24)
+        if dst < 0x1800:
+            dst = 0x1800
+        y = self.u16(0xBD, 0x9953 + area * 2)
+        ae_slot = 0x02
+        while True:
+            x = self.u16(0xBD, y)
+            if x & 0x8000:
+                break
+            slot_tile[0x10 + ae_slot] = dst // 32
+            dst = self.decompress_d000_into(raw, dst, x)
+            ae_slot += 2
+            y += 2
+        return list(struct.unpack("<8192H", raw)), slot_tile
+
+    def parse_metasprite_group(self, group_id: int) -> list[list[dict]]:
+        """Decode one metasprite group from $8B:8000 ($80:D9A7)."""
+        off = self.u16(0x8B, 0x8000 + group_id * 3)
+        b_delta = self.u8(0x8B, 0x8000 + group_id * 3 + 2)
+        addr = 0x8000 + off
+        bank = 0x8B + b_delta + (1 if addr > 0xFFFF else 0)
+        addr = (addr & 0x7FFF) | 0x8000
+
+        def rb() -> int:
+            nonlocal bank, addr
+            b = self.data[lo(bank, addr)]
+            addr += 1
+            if addr > 0xFFFF:
+                addr = 0x8000
+                bank += 1
+            return b
+
+        def s8(v: int) -> int:
+            return v - 256 if v >= 128 else v
+
+        nframes = rb()
+        for _ in range(nframes * 2):
+            rb()  # output offset words in $7F:1000
+        frames = []
+        for _ in range(nframes):
+            nparts = rb()
+            parts = []
+            for _ in range(nparts):
+                dx, dxf, dy, tile, attr = s8(rb()), s8(rb()), s8(rb()), rb(), rb()
+                parts.append({
+                    "dx": dx,
+                    "dx_flip": dxf,
+                    "dy": dy,
+                    "tile": tile,
+                    "attr": attr,
+                    "size": 16 if (attr & 0x10) else 8,
+                    "hflip": bool(attr & 0x40),
+                    "vflip": bool(attr & 0x80),
+                })
+            frames.append(parts)
+        return frames
+
+    def area_spawns(self, area: int) -> list[dict]:
+        """Read 5-byte spawn records for `area` from $81:A1A9."""
+        p = self.u16(0x81, 0xA1A9 + area * 2)
+        next_p = self.u16(0x81, 0xA1A9 + (area + 1) * 2)
+        count = max(1, (next_p - p) // 5) if next_p > p else 1
+        spawns = []
+        for k in range(min(count, 8)):
+            sx = self.u16(0x81, p + k * 5)
+            sy = self.u16(0x81, p + k * 5 + 2)
+            flags = self.u8(0x81, p + k * 5 + 4)
+            if sx > 4096 or sy > 8192:
+                continue
+            spawns.append({"x": sx, "y": sy, "flags": flags})
+        return spawns or [{"x": 64, "y": 164, "flags": 0}]
+
+    def area_transitions(self, area: int) -> list[dict]:
+        """Read 10-byte bounding-box transition records from $81:981A."""
+        p = self.u16(0x81, 0x981A + area * 2)
+        if p < 0x8000:
+            return []
+        count = self.u8(0x81, p)
+        if count == 0 or count > 16:
+            return []
+        out = []
+        for k in range(count):
+            off = lo(0x81, p + 1 + k * 10)
+            nxt_8d, spawn_id, pad_mask, cx, cy, hw, hh, ttype = struct.unpack_from(
+                "<BBBHHBBB", self.data, off)
+            if nxt_8d > 0xF3 or cx > 4096 or cy > 4096 or hw == 0 or hh == 0:
+                continue
+            out.append({
+                "next_area": nxt_8d // 2 if nxt_8d < 0xF0 else -1,
+                "next_8d": nxt_8d,
+                "spawn_id": spawn_id,
+                "pad_mask": pad_mask,
+                "x": cx,
+                "y": cy,
+                "half_w": hw,
+                "half_h": hh,
+                "type": ttype,
+            })
+        return out
+
+    def gate_next_area(self, area: int) -> int:
+        """Read $81:97DA boss-gate target area (-1 when >= 0xF0 overworld exit)."""
+        nxt_8d = self.u8(0x81, 0x97DA + area)
+        return nxt_8d // 2 if nxt_8d < 0xF0 else -1
+
+    def gargoyle_palettes(self) -> list[list[list[int]]]:
+        """Extract the 6 Gargoyle form palettes from $99:9100..91BF."""
+        forms = []
+        for form in range(6):
+            off = lo(0x99, 0x9100 + form * 32)
+            words = struct.unpack_from("<16H", self.data, off)
+            colors = [[(c & 31) * 8, ((c >> 5) & 31) * 8, ((c >> 10) & 31) * 8]
+                      for c in words]
+            forms.append(colors)
+        return forms
 
 
 def read_vram(path: Path) -> list[int]:
@@ -456,6 +658,267 @@ def crop_sprite(img: Image.Image, origin_x: int, origin_y: int):
             bbox[2] - bbox[0], bbox[3] - bbox[1])
 
 
+def compose_rom_metasprite(obj_vram: list[int], cgram,
+                           parts: list[dict], base_tile: int,
+                           palette: int) -> Image.Image | None:
+    """Compose one ROM metasprite frame ($8B:8000) from decompressed OBJ VRAM."""
+    if not parts:
+        return None
+    sprites = []
+    for idx, p in enumerate(parts):
+        t = p["tile"]
+        old_b4 = t & 0x10
+        tile = t + base_tile
+        if (tile & 0x10) != old_b4:
+            tile += 0x10
+        sprites.append(OamSprite(
+            idx, p["dx"], p["dy"], p["size"], tile & 0x1FF, palette,
+            p["hflip"], p["vflip"]
+        ))
+    index_img, ox, oy = compose_oam_indices(obj_vram, sprites)
+    colors = [cgram[0x80 + palette * 16 + i] for i in range(16)]
+    img = colorize(index_img, colors)
+    bbox = img.getbbox()
+    if bbox is None:
+        return None
+    return img.crop(bbox)
+
+
+# Area 1 BG2 HDMA parallax scanline table recovered from $84:AF65..B01C.
+AREA1_HDMA_BANDS = [
+    {"lines": 32, "factor": 0.25},
+    {"lines": 44, "factor": 0.125},
+    {"lines": 28, "factor": 0.25},
+    {"lines": 46, "factor": 0.50},
+    {"lines": 74, "factor": 1.25},
+]
+
+SPECIES_KIND_MAP = {
+    0x57: "urn",
+    0x67: "enemy",
+    0x2C: "enemy",
+    0x07: "enemy",
+    0x26: "enemy",
+    0x81: "enemy",
+    0x10: "enemy",
+    0x08: "enemy",
+    0x01: "platform",
+    0x49: "pickup_crest",
+    0x24: "pickup_crest",
+    0x2D: "pickup_crest",
+    0x2E: "pickup_crest",
+    0x33: "boss",
+    0xA5: "boss",
+    0x96: "boss",
+    0x09: "exit",
+}
+
+
+def build_area_room_doc(rom: Rom, area: int, bg2_layer: dict,
+                        player_feet_x: int, player_feet_y: int) -> dict:
+    """Build a complete 2D multi-row room JSON for any ROM area."""
+    info = rom.area_info(area)
+    set_id = info["set"]
+    grid = info["grid"]
+    populated_rows = [r for r in range(info["height"])
+                      if any(s > 0 for s in grid[r])]
+    if not populated_rows:
+        populated_rows = [0]
+    first_row = populated_rows[0]
+    row_offset = first_row * 256
+    active_rows = grid[first_row:populated_rows[-1] + 1]
+    grid_w = info["width"]
+    grid_h = len(active_rows)
+
+    map_w = grid_w * 32
+    map_h = grid_h * 32
+    full_tiles: list[int] = []
+    col_w = grid_w * 16
+    col_h = grid_h * 16
+    attrs: list[int] = []
+
+    for ry, row_slots in enumerate(active_rows):
+        screen_maps = []
+        screen_blks = []
+        for s in row_slots:
+            if s > 0 and s <= len(info["screens"]):
+                scr = info["screens"][s - 1]
+                screen_maps.append(rom.screen_tilemap(set_id, scr))
+                screen_blks.append(rom.screen_blocks(set_id, scr))
+            else:
+                screen_maps.append([[0] * 32 for _ in range(32)])
+                screen_blks.append([[0] * 16 for _ in range(16)])
+        for ty in range(32):
+            for tm in screen_maps:
+                full_tiles.extend(tm[ty])
+        for cby in range(16):
+            for blks in screen_blks:
+                for cbx in range(16):
+                    attrs.append(rom.block_attr(set_id, blks[cby][cbx]))
+
+    world_w = map_w * 8
+    world_h = map_h * 8
+    spawns_raw = rom.area_spawns(area)
+    spawns = []
+    for sp in spawns_raw:
+        sx = sp["x"]
+        sy = sp["y"] - row_offset
+        if sy < 16 or sy >= world_h:
+            sy = max(32, min(world_h - 32, sp["y"] % max(256, world_h)))
+        spawns.append({"x": sx, "y": sy, "flags": sp["flags"]})
+    spawn0 = spawns[0] if spawns else {"x": 64, "y": min(164, world_h - 32)}
+
+    transitions = []
+    for tr in rom.area_transitions(area):
+        ty = tr["y"] - row_offset
+        if ty < 0:
+            ty = tr["y"]
+        transitions.append({
+            "next_area": tr["next_area"],
+            "spawn_id": tr["spawn_id"],
+            "pad_mask": tr["pad_mask"],
+            "x": tr["x"],
+            "y": ty,
+            "half_w": max(12, tr["half_w"]),
+            "half_h": max(16, tr["half_h"]),
+            "type": tr["type"],
+        })
+
+    objects = []
+    for rec in rom.object_list(area):
+        x = rec["x"]
+        y = rec["y"] - row_offset
+        kind = SPECIES_KIND_MAP.get(rec["species"])
+        if kind is None or not (0 <= x < world_w and 0 <= y < world_h):
+            continue
+        objects.append({
+            "type": kind,
+            "species": rec["species"],
+            "flags": rec["flags"],
+            "x": x,
+            "y": y,
+        })
+
+    cam_x = max(0, min(max(0, world_w - 256), spawn0["x"] - 128))
+    cam_y = max(0, min(max(0, world_h - 224), spawn0["y"] - 140))
+    bg1 = {
+        "name": "bg1",
+        "map_width": map_w,
+        "map_height": map_h,
+        "scroll_x": cam_x,
+        "scroll_y": cam_y,
+        "tilemap": full_tiles,
+    }
+    bg2_copy = dict(bg2_layer)
+    if area != 1:
+        # BG2 backdrops are streamed per area and not yet extracted for every
+        # room; keep the layer transparent instead of reusing Area 1's forest.
+        bg2_copy["tilemap"] = [0] * len(bg2_layer["tilemap"])
+        bg2_copy["scroll_x"] = 0
+        bg2_copy["scroll_y"] = 0
+        bg2_copy.pop("hdma_bands", None)
+    else:
+        bg2_copy["hdma_bands"] = AREA1_HDMA_BANDS
+    return {
+        "name": f"area{area}_full_room",
+        "area_id": area,
+        "gate_next_area": rom.gate_next_area(area),
+        "backdrop": bg_backdrop_rgb(rom),
+        "world": {"width": world_w, "height": world_h},
+        "camera": {
+            "x": cam_x,
+            "y": cam_y,
+            "min_x": 0,
+            "max_x": max(0, world_w - 256),
+            "min_y": 0,
+            "max_y": max(0, world_h - 224),
+        },
+        "play": {
+            "min_x": 8,
+            "max_x": world_w - 8,
+            "min_y": 22,
+            "max_y": world_h,
+        },
+        "bg": [bg2_copy, bg1],
+        "collision": {
+            "cell": 16,
+            "width": col_w,
+            "height": col_h,
+            "attrs": attrs,
+        },
+        "spawn": {"x": spawn0["x"], "y": spawn0["y"]},
+        "spawns": spawns,
+        "transitions": transitions,
+        "objects": objects,
+        "player": {
+            "texture": "player_idle.png",
+            "feet_x": player_feet_x,
+            "feet_y": player_feet_y,
+        },
+        "sprites": [],
+    }
+
+
+def write_area_bg_atlases(rom: Rom, out: Path, areas: list[int]) -> None:
+    """Bake per-area BG tile atlases from ROM CHR + ROM palettes."""
+    for area in areas:
+        bg_vram = rom.decompress_area_bg_vram(area)
+        colors = [(0, 0, 0)] * 128
+        for pal in (0, 1):
+            off = lo(0x99, 0x9080 + pal * 32)
+            words = struct.unpack_from("<16H", rom.data, off)
+            colors[pal * 16:(pal + 1) * 16] = [
+                ((c & 31) * 8, ((c >> 5) & 31) * 8, ((c >> 10) & 31) * 8)
+                for c in words]
+        val = rom.u16(0x81, 0x8909 + area * 2)
+        base = 0xA900 + (val & 0xFFC0)
+        for pal in range(2, 8):
+            off = lo(0x99, base + (pal - 2) * 32)
+            words = struct.unpack_from("<16H", rom.data, off)
+            colors[pal * 16:(pal + 1) * 16] = [
+                ((c & 31) * 8, ((c >> 5) & 31) * 8, ((c >> 10) & 31) * 8)
+                for c in words]
+
+        # Only bake palettes actually referenced by this area's screens.
+        info = rom.area_info(area)
+        used = {0}
+        for row in info["grid"]:
+            for slot in row:
+                if not slot:
+                    continue
+                scr = info["screens"][slot - 1]
+                for tm in rom.screen_tilemap(info["set"], scr):
+                    for word in tm:
+                        used.add((word >> 10) & 7)
+        for pal in sorted(used):
+            make_bg_atlas(bg_vram, colors, pal).save(
+                out / f"bg_area{area}_pal{pal}.png")
+
+
+def bg_backdrop_rgb(rom: Rom) -> list[int]:
+    """BG palette 0 colour 0 ($99:9080), the SNES backdrop colour."""
+    off = lo(0x99, 0x9080)
+    c = rom.data[off] | (rom.data[off + 1] << 8)
+    return [(c & 31) * 8, ((c >> 5) & 31) * 8, ((c >> 10) & 31) * 8]
+
+
+def valid_campaign_areas(rom: Rom) -> list[int]:
+    """Area indices with a sane 2D grid in $81:A291 / $81:A6D8."""
+    out = []
+    for area in range(113):
+        p = rom.u16(0x81, 0xA291 + area * 2)
+        q = rom.u16(0x81, 0xA6D8 + area * 2)
+        set_id = rom.u8(0x81, p)
+        w, h = rom.u8(0x81, q), rom.u8(0x81, q + 1)
+        if set_id > 2 or w == 0 or h == 0 or w > 10 or h > 10:
+            continue
+        pop = any(rom.u8(0x81, q + 2 + y * w + x)
+                  for y in range(h) for x in range(w))
+        if pop:
+            out.append(area)
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--rom", required=True, type=Path)
@@ -522,18 +985,21 @@ def main() -> int:
         "map_height": bg2_h,
         "scroll_x": regs["hscroll"][1],
         "scroll_y": regs["vscroll"][1],
+        "hdma_bands": AREA1_HDMA_BANDS,
         "tilemap": bg2_tiles,
     }]
 
     room_screens = None
+    row_index = 0
     if args.full_room:
         # Use every screen in the same grid row as the captured reference
         # slots. Area 1's other grid row is empty padding (all-zero BG1 and
         # collision), so the populated row is the actual room.
-        row_index = next((i for i, row in enumerate(info["grid"])
+        found_row = next((i for i, row in enumerate(info["grid"])
                           if slots[0] in row), None)
-        if row_index is None:
+        if found_row is None:
             raise SystemExit(f"screen slot {slots[0]} is not in the area grid")
+        row_index = found_row
         room_screens = [info["screens"][s - 1]
                         for s in info["grid"][row_index]]
         map_w = len(room_screens) * 32
@@ -565,14 +1031,37 @@ def main() -> int:
         }
     bg_layers.append(bg1)
 
-    # --- palettes -------------------------------------------------------
+    # --- palettes & ROM-decompressed OBJ sprites ------------------------
+    campaign_areas = valid_campaign_areas(rom)
     for p in range(8):
         make_bg_atlas(vram, cgram, p).save(out / f"bg_pal{p}.png")
-    # Original placeholder heart pickup until the ROM heart OAM is baked.
-    make_heart_sprite(1).save(out / "heart_00.png")
-    make_heart_sprite(1, pulse=True).save(out / "heart_01.png")
-    make_enemy_sprite(0).save(out / "enemy_00.png")
-    make_enemy_sprite(1).save(out / "enemy_01.png")
+    write_area_bg_atlases(rom, out, campaign_areas)
+
+    rom_obj_vram, slot_tiles = rom.decompress_area_obj_vram(args.area)
+    item_cgram = list(cgram)
+    item_pal_words = struct.unpack_from("<16H", rom.data, lo(0x99, 0x9240))
+    for i, c in enumerate(item_pal_words):
+        item_cgram[0x80 + i] = ((c & 31) * 8, ((c >> 5) & 31) * 8,
+                                ((c >> 10) & 31) * 8)
+
+    heart_group = rom.parse_metasprite_group(0x6B)
+    heart_base_tile = slot_tiles.get(0x06, 0x60)
+    heart0 = compose_rom_metasprite(rom_obj_vram, item_cgram, heart_group[3],
+                                    heart_base_tile, 0)
+    heart1 = compose_rom_metasprite(rom_obj_vram, item_cgram, heart_group[2],
+                                    heart_base_tile, 0)
+    (heart0 or make_heart_sprite(1)).save(out / "heart_00.png")
+    (heart1 or make_heart_sprite(1, pulse=True)).save(out / "heart_01.png")
+
+    ghoul_group = rom.parse_metasprite_group(0x03)
+    ghoul_base_tile = slot_tiles.get(0x14, 0xC2)
+    enemy0 = compose_rom_metasprite(rom_obj_vram, cgram, ghoul_group[0],
+                                    ghoul_base_tile, 1)
+    enemy1 = compose_rom_metasprite(rom_obj_vram, cgram, ghoul_group[1],
+                                    ghoul_base_tile, 1)
+    (enemy0 or make_enemy_sprite(0)).save(out / "enemy_00.png")
+    (enemy1 or make_enemy_sprite(1)).save(out / "enemy_01.png")
+
     # OBJ base for the current OBSEL.
     obj_base = (regs["obsel"] & 7) << 13
     for p in range(8):
@@ -678,8 +1167,13 @@ def main() -> int:
             kind = type_by_species.get(rec["species"])
             if kind is None or not (0 <= x < world_w and 0 <= y < world_h):
                 continue
-            objects.append({"type": kind, "species": rec["species"],
-                            "x": x, "y": y})
+            objects.append({
+                "type": kind,
+                "species": rec["species"],
+                "flags": rec["flags"],
+                "x": x,
+                "y": y,
+            })
         if any(obj["type"] == "urn" for obj in objects):
             # The visible OAM item is the same urn; the object pool owns it now.
             sprites = []
@@ -711,8 +1205,31 @@ def main() -> int:
             "min_y": 22,
             "max_y": world_h,
         }
+    row_offset = (row_index * 256) if args.full_room else 0
+    spawns = []
+    for sp in rom.area_spawns(args.area):
+        spawns.append({
+            "x": sp["x"],
+            "y": max(22, sp["y"] - row_offset),
+            "flags": sp["flags"],
+        })
+    transitions = []
+    for tr in rom.area_transitions(args.area):
+        transitions.append({
+            "next_area": tr["next_area"],
+            "spawn_id": tr["spawn_id"],
+            "pad_mask": tr["pad_mask"],
+            "x": tr["x"],
+            "y": max(0, tr["y"] - row_offset),
+            "half_w": max(12, tr["half_w"]),
+            "half_h": max(16, tr["half_h"]),
+            "type": tr["type"],
+        })
     room = {
         "name": f"area{args.area}_{'full_room' if args.full_room else 'room'}",
+        "area_id": args.area,
+        "gate_next_area": rom.gate_next_area(args.area),
+        "backdrop": bg_backdrop_rgb(rom),
         "world": {"width": world_w, "height": world_h},
         "camera": camera,
         "play": play,
@@ -720,6 +1237,8 @@ def main() -> int:
         "collision": {"cell": 16, "width": col_w, "height": col_h,
                       "attrs": attrs},
         "spawn": {"x": spawn_x, "y": spawn_y},
+        "spawns": spawns,
+        "transitions": transitions,
         "objects": objects,
         "player": {
             "texture": "player_idle.png",
@@ -729,16 +1248,35 @@ def main() -> int:
         "sprites": sprites,
     }
     (out / "room.json").write_text(json.dumps(room, indent=1))
+    (out / f"room_area{args.area}.json").write_text(json.dumps(room, indent=1))
+
+    # Emit multi-area campaign rooms and campaign.json
+    for area_id in campaign_areas:
+        if area_id == args.area and args.full_room:
+            continue
+        doc = build_area_room_doc(rom, area_id, bg_layers[0],
+                                  player_feet_x, player_feet_y)
+        (out / f"room_area{area_id}.json").write_text(json.dumps(doc, indent=1))
+
+    campaign_doc = {
+        "rom_sha256": rom.sha256,
+        "areas": campaign_areas,
+        "gargoyle_palettes": rom.gargoyle_palettes(),
+        "hdma_area1": AREA1_HDMA_BANDS,
+    }
+    (out / "campaign.json").write_text(json.dumps(campaign_doc, indent=1))
+
     manifest = {
         "rom_sha256": rom.sha256,
         "area": args.area,
         "screens": room_screens or slots,
         "full_room": bool(args.full_room),
+        "campaign_areas": campaign_areas,
         "object_list_index": object_list_index,
         "objects": len(objects),
         "source": f"{args.prefix} ({args.dump})",
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "tool": "dc_extract 0.2",
+        "tool": "dc_extract 0.3",
         "tile_size": 8,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))

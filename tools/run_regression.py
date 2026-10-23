@@ -37,8 +37,9 @@ def parse_args() -> argparse.Namespace:
 
 def wrapper(binary: Path) -> list[str]:
     cmd = [str(binary)]
-    if (sys.platform.startswith("linux") and not os.environ.get("DISPLAY")
-            and shutil.which("xvfb-run")):
+    # Always prefer a virtual display on Linux: CI and desktop sessions may
+    # advertise DISPLAY without a usable GL context for the test binary.
+    if sys.platform.startswith("linux") and shutil.which("xvfb-run"):
         cmd = ["xvfb-run", "-a", *cmd]
     return cmd
 
@@ -59,9 +60,15 @@ def run_demo(base: list[str], out: Path, demo: int, frames: int,
     })
     if env_extra:
         env.update(env_extra)
-    proc = subprocess.run(base, cwd=ROOT, env=env,
-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          text=True, timeout=120)
+    print(f"regression: running demo {demo} ({frames} frames)", flush=True)
+    try:
+        proc = subprocess.run(base, cwd=ROOT, env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        print(f"regression: TIMEOUT demo {demo} ({frames} frames)",
+              flush=True)
+        raise
     if proc.returncode != 0:
         raise RuntimeError(f"demo {demo} exited {proc.returncode}\n{proc.stdout}")
     return {"player": player, "objects": objects, "projectiles": projectiles}
@@ -162,7 +169,60 @@ def main() -> int:
             check(any(close(v, -3.0, 0.01) for v in vys),
                   "demo9: heart did not bounce at the 3.0/frame decrement")
 
-        # ---- Step 6: enemy damage + death drop ----
+        # ---- Campaign: crest-form cycling (Crest system) ----
+        d11 = run_demo(base, out, 11, 180,
+                       {"DC_AREA": "1", "DC_CAMPAIGN": "1",
+                        "DC_UNLOCK_ALL": "1"})
+        rows11 = csv_rows(d11["player"])
+        forms = []
+        for r in rows11:
+            f = int(r.get("form", 0))
+            if not forms or forms[-1] != f:
+                forms.append(f)
+        check(len(set(forms)) >= 3,
+              f"demo11: Crest forms did not cycle (got {forms})")
+        check(4 in forms or 5 in forms,
+              "demo11: Ultimate/Air forms were never selected")
+
+        # ---- Campaign: Area 0 boss gate -> Area 17 transition ----
+        d12 = run_demo(base, out, 12, 1200,
+                       {"DC_AREA": "0", "DC_CAMPAIGN": "1",
+                        "DC_BOSS_DEFEATED": "1"})
+        rows12 = csv_rows(d12["player"])
+        areas12 = []
+        for r in rows12:
+            a = int(r["area"])
+            if not areas12 or areas12[-1] != a:
+                areas12.append(a)
+        check(areas12 and areas12[0] == 0,
+              f"demo12: campaign did not start in Area 0 ({areas12})")
+        check(17 in areas12,
+              f"demo12: boss-gate transition to Area 17 missing ({areas12})")
+
+        # ---- Campaign: direct multi-row area loads ----
+        for area in (2, 3):
+            d = run_demo(base, out, 2, 20, {"DC_AREA": str(area)})
+            rows_a = csv_rows(d["player"])
+            check(bool(rows_a) and int(rows_a[0]["area"]) == area,
+                  f"area {area}: room_area{area}.json was not loaded")
+            if rows_a:
+                check(float(rows_a[0]["camera_x"]) >= 0.0,
+                      f"area {area}: camera X is negative")
+
+        # ---- Campaign: title -> New Game -> Area 0 ----
+        d13 = run_demo(base, out, 13, 120, {"DC_TITLE": "1"})
+        rows13 = csv_rows(d13["player"])
+        check(bool(rows13) and int(rows13[0]["area"]) == 0,
+              "demo13: title NEW GAME did not enter Area 0")
+
+        # ---- Campaign: Somulo defeat ends the area ----
+        d14 = run_demo(base, out, 12, 300,
+                       {"DC_AREA": "0", "DC_CAMPAIGN": "1",
+                        "DC_BOSS_HP": "1"})
+        rows14 = csv_rows(d14["player"])
+        check(bool(rows14) and len(rows14) < 300,
+              "demo12/boss: Somulo defeat did not leave GAME_PLAYING")
+
         d10 = run_demo(base, out, 10, 260,
                        {"DC_START_X": "900", "DC_START_Y": "160"})
         rows10 = csv_rows(d10["player"])
@@ -184,7 +244,7 @@ def main() -> int:
         for message in failures:
             print(f"  - {message}")
         return 1
-    print("regression: PASS (demos 6, 7, 9, 10)")
+    print("regression: PASS (demos 6,7,9,10,11,12,13, boss defeat + multi-area loads)")
     return 0
 
 

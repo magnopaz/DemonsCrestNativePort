@@ -13,29 +13,39 @@
 #define OBJECT_EVENT_PICKUP 0x01
 #define OBJECT_EVENT_BREAK 0x02
 #define OBJECT_EVENT_ENEMY_HIT 0x04
+#define OBJECT_EVENT_BOSS_DEFEATED 0x08
+#define OBJECT_EVENT_CREST_PICKUP 0x10
 
 typedef enum ObjectType {
     OBJECT_NONE = 0,
-    OBJECT_URN,
-    OBJECT_PICKUP,
-    OBJECT_ENEMY
+    OBJECT_URN = 1,
+    OBJECT_PICKUP = 2,
+    OBJECT_ENEMY = 3,
+    OBJECT_PLATFORM = 4,
+    OBJECT_CREST_ITEM = 5,
+    OBJECT_BOSS = 6
 } ObjectType;
 
 typedef struct Object {
     bool active;
     ObjectType type;
     int species;
+    int flags;
     int32_t x_fx, y_fx;
+    int32_t origin_x_fx, origin_y_fx;
     int32_t vx_fx, vy_fx;
     int32_t bounce_fx; /* $39: remaining bounce velocity for pickups */
     int state;
     int hp;
+    int max_hp;
     int timer;
 } Object;
 
 typedef struct ObjectPool {
     Object slots[OBJECT_POOL_SIZE];
     int events; /* one-frame sound/effect flags */
+    bool boss_alive;
+    bool boss_defeated;
 } ObjectPool;
 
 void Objects_Init(ObjectPool *pool, const Level *level);

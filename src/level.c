@@ -79,6 +79,23 @@ static bool LoadBgLayer(BgLayer *layer, cJSON *obj) {
         !ReadInt(obj, "scroll_x", &layer->scroll_x) ||
         !ReadInt(obj, "scroll_y", &layer->scroll_y))
         return false;
+    cJSON *bands = cJSON_GetObjectItemCaseSensitive(obj, "hdma_bands");
+    if (cJSON_IsArray(bands)) {
+        int nb = cJSON_GetArraySize(bands);
+        if (nb > 8)
+            nb = 8;
+        for (int i = 0; i < nb; i++) {
+            cJSON *b = cJSON_GetArrayItem(bands, i);
+            int lines = 0;
+            float factor = 1.0f;
+            if (ReadInt(b, "lines", &lines) &&
+                ReadFloat(b, "factor", &factor) && lines > 0) {
+                layer->hdma_bands[layer->hdma_band_count].lines = lines;
+                layer->hdma_bands[layer->hdma_band_count].factor = factor;
+                layer->hdma_band_count++;
+            }
+        }
+    }
     int count = 0;
     layer->tiles = ReadU16Array(obj, "tilemap", &count);
     if (!layer->tiles || count != layer->map_w * layer->map_h) {
@@ -105,10 +122,12 @@ static bool LoadCollision(Collision *col, cJSON *obj) {
     return true;
 }
 
-bool Level_Load(Level *level, const Assets *assets, const char *dir) {
+static bool Level_LoadFile(Level *level, const Assets *assets,
+                           const char *path) {
     memset(level, 0, sizeof(*level));
-    char path[1024];
-    snprintf(path, sizeof(path), "%s/room.json", dir);
+    level->area_id = 1;
+    level->gate_next_area = -1;
+    level->backdrop = (Color){8, 8, 16, 255};
     FILE *f = fopen(path, "rb");
     if (!f) {
         fprintf(stderr, "level: cannot open %s\n", path);
@@ -129,7 +148,7 @@ bool Level_Load(Level *level, const Assets *assets, const char *dir) {
     cJSON *root = cJSON_Parse(text);
     free(text);
     if (!root) {
-        fprintf(stderr, "level: room.json is not valid JSON\n");
+        fprintf(stderr, "level: %s is not valid JSON\n", path);
         return false;
     }
 
@@ -147,6 +166,20 @@ bool Level_Load(Level *level, const Assets *assets, const char *dir) {
     cJSON *name = cJSON_GetObjectItemCaseSensitive(root, "name");
     if (cJSON_IsString(name))
         snprintf(level->name, sizeof(level->name), "%s", name->valuestring);
+    ReadInt(root, "area_id", &level->area_id);
+    ReadInt(root, "gate_next_area", &level->gate_next_area);
+    cJSON *backdrop = cJSON_GetObjectItemCaseSensitive(root, "backdrop");
+    if (cJSON_IsArray(backdrop) && cJSON_GetArraySize(backdrop) >= 3) {
+        int rgb[3] = {8, 8, 16};
+        for (int i = 0; i < 3; i++) {
+            cJSON *v = cJSON_GetArrayItem(backdrop, i);
+            if (cJSON_IsNumber(v))
+                rgb[i] = v->valueint;
+        }
+        level->backdrop = (Color){(unsigned char)rgb[0],
+                                  (unsigned char)rgb[1],
+                                  (unsigned char)rgb[2], 255};
+    }
 
     if (!ReadInt(world, "width", &level->world_w) ||
         !ReadInt(world, "height", &level->world_h) ||
@@ -155,6 +188,43 @@ bool Level_Load(Level *level, const Assets *assets, const char *dir) {
         !ReadFloat(spawn, "x", &level->spawn_x) ||
         !ReadFloat(spawn, "y", &level->spawn_y))
         goto done;
+
+    cJSON *spawns = cJSON_GetObjectItemCaseSensitive(root, "spawns");
+    if (cJSON_IsArray(spawns)) {
+        int ns = cJSON_GetArraySize(spawns);
+        if (ns > DC_MAX_LEVEL_SPAWNS)
+            ns = DC_MAX_LEVEL_SPAWNS;
+        for (int i = 0; i < ns; i++) {
+            cJSON *sp = cJSON_GetArrayItem(spawns, i);
+            LevelSpawn *dst = &level->spawns[level->spawn_count];
+            if (!ReadFloat(sp, "x", &dst->x) || !ReadFloat(sp, "y", &dst->y))
+                continue;
+            ReadInt(sp, "flags", &dst->flags);
+            level->spawn_count++;
+        }
+    }
+
+    cJSON *transitions = cJSON_GetObjectItemCaseSensitive(root, "transitions");
+    if (cJSON_IsArray(transitions)) {
+        int nt = cJSON_GetArraySize(transitions);
+        if (nt > DC_MAX_LEVEL_TRANSITIONS)
+            nt = DC_MAX_LEVEL_TRANSITIONS;
+        for (int i = 0; i < nt; i++) {
+            cJSON *tr = cJSON_GetArrayItem(transitions, i);
+            LevelTransition *dst = &level->transitions[level->transition_count];
+            memset(dst, 0, sizeof(*dst));
+            dst->next_area = -1;
+            ReadInt(tr, "next_area", &dst->next_area);
+            ReadInt(tr, "spawn_id", &dst->spawn_id);
+            ReadInt(tr, "pad_mask", &dst->pad_mask);
+            ReadFloat(tr, "x", &dst->x);
+            ReadFloat(tr, "y", &dst->y);
+            dst->half_w = ReadFloatOr(tr, "half_w", 12.0f);
+            dst->half_h = ReadFloatOr(tr, "half_h", 24.0f);
+            ReadInt(tr, "type", &dst->type);
+            level->transition_count++;
+        }
+    }
 
     float max_cam_x = (float)level->world_w - 256.0f;
     if (max_cam_x < 0.0f)
@@ -223,10 +293,17 @@ bool Level_Load(Level *level, const Assets *assets, const char *dir) {
             if (!cJSON_IsString(type))
                 continue;
             LevelObject *dst = &level->objects[level->object_count];
+            memset(dst, 0, sizeof(*dst));
             if (strcmp(type->valuestring, "urn") == 0)
                 dst->type = LEVEL_OBJECT_URN;
             else if (strcmp(type->valuestring, "enemy") == 0)
                 dst->type = LEVEL_OBJECT_ENEMY;
+            else if (strcmp(type->valuestring, "platform") == 0)
+                dst->type = LEVEL_OBJECT_PLATFORM;
+            else if (strcmp(type->valuestring, "pickup_crest") == 0)
+                dst->type = LEVEL_OBJECT_PICKUP_CREST;
+            else if (strcmp(type->valuestring, "boss") == 0)
+                dst->type = LEVEL_OBJECT_BOSS;
             else if (strcmp(type->valuestring, "exit") == 0)
                 dst->type = LEVEL_OBJECT_EXIT;
             else
@@ -234,9 +311,8 @@ bool Level_Load(Level *level, const Assets *assets, const char *dir) {
             if (!ReadFloat(o, "x", &dst->x) ||
                 !ReadFloat(o, "y", &dst->y))
                 continue;
-            int species = 0;
-            ReadInt(o, "species", &species);
-            dst->species = species;
+            ReadInt(o, "species", &dst->species);
+            ReadInt(o, "flags", &dst->flags);
             level->object_count++;
         }
     }
@@ -250,6 +326,34 @@ done:
         fprintf(stderr, "level: failed to load %s\n", path);
     }
     return ok;
+}
+
+bool Level_Load(Level *level, const Assets *assets, const char *dir) {
+    char path[1024];
+    const char *area_env = getenv("DC_AREA");
+    if (area_env && *area_env) {
+        snprintf(path, sizeof(path), "%s/room_area%d.json", dir,
+                 atoi(area_env));
+        FILE *probe = fopen(path, "rb");
+        if (probe) {
+            fclose(probe);
+            return Level_LoadFile(level, assets, path);
+        }
+    }
+    snprintf(path, sizeof(path), "%s/room.json", dir);
+    return Level_LoadFile(level, assets, path);
+}
+
+bool Level_LoadArea(Level *level, const Assets *assets, const char *dir,
+                    int area_id) {
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/room_area%d.json", dir, area_id);
+    FILE *probe = fopen(path, "rb");
+    if (!probe)
+        return false;
+    fclose(probe);
+    Level_Unload(level);
+    return Level_LoadFile(level, assets, path);
 }
 
 void Level_Unload(Level *level) {
@@ -346,6 +450,55 @@ bool Level_IsWallAt(const Level *level, float world_x, float world_y) {
         /* Slopes and 0x16 transitions are walkable surfaces, not walls. */
         return false;
     }
+}
+
+uint8_t Level_EnvFlagsAt(const Level *level, float world_x, float world_y) {
+    return Level_AttrAt(level, world_x, world_y) & 0xE0;
+}
+
+bool Level_IsHazardAt(const Level *level, float world_x, float world_y) {
+    /* $80:DEA5: high bits 0x20 (e.g. attr 0x21) damage the player. */
+    return Level_EnvFlagsAt(level, world_x, world_y) == 0x20;
+}
+
+bool Level_IsBreakableAt(const Level *level, float world_x, float world_y) {
+    /* High bits 0x40 (e.g. attr 0x41) mark destructible terrain blocks. */
+    return Level_EnvFlagsAt(level, world_x, world_y) == 0x40;
+}
+
+bool Level_BreakBlockAt(Level *level, float world_x, float world_y) {
+    Collision *c = &level->collision;
+    int cx = (int)floorf(world_x / (float)c->cell);
+    int cy = (int)floorf(world_y / (float)c->cell);
+    if (cx < 0 || cy < 0 || cx >= c->width || cy >= c->height)
+        return false;
+    uint8_t attr = c->attrs[cy * c->width + cx];
+    if ((attr & 0xE0) != 0x40)
+        return false;
+    c->attrs[cy * c->width + cx] = 0;
+    if (level->bg_count >= 2 && level->bg[1].tiles) {
+        BgLayer *bg1 = &level->bg[1];
+        for (int dy = 0; dy < 2; dy++) {
+            for (int dx = 0; dx < 2; dx++) {
+                int tx = cx * 2 + dx;
+                int ty = cy * 2 + dy;
+                if (tx >= 0 && tx < bg1->map_w && ty >= 0 && ty < bg1->map_h)
+                    bg1->tiles[ty * bg1->map_w + tx] = 0;
+            }
+        }
+    }
+    return true;
+}
+
+bool Level_IsWaterAt(const Level *level, float world_x, float world_y) {
+    /* $80:94AB: high bits 0x60 mark water blocks ($1045 underwater). */
+    return Level_EnvFlagsAt(level, world_x, world_y) == 0x60;
+}
+
+bool Level_IsSlopeRampAt(const Level *level, float world_x, float world_y) {
+    /* $80:DF82: high bits 0x80 increment $1070, selecting the 0x00B3 -> 0x0166
+     * walk acceleration ramp at $80:F065. */
+    return Level_EnvFlagsAt(level, world_x, world_y) == 0x80;
 }
 
 bool Level_FloorAt(const Level *level, float world_x, float feet_y,
