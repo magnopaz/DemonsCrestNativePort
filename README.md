@@ -520,6 +520,7 @@ tools/oracle/         WRAM/OAM trace parsers, probe routes, comparison and
                       debug-server animation capture
 captures/             per-run recomp dumps (git-ignored)
 assets/generated/     extracted assets (git-ignored)
+docs/PLAN_FULL_PLAYABLE.md plan to make the original fully playable (milestones M1-M9)
 docs/PROJECT_STATE.md full handoff: state, findings, traps, next steps
 docs/FULL_CAMPAIGN_PLAN.md full-campaign remaining-work plan
 docs/ROADMAP.md       next milestones

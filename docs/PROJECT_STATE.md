@@ -2742,6 +2742,21 @@ city extraction needs the multi-screen room set.
 
 ---
 
+### Step 49 — Plan for a fully playable original (done)
+
+`docs/PLAN_FULL_PLAYABLE.md` audits the project against the original game and
+lays out the route to "fully playable": a definition of done (D1-D11), a
+gap analysis (navigation, placements, boss roster, sprites, terrain, forms,
+items, events, endings, map landing, audio, menus, QA), nine milestones (M1-M9)
+with tasks and acceptance tests, a ten-task backlog, the save/tooling wishlist,
+risks and the fan-game bridge (prequel Somulo battle → original → sequel).
+
+Headline numbers from the audit: 113/113 rooms load, 66 stage entries, 14 areas
+with captured backdrops, 11 species sheets, 518 script strings, four endings,
+but only **4 rooms with real exits** (95 auto-advance via gates), **148 enemy
+placements across 7 species**, and **14 boss objects in three species** — so the
+loop is playable while the game is not yet.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
