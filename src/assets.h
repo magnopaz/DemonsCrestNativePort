@@ -58,7 +58,8 @@ typedef struct Assets {
     int stage_count;
     Texture2D hud_bar;
     Texture2D hud_slots;
-    Texture2D font; /* BG3 ASCII font mask (font.png + font.json) */
+    Texture2D font;
+    Texture2D world_map; /* 1024x1024 Mode 7 map (optional) */ /* BG3 ASCII font mask (font.png + font.json) */
     PlayerAnim player_anim;
     ProjectileAnim projectile_anim;
     bool ready;

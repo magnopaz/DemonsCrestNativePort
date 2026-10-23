@@ -2548,6 +2548,34 @@ Full evidence run recorded for the current build:
 The README now documents these commands, the current results and the known
 fidelity gaps as the release checklist.
 
+### Step 41 — Mode 7 world map extracted and integrated (done)
+
+The save11 capture finally cracked Mode 7, using the SNESdev wiki layout:
+
+- the **tilemap** is 128x128 one-byte entries in the **low byte** of the first
+  16384 VRAM words (rows of 128, top to bottom);
+- **tile pixels** are chunky 8bpp in the **high byte**, 64 pixels per tile
+  (left to right, top to bottom) at `word = tile*64 + y*8 + x`.
+
+`tools/dc_extract/build_world_map.py` renders that into a 1024x1024
+`world_map.png` (accepts a capture frame or explicit `--vram/--cgram` dumps; the
+oracle probe dump is the reliable source because running extra frames can make
+the game re-upload VRAM).
+
+In-game, `DrawWorldMapView` draws a 256x224 viewport centred on the ship over the
+real map, with the ship cursor, `OVERWORLD`, gold and a hint bar; the procedural
+pseudo-3D map remains as a fallback when the asset is absent. The stage-select
+overlay still opens on top of it (X).
+
+Verified: overworld screenshot shows the real Ghoul Realm with the cursor;
+regression PASS; `check_areas` 113/113.
+
+Next: use the map's castle icons to place stage markers at their true map
+positions (the current stage list is a separate overlay), and apply the Mode 7
+affine transform for rotation/zoom like the original.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

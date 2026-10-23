@@ -74,10 +74,16 @@ def main() -> int:
     ap.add_argument("--warmup", type=int, default=60,
                     help="frames to run before the first capture (the "
                          "game resumes in forced blank)")
+    ap.add_argument("--no-run", action="store_true",
+                    help="dump immediately after resume: the restored VRAM "
+                         "stays intact, while running frames can reload it "
+                         "(use for Mode 7 map baking)")
     args = ap.parse_args()
 
     offsets = ([int(x) for x in args.frames.split(",") if x.strip()]
                if args.frames else [i * args.spacing for i in range(args.count)])
+    if args.no_run:
+        offsets = offsets[:1]
     args.out.mkdir(parents=True, exist_ok=True)
     tmp = args.out / "resume.sav"
     shutil.copyfile(SAVES / f"save{args.save}.sav", tmp)
@@ -108,13 +114,19 @@ def main() -> int:
                 client.run_to(client.frame() + 1)
             return ppu_state
 
-        # The resume state starts in forced blank; let the game fade in first.
-        c.run_to(c.frame() + args.warmup)
+        # The resume state starts in forced blank; let the game fade in first,
+        # unless only the restored VRAM is needed (map baking): running frames
+        # can make the game re-upload and replace it.
+        if not args.no_run:
+            c.run_to(c.frame() + args.warmup)
         start = c.frame()
         for off in offsets:
-            c.run_to(start + off)
-            ppu_body = visible_ppu(c)
-            ppu = {"ppu": ppu_body}
+            if not args.no_run:
+                c.run_to(start + off)
+            ppu_body = (c.cmd("get_ppu_state") if args.no_run
+                        else visible_ppu(c))
+            ppu = {"ppu": ppu_body.get("ppu", ppu_body) if args.no_run
+                       else ppu_body}
             cgram = c.cmd("dump_cgram")["hex"].replace(" ", "")
             oam = c.cmd("dump_oam")["hex"].replace(" ", "")
             vram = bytes.fromhex(c.cmd("dump_vram")["hex"].replace(" ", ""))

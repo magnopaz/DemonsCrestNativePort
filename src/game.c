@@ -1361,7 +1361,44 @@ static void DrawStageSelect(const Game *game) {
                  (Color){200, 220, 255, 255});
 }
 
+/* Real Mode 7 world map (save11 capture): draw a 256x224 viewport centred on
+ * the ship. Falls back to the procedural map when the asset is missing. */
+static bool DrawWorldMapView(const Game *game) {
+    if (!IsTextureValid(game->assets.world_map))
+        return false;
+    float wx = (game->overworld_x - 24.0f) / (232.0f - 24.0f) * 1024.0f;
+    float wy = (game->overworld_y - 152.0f) / (208.0f - 152.0f) * 1024.0f;
+    float sx = wx - 128.0f;
+    float sy = wy - 112.0f;
+    if (sx < 0.0f)
+        sx = 0.0f;
+    if (sx > 1024.0f - 256.0f)
+        sx = 1024.0f - 256.0f;
+    if (sy < 0.0f)
+        sy = 0.0f;
+    if (sy > 1024.0f - 224.0f)
+        sy = 1024.0f - 224.0f;
+    Rectangle src = {sx, sy, 256.0f, 224.0f};
+    Rectangle dst = {0, 0, 256.0f, 224.0f};
+    DrawTexturePro(game->assets.world_map, src, dst, (Vector2){0, 0}, 0.0f,
+                   WHITE);
+    /* Ship cursor. */
+    float cx = wx - sx;
+    float cy = wy - sy;
+    DrawCircleV((Vector2){cx, cy}, 4.0f, (Color){255, 236, 140, 255});
+    DrawCircleV((Vector2){cx, cy}, 2.0f, (Color){200, 60, 40, 255});
+    return true;
+}
+
 static void DrawOverworld(const Game *game) {
+    if (DrawWorldMapView(game)) {
+        DrawText("OVERWORLD", 8, 6, 10, (Color){240, 232, 200, 255});
+        DrawText(TextFormat("GOLD %d", game->player.gold), 190, 6, 10,
+                 (Color){255, 224, 120, 255});
+        DrawText("X STAGE SELECT   ENTER LAND", 8, 208, 8,
+                 (Color){200, 220, 255, 255});
+        return;
+    }
     /* Mode 7 style pseudo-3D overworld: horizontal strips shrink toward the
      * horizon, with land/water/path bands and stage nodes. */
     ClearBackground((Color){6, 8, 14, 255});

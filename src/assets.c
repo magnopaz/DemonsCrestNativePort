@@ -243,6 +243,18 @@ bool Assets_Load(Assets *assets, const char *dir) {
     LoadSpeciesSheets(assets, dir);
     LoadRoomKinds(assets, dir);
     LoadEndings(assets, dir);
+
+    {
+        char wm_path[1200];
+        snprintf(wm_path, sizeof(wm_path), "%s/world_map.png", dir);
+        if (FileExists(wm_path)) {
+            assets->world_map = LoadTexture(wm_path);
+            if (IsTextureValid(assets->world_map))
+                SetTextureFilter(assets->world_map, TEXTURE_FILTER_POINT);
+            else
+                memset(&assets->world_map, 0, sizeof(assets->world_map));
+        }
+    }
     if (assets->species_count > 0)
         printf("assets: %d per-species sprite sheet(s)\n", assets->species_count);
     assets->ready = true;
@@ -289,6 +301,8 @@ void Assets_Unload(Assets *assets) {
         UnloadTexture(assets->hud_slots);
     if (IsTextureValid(assets->font))
         UnloadTexture(assets->font);
+    if (IsTextureValid(assets->world_map))
+        UnloadTexture(assets->world_map);
     Anim_Unload(&assets->player_anim);
     ProjectileAnim_Unload(&assets->projectile_anim);
     memset(assets, 0, sizeof(*assets));
