@@ -10,6 +10,7 @@
 #define TEXT_MAX_PAGES 6
 #define TEXT_MAX_LINES 8
 #define TEXT_LINE_MAX 48
+#define TEXT_LINE_H 10 /* glyph 8px + 2px leading */
 
 typedef struct TextScript {
     int count;

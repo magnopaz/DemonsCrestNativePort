@@ -1944,18 +1944,17 @@ Done:
    shows page 0 of the first string behind `DC_DIALOGUE=1` (page advances every
    120 frames) as a dev hook; the regression suite runs without it.
 
-Open problem: the **BG3 font CHR location is not confirmed**. The menu tilemap
-really does store ASCII tile numbers (`0x46/0x49/0x52/0x45` = FIRE), but
-decoding those tiles at the candidate character bases (`$5000` words,
-`$2800`, `0`, `0x400`, `0x800`, 4bpp variants) yields non-glyph fragments, so
-`font.png` currently bakes the wrong tiles and the `DC_DIALOGUE` view renders
-garbage. Next steps: check the PPU VRAM remap mode / mid-frame uploads, try the
-font as a contiguous block located by searching VRAM for an alphabet-shaped
-16-tile run, or capture the menu with `dump_frame_vram` for the exact rendered
-frame. The text strings and control codes are unaffected.
+Font CHR resolution: the BG3 character base **is** `$5000` words
+(`bgTileAdr & 0xF << 12`); the earlier "garbage" was a measurement mistake and a
+stale fade-in capture. A 24-candidate montage of the BG3 layer
+(`captures/menu/base_montage.png`) shows "FIRE" rendering correctly at `$5000`.
+The pause-menu font is a bold italic 8x8 design (glyph cells are full height),
+so the renderer needs 2 px of leading: `Text_DrawPage` now advances
+`TEXT_LINE_H = 10`, and `DC_DIALOGUE=1` renders the real intro page legibly.
 
-Next: fix the font CHR source, then index the script table and wire the
-intro/cutscenes/ending text.
+Next: wire the dialogue into the actual flow (intro before Area 0, shop/NPC
+text, ending variants), index the script table by event, and re-extract
+`font.png` per context if dialogue turns out to use a second font block.
 
 ---
 

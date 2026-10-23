@@ -1231,8 +1231,19 @@ void Game_Render(Game *game) {
          * dialogue state will drive this from story events instead. */
         int pages = game->script.page_count[0];
         int page = pages > 0 ? (game->state_timer / 120) % pages : 0;
-        int height = Text_DrawPage(&game->assets, &game->script, 0, page, 16,
+        int height = 0;
+        if (getenv("DC_FONT_TEST")) {
+            Text_DrawString(&game->assets, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 8, 120,
+                            (Color){240, 236, 220, 255});
+            Text_DrawString(&game->assets, "abcdefghijklmnopqrstuvwxyz", 8, 130,
+                            (Color){240, 236, 220, 255});
+            Text_DrawString(&game->assets, "0123456789 .,:;!?-'", 8, 140,
+                            (Color){240, 236, 220, 255});
+            height = 24;
+        } else {
+            height = Text_DrawPage(&game->assets, &game->script, 0, page, 16,
                                    150, 216, (Color){240, 236, 220, 255});
+        }
         if (height > 0)
             Text_DrawString(&game->assets, "ENTER NEXT", 16,
                             150 + height + 6, (Color){170, 170, 185, 255});

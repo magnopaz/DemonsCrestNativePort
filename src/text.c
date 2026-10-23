@@ -1,6 +1,7 @@
 #include "text.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cJSON.h"
@@ -65,6 +66,12 @@ bool Text_LoadScript(TextScript *script, const char *asset_dir) {
     }
     script->count = index;
     cJSON_Delete(root);
+    if (getenv("DC_TEXT_DEBUG") && script->count > 0) {
+        fprintf(stderr, "text: %d strings, %d pages in [0]\n",
+                script->count, script->page_count[0]);
+        for (int i = 0; i < script->line_count[0][0]; i++)
+            fprintf(stderr, "  line %d: '%s'\n", i, script->pages[0][0][i]);
+    }
     return script->count > 0;
 }
 
@@ -94,7 +101,7 @@ void Text_DrawString(const Assets *assets, const char *text, int x, int y,
         unsigned char ch = (unsigned char)*p;
         if (ch == '\n') {
             cx = x;
-            cy += TEXT_GLYPH_H;
+            cy += TEXT_LINE_H;
             continue;
         }
         if (ch < TEXT_FIRST || ch > TEXT_LAST) {
@@ -122,14 +129,14 @@ int Text_DrawPage(const Assets *assets, const TextScript *script, int index,
     if (page < 0 || page >= script->page_count[index])
         return 0;
     int lines = script->line_count[index][page];
-    int height = lines * TEXT_GLYPH_H;
+    int height = lines * TEXT_LINE_H;
     DrawRectangle(x - 4, y - 4, width + 8, height + 8,
                   (Color){8, 8, 16, 210});
     DrawRectangleLines(x - 4, y - 4, width + 8, height + 8,
                        (Color){200, 180, 120, 180});
     for (int i = 0; i < lines; i++) {
         Text_DrawString(assets, script->pages[index][page][i], x,
-                        y + i * TEXT_GLYPH_H, tint);
+                        y + i * TEXT_LINE_H, tint);
     }
     return height;
 }
