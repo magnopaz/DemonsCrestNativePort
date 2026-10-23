@@ -114,14 +114,25 @@ def main() -> int:
         c.run_to(c.frame() + args.warmup)
         start = c.frame()
         written = {}
+        prev = 0
         for off in offsets:
-            c.run_to(start + off)
+            # Advance by the delta: visible_ppu() can move past `start + off`, and
+            # run_to_frame only ever moves forward.
+            c.run_to(c.frame() + max(0, off - prev))
+            prev = off
             ppu = visible_ppu()
             frame = c.frame()
+            if os.environ.get("DC_CAP_DEBUG"):
+                print(f"  [dbg] after run_to frame={frame} inidisp={ppu.get('inidisp')}")
             cgram = c.cmd("dump_cgram")["hex"].replace(" ", "")
             oam = c.cmd("dump_oam")["hex"].replace(" ", "")
             vram = bytes.fromhex(c.cmd("dump_vram")["hex"].replace(" ", ""))
-            pool = c.read(OBJ_BASE, OBJ_STRIDE * OBJ_SLOTS)
+            # The debug server truncates long reads, so pull the pool in chunks.
+            pool = b""
+            chunk = 0x100
+            for start_addr in range(OBJ_BASE, OBJ_BASE + OBJ_STRIDE * OBJ_SLOTS,
+                                    chunk):
+                pool += c.read(start_addr, chunk)
             player = c.read(0x1030, 6)
             player_world = [fx24(player, 0), fx24(player, 3)]
             species_seen = set()

@@ -2456,7 +2456,7 @@ them and they are registered in `tools/dc_extract/bg2_captures.json`:
 |---|---|---|
 | save7 | 48 | **excellent** — dungeon shelves, bottles, skulls, chains; the split BG1/BG2 atlases are clearly working |
 | save8 | 74 | **excellent** — forest cave with tree trunks, foliage and stalactites |
-| save9 | 58 | dark: a 256x256 boss arena that is essentially black (likely colour-math driven), no visible backdrop |
+| save9 | 58 | dark: a 256x256 room that is essentially black (likely colour-math driven), no visible backdrop |
 
 Area 48/74 screenshots show the room rendering as intended, which validates the
 BG1-from-ROM + BG2-from-capture atlas split introduced in Step 36.
@@ -2464,6 +2464,25 @@ BG1-from-ROM + BG2-from-capture atlas split introduced in Step 36.
 Note: `captures/` is git-ignored (ROM-derived, large), so these captures only
 exist locally; the manifest entries document which frames to regenerate. The
 recomp saves themselves are the source of truth.
+
+**Correction — Area 48 is a shop, not a boss room.** Scanning the object pool
+over 240 frames of save7 shows exactly one live object for the whole span:
+slot 8, flags `0x96`, **species `$10`**, at a fixed position. The room art
+(shelves, bottles, skulls, chains, guillotine gate) matches a shop interior, and
+the purple silhouette in the screenshot is that NPC. So:
+
+- species `$10` is an **NPC/shopkeeper**, not an enemy — likewise `$81` (43
+  placements) is very likely another NPC/prop species, which explains why those
+  rooms looked "populated by silhouettes";
+- the enemy sprites still missing are `$2C` (skeleton), `$26`, `$08` and the
+  bosses `$96`/`$A5`;
+- capturing species from a real save needs a save where the object is actually
+  on screen *and* the frame counter/port state is fresh; the pool read itself
+  works (chunked 0x100 reads; the server truncates longer requests).
+
+`tools/oracle/capture_area_objects.py` implements the pool → per-species capture
+record path and is kept as WIP (needs a reliable frame/port handshake before it
+can be trusted in the extraction pipeline).
 
 ---
 
