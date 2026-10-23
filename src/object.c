@@ -361,7 +361,7 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                     o->y_fx = o->origin_y_fx +
                               (int32_t)(sinf(o->timer * 0.08f) * 18.0f * FX_ONE);
                 }
-            } else {
+            } else if (o->species == 0x67) {
                 /* Species $67 Graveyard Ghoul: authentic $83:AF74 state 0.
                  *
                  * The original dispatches on substate ($06):
@@ -559,8 +559,33 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                             o->y_fx -= 0x0066;
                     }
                 }
+            } else {
+                /* Generic enemy for species whose ROM handler is not ported yet:
+                 * patrol around the spawn until the player is close, then walk
+                 * toward them. Keeps rooms lively without the ghoul's hop
+                 * behaviour leaking into every other species. */
+                int32_t dx = player->x_fx - o->x_fx;
+                int32_t dy = player->y_fx - o->y_fx;
+                bool near = labs((long)dx) < 140 * FX_ONE &&
+                            labs((long)dy) < 64 * FX_ONE;
+                if (near) {
+                    o->facing = dx >= 0 ? 1 : -1;
+                    if (labs((long)dx) > 10 * FX_ONE)
+                        o->x_fx += o->facing * 0x0068;
+                } else {
+                    if (o->vx_fx == 0)
+                        o->vx_fx = 0x0048;
+                    o->x_fx += o->vx_fx;
+                    if (labs((long)(o->x_fx - o->origin_x_fx)) >
+                        48 * FX_ONE)
+                        o->vx_fx = -o->vx_fx;
+                }
+                float gx = (float)o->x_fx / FX_ONE;
+                float gy = (float)o->y_fx / FX_ONE;
+                float surf;
+                if (Level_FloorAt(level, gx, gy + 4.0f, &surf))
+                    o->y_fx = (int32_t)lroundf(surf * FX_ONE);
             }
-
             ox = (float)o->x_fx / FX_ONE;
             oy = (float)o->y_fx / FX_ONE;
             float px = player->x;

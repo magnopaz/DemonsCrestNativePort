@@ -2340,6 +2340,29 @@ Area 2) and the regression suite stays green.
 
 ---
 
+### Step 32 — Enemy AI split and generic behaviour (done)
+
+Found and fixed a real correctness bug: the enemy update chain ended in a plain
+`else` that ran the **ghoul** state machine for every species that was not
+`$2C`/`$07` — so the most common enemies in the campaign (`$81` with 43
+placements, `$10` with 35, `$26`, `$08`, ...) hopped around with the ghoul's
+perch/dive logic.
+
+- The ghoul branch is now `else if (o->species == 0x67)`.
+- All other species get a **generic AI**: patrol ±48 px around the spawn and
+  walk toward the player when within 140x64 px, with a floor snap each frame.
+  This is a placeholder until the individual ROM handlers are ported, but it
+  keeps rooms lively and stops the wrong behaviour leaking between species.
+- Verified in Area 21 (species `$81`): object traces show enemies patrolling
+  (x ranges of ~40–50 px) and switching to the chase when the player is close;
+  Area 21 also shows the new `STAGE 21 / WORLD 512x2048` banner.
+
+Species handler addresses for the next ports are recorded here:
+`$81 -> $82:FB0C` (JSL script list), `$10 -> $82:AC86`, `$26 -> $82:ABEF`,
+`$08 -> $82:974D`.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
