@@ -1,6 +1,7 @@
 #include "assets.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cJSON.h"
@@ -78,6 +79,47 @@ static void LoadSpeciesSheets(Assets *assets, const char *dir) {
     cJSON_Delete(root);
 }
 
+/* campaign.json carries the extractor's per-room classification. Empty rooms
+ * (menus/padding grids, currently none) must never be entered as gameplay. */
+static void LoadRoomKinds(Assets *assets, const char *dir) {
+    char path[1200];
+    snprintf(path, sizeof(path), "%s/campaign.json", dir);
+    if (!FileExists(path))
+        return;
+    char *text = LoadFileText(path);
+    if (!text)
+        return;
+    cJSON *root = cJSON_Parse(text);
+    UnloadFileText(text);
+    if (!root)
+        return;
+    const cJSON *rooms = cJSON_GetObjectItemCaseSensitive(root, "rooms");
+    const cJSON *entry = NULL;
+    cJSON_ArrayForEach(entry, rooms) {
+        if (!cJSON_IsObject(entry))
+            continue;
+        int area = atoi(entry->string ? entry->string : "-1");
+        if (area < 0 || area >= DC_CAMPAIGN_AREAS)
+            continue;
+        const cJSON *kind = cJSON_GetObjectItemCaseSensitive(entry, "kind");
+        if (!cJSON_IsString(kind))
+            continue;
+        if (strcmp(kind->valuestring, "playable") == 0)
+            assets->room_kind[area] = 1;
+        else if (strcmp(kind->valuestring, "partial") == 0)
+            assets->room_kind[area] = 2;
+        else if (strcmp(kind->valuestring, "empty") == 0)
+            assets->room_kind[area] = 3;
+    }
+    cJSON_Delete(root);
+}
+
+int Assets_RoomKind(const Assets *assets, int area) {
+    if (area < 0 || area >= DC_CAMPAIGN_AREAS)
+        return 0;
+    return assets->room_kind[area];
+}
+
 const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species) {
     for (int i = 0; i < assets->species_count; i++) {
         if (assets->species[i].species == species)
@@ -145,6 +187,7 @@ bool Assets_Load(Assets *assets, const char *dir) {
                 "assets: fireball_anim.json missing; projectiles render invisible\n");
     }
     LoadSpeciesSheets(assets, dir);
+    LoadRoomKinds(assets, dir);
     if (assets->species_count > 0)
         printf("assets: %d per-species sprite sheet(s)\n", assets->species_count);
     assets->ready = true;

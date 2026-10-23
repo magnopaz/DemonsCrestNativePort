@@ -52,6 +52,12 @@ static void Game_Reset(Game *game) {
 bool Game_TransitionToArea(Game *game, int area_id, int spawn_id) {
     if (area_id < 0 || area_id >= DC_CAMPAIGN_AREAS)
         return false;
+    /* Never enter a room the extractor classified as empty (menu/padding grid):
+     * the player would fall through a world with no collision. */
+    if (Assets_RoomKind(&game->assets, area_id) == 3) {
+        fprintf(stderr, "game: refusing empty room %d\n", area_id);
+        return false;
+    }
     /* Preserve campaign progression across the level reload. */
     Player saved = game->player;
     int prev_area = game->level.area_id;

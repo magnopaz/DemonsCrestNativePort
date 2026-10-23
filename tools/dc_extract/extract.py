@@ -780,6 +780,50 @@ SPECIES_KIND_MAP = {
 }
 
 
+def room_stats(doc: dict) -> dict:
+    """Classify a generated room: playable, partial or empty.
+
+    Used for campaign.json metadata and by the audit tooling. A room is
+    ``playable`` when it has collision, BG1 geometry and walkable ground under
+    its spawn; ``empty`` when it has neither collision nor BG1 tiles (menus and
+    padding grids); everything else is ``partial`` (boss arenas whose floor is
+    not in the block tables, cutscene stages, ...).
+    """
+    attrs = doc["collision"]["attrs"]
+    col_pct = (100.0 * sum(1 for a in attrs if a) / len(attrs)
+               if attrs else 0.0)
+    bg1 = doc["bg"][-1]["tilemap"]
+    bg1_pct = 100.0 * sum(1 for w in bg1 if w) / len(bg1) if bg1 else 0.0
+    sx, sy = doc["spawn"]["x"], doc["spawn"]["y"]
+    cw = doc["collision"]["width"]
+    ch = doc["collision"]["height"]
+    ground = False
+    for dy in range(0, 97, 4):
+        cx = min(cw - 1, max(0, int(sx) // 16))
+        cy = int((sy + dy) // 16)
+        if cy >= ch:
+            break
+        if attrs[cy * cw + cx] & 0x1F:
+            ground = True
+            break
+    if col_pct <= 0.0 and bg1_pct <= 0.0:
+        kind = "empty"
+    elif col_pct > 0.0 and bg1_pct >= 1.0 and ground:
+        kind = "playable"
+    else:
+        kind = "partial"
+    return {
+        "kind": kind,
+        "collision_pct": round(col_pct, 1),
+        "bg1_pct": round(bg1_pct, 1),
+        "bg2": bool(sum(1 for w in doc["bg"][0]["tilemap"] if w)),
+        "spawn": [sx, sy],
+        "ground": ground,
+        "gate_next_area": doc.get("gate_next_area", -1),
+        "transitions": len(doc.get("transitions", [])),
+    }
+
+
 def build_area_room_doc(rom: Rom, area: int, bg2_layer: dict,
                         player_feet_x: int, player_feet_y: int,
                         bg2_captures: dict[int, dict] | None = None) -> dict:
@@ -1366,6 +1410,7 @@ def main() -> int:
     (out / f"room_area{args.area}.json").write_text(json.dumps(room, indent=1))
 
     # Emit multi-area campaign rooms and campaign.json
+    room_meta = {}
     for area_id in campaign_areas:
         if area_id == args.area and args.full_room:
             continue
@@ -1373,10 +1418,20 @@ def main() -> int:
                                   player_feet_x, player_feet_y,
                                   bg2_captures)
         (out / f"room_area{area_id}.json").write_text(json.dumps(doc, indent=1))
+        room_meta[str(area_id)] = room_stats(doc)
+
+    if str(args.area) not in room_meta:
+        room_meta[str(args.area)] = room_stats(room)
+
+    kinds = {"playable": 0, "partial": 0, "empty": 0}
+    for meta in room_meta.values():
+        kinds[meta["kind"]] += 1
 
     campaign_doc = {
         "rom_sha256": rom.sha256,
         "areas": campaign_areas,
+        "rooms": room_meta,
+        "room_kinds": kinds,
         "gargoyle_palettes": rom.gargoyle_palettes(),
         "hdma_area1": AREA1_HDMA_BANDS,
     }

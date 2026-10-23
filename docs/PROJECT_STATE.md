@@ -2052,6 +2052,25 @@ are identified.
 
 ---
 
+### Step 18 — Room classification and safe transitions (done)
+
+- `extract.py` factors `room_stats(doc)` and writes it for every area into
+  `campaign.json["rooms"]` plus a `room_kinds` summary. Classification:
+  `playable` (collision + BG1 geometry + walkable ground under the spawn),
+  `partial` (boss arenas without block-table floors, cutscene stages),
+  `empty` (neither collision nor BG1 tiles). Current split: **69 playable,
+  44 partial, 0 empty** — and `tools/audit_campaign.py` now cross-checks its own
+  classification against `campaign.json` and agrees on every room.
+- The native side loads those kinds (`Assets_RoomKind`, `campaign.json`) and
+  `Game_TransitionToArea` refuses rooms classified `empty`, so a data regression
+  can no longer drop the player into a collision-free world.
+- `check_areas.py` still passes 113/113 and the regression suite stays green.
+
+Next uses of the metadata: filter the overworld stage list to playable rooms,
+and drive cutscene/arena handling for `partial` rooms explicitly.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

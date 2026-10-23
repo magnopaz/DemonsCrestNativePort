@@ -188,6 +188,31 @@ def main() -> int:
          [r for r in bad if any(i.startswith(("transition", "object", "spawn"))
                                 for i in r["issues"])])
 
+    # Cross-check against the extractor's own classification (campaign.json)
+    campaign_path = args.assets / "campaign.json"
+    if campaign_path.is_file():
+        campaign = json.loads(campaign_path.read_text())
+        rooms_meta = campaign.get("rooms", {})
+        if rooms_meta:
+            kinds_meta: dict[str, int] = {}
+            for meta in rooms_meta.values():
+                kinds_meta[meta.get("kind", "?")] = kinds_meta.get(
+                    meta.get("kind", "?"), 0) + 1
+            print("\nextractor classification (campaign.json): " +
+                  ", ".join(f"{k}={v}" for k, v in sorted(kinds_meta.items())))
+            mismatched = []
+            for row in rooms:
+                meta = rooms_meta.get(str(row["area"]))
+                if meta and meta.get("kind") != row["kind"]:
+                    mismatched.append((row["area"], meta.get("kind"),
+                                       row["kind"]))
+            if mismatched:
+                print(f"  audit/extract disagreement on {len(mismatched)} "
+                      f"room(s): " + ", ".join(f"{a}:{m}/{r}"
+                                               for a, m, r in mismatched[:8]))
+            else:
+                print("  audit and extractor agree on every room kind")
+
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)
         args.json.write_text(json.dumps({
