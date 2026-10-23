@@ -278,11 +278,13 @@ Acceptance:
 ### 3.6 Audio
 
 Current audio (`src/audio.c`) is an original procedural chiptune/SFX
-placeholder.
+replacement.
 
+- [x] Replacement soundtrack skeleton: four procedural loops (title, stage,
+  boss, ending) with automatic state-driven switching.
 - [ ] Extract SPC700 BRR samples, DSP instruments and music sequences from the
   ROM, or build a complete replacement soundtrack.
-- [ ] Per-area, overworld, shop, boss, menu, cutscene and ending music.
+- [ ] Per-area, overworld, shop, menu, cutscene and ending music.
 - [ ] Port all original SFX triggers (dispatched via `$80:BD57`, e.g. `$58`
   heart pickup) using extracted BRR/DSP sound effects or replacements.
 - [ ] Volume/mute/options menu wiring.
