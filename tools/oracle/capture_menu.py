@@ -104,7 +104,7 @@ def main() -> int:
         client.cmd("set_controller start")
         client.run_to(client.frame() + 2)
         client.cmd("set_controller 0")
-        client.run_to(client.frame() + 20)
+        client.run_to(client.frame() + 70)
         frame = client.frame()
         (out / "vram.bin").write_bytes(client.dump("dump_vram"))
         (out / "cgram.bin").write_bytes(client.dump("dump_cgram"))

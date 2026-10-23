@@ -132,6 +132,10 @@ bool Assets_Load(Assets *assets, const char *dir) {
         !LoadOne(&assets->hud_slots, dir, "hud_slots.png")) {
         fprintf(stderr, "assets: HUD elements missing; HUD disabled\n");
     }
+    if (!LoadOne(&assets->font, dir, "font.png")) {
+        fprintf(stderr, "assets: font.png missing; dialogue text disabled\n");
+        memset(&assets->font, 0, sizeof(assets->font));
+    }
     if (!Anim_Load(&assets->player_anim, dir)) {
         fprintf(stderr,
                 "assets: player_anim.json missing; using the static idle sprite\n");
@@ -185,6 +189,8 @@ void Assets_Unload(Assets *assets) {
         UnloadTexture(assets->hud_bar);
     if (IsTextureValid(assets->hud_slots))
         UnloadTexture(assets->hud_slots);
+    if (IsTextureValid(assets->font))
+        UnloadTexture(assets->font);
     Anim_Unload(&assets->player_anim);
     ProjectileAnim_Unload(&assets->projectile_anim);
     memset(assets, 0, sizeof(*assets));

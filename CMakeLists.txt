@@ -53,6 +53,7 @@ add_executable(demonscrest
     src/audio.c
     src/camera.c
     src/render.c
+    src/text.c
     external/cJSON/cJSON.c
 )
 

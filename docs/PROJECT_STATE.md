@@ -1938,9 +1938,24 @@ Done:
    order/character table worth inspecting when the text renderer needs the
    exact symbol layout.
 
-Next: `src/text.c` (glyph drawing from `font.png`, page/line control codes) and
-a dialogue state that reads `text_strings.json`, then index the script table and
-wire the intro/cutscenes/ending text.
+5. `src/text.c` / `src/text.h`: `Text_LoadScript` parses `text_strings.json`
+   (up to 64 strings, 6 pages, 8 lines), `Text_DrawString` draws 8x8 glyphs from
+   `font.png` with a tint and `Text_DrawPage` paints a dialogue box. `Game_Render`
+   shows page 0 of the first string behind `DC_DIALOGUE=1` (page advances every
+   120 frames) as a dev hook; the regression suite runs without it.
+
+Open problem: the **BG3 font CHR location is not confirmed**. The menu tilemap
+really does store ASCII tile numbers (`0x46/0x49/0x52/0x45` = FIRE), but
+decoding those tiles at the candidate character bases (`$5000` words,
+`$2800`, `0`, `0x400`, `0x800`, 4bpp variants) yields non-glyph fragments, so
+`font.png` currently bakes the wrong tiles and the `DC_DIALOGUE` view renders
+garbage. Next steps: check the PPU VRAM remap mode / mid-frame uploads, try the
+font as a contiguous block located by searching VRAM for an alphabet-shaped
+16-tile run, or capture the menu with `dump_frame_vram` for the exact rendered
+frame. The text strings and control codes are unaffected.
+
+Next: fix the font CHR source, then index the script table and wire the
+intro/cutscenes/ending text.
 
 ---
 

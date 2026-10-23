@@ -12,6 +12,7 @@
 #include "projectile.h"
 #include "object.h"
 #include "raylib.h"
+#include "text.h"
 
 /* Native password: 10 symbols, see Game_PasswordEncode. */
 #define DC_PASSWORD_LEN 10
@@ -45,6 +46,8 @@ typedef struct Game {
     int password_pos;
     int password_status; /* 0 neutral, 1 accepted, -1 invalid */
     bool campaign_mode;
+    TextScript script;
+    bool script_ready;
     bool has_save;
     bool prev_up;
     bool prev_down;

@@ -418,6 +418,8 @@ bool Game_Init(Game *game, const char *asset_dir) {
 
     game->ready = true;
     game->has_save = Game_HasSave();
+    if (getenv("DC_DIALOGUE"))
+        game->script_ready = Text_LoadScript(&game->script, asset_dir);
     const char *password_env = getenv("DC_PASSWORD");
     if (password_env && *password_env) {
         if (Game_ApplyPassword(game, password_env)) {
@@ -1223,6 +1225,18 @@ void Game_Render(Game *game) {
     }
     if (game->state != GAME_PLAYING)
         DrawOverlay(game);
+    if (game->script_ready && game->script.count > 0) {
+        /* Dev hook (`DC_DIALOGUE=1`): show the extracted ROM script with the
+         * baked BG3 font, advancing a page every two seconds. The real
+         * dialogue state will drive this from story events instead. */
+        int pages = game->script.page_count[0];
+        int page = pages > 0 ? (game->state_timer / 120) % pages : 0;
+        int height = Text_DrawPage(&game->assets, &game->script, 0, page, 16,
+                                   150, 216, (Color){240, 236, 220, 255});
+        if (height > 0)
+            Text_DrawString(&game->assets, "ENTER NEXT", 16,
+                            150 + height + 6, (Color){170, 170, 185, 255});
+    }
     EndTextureMode();
 }
 

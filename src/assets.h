@@ -42,6 +42,7 @@ typedef struct Assets {
     int species_count;
     Texture2D hud_bar;
     Texture2D hud_slots;
+    Texture2D font; /* BG3 ASCII font mask (font.png + font.json) */
     PlayerAnim player_anim;
     ProjectileAnim projectile_anim;
     bool ready;
