@@ -40,6 +40,7 @@ typedef struct Game {
     bool stage_select; /* overworld stage list overlay */
     int stage_sel;
     int pause_flash; /* frames the SAVED hint stays visible */
+    int intro_timer; /* frames the area-entry banner stays visible */
     float overworld_x;
     float overworld_y;
     float overworld_angle;

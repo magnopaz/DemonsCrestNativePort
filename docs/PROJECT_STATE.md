@@ -2311,6 +2311,23 @@ Next: keep `DC_BG2_MERGE_FRAMES` for areas whose backdrops really are streamed
 
 ---
 
+### Step 30 — Area entry banner (done)
+
+Every area entry (initial load, `Game_Reset`, or `Game_TransitionToArea`) arms
+`Game.intro_timer = 110`. While it runs and the game is playing, a banner fades
+in over 20 frames, holds, and fades out over the last 25:
+
+```
+STAGE 02        (or BOSS STAGE / AREA from the room classification)
+WORLD 2048x512
+```
+
+This gives the player orientation when arriving through the stage select, and
+surfaces the room classification in-game. Verified by screenshot (STAGE 02 over
+Area 2) and the regression suite stays green.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

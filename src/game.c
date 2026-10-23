@@ -40,6 +40,7 @@ static const char *const kTalismanNames[] = {
 };
 
 static void Game_Reset(Game *game) {
+    game->intro_timer = 110;
     Player_Init(&game->player, &game->level);
     Projectiles_Init(&game->projectiles);
     Objects_Init(&game->objects, &game->level);
@@ -68,6 +69,7 @@ bool Game_TransitionToArea(Game *game, int area_id, int spawn_id) {
     }
     Assets_LoadAreaBg(&game->assets, game->level.area_id);
     Player_Init(&game->player, &game->level);
+    game->intro_timer = 110;
     game->player.max_hp = saved.max_hp > 0 ? saved.max_hp : 6;
     game->player.hp = saved.hp > 0 ? saved.hp : game->player.max_hp;
     game->player.crests_mask = saved.crests_mask;
@@ -393,6 +395,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
     }
     Assets_LoadAreaBg(&game->assets, game->level.area_id);
     Player_Init(&game->player, &game->level);
+    game->intro_timer = 110;
     Projectiles_Init(&game->projectiles);
     Objects_Init(&game->objects, &game->level);
     Camera_Init(&game->camera, &game->level);
@@ -1247,6 +1250,8 @@ void Game_Update(Game *game) {
     }
     if (game->pause_flash > 0)
         game->pause_flash--;
+    if (game->state == GAME_PLAYING && game->intro_timer > 0)
+        game->intro_timer--;
     Game_TraceFrame(game);
     Game_SyncMusic(game);
     Audio_Update();
@@ -1356,6 +1361,33 @@ static void DrawOverworld(const Game *game) {
              (Color){235, 210, 120, 255});
     DrawCentered("ARROWS FLY   ENTER LAND   C SHOP", 208, 10,
                  (Color){200, 200, 200, 255});
+}
+
+/* Brief area-entry banner: fades in, holds, fades out. */
+static void DrawAreaBanner(const Game *game) {
+    if (game->intro_timer <= 0 || game->state != GAME_PLAYING)
+        return;
+    int t = game->intro_timer;
+    float alpha = 1.0f;
+    if (t > 90)
+        alpha = (float)(110 - t) / 20.0f;
+    else if (t < 25)
+        alpha = (float)t / 25.0f;
+    if (alpha < 0.0f)
+        alpha = 0.0f;
+    if (alpha > 1.0f)
+        alpha = 1.0f;
+    unsigned char a = (unsigned char)(alpha * 235.0f);
+    int kind = Assets_RoomKind(&game->assets, game->level.area_id);
+    const char *tag = kind == 1 ? "STAGE" : kind == 2 ? "BOSS STAGE" : "AREA";
+    DrawRectangle(48, 34, 160, 30,
+                  (Color){8, 8, 16, (unsigned char)(a * 0.85f)});
+    DrawRectangleLines(48, 34, 160, 30, (Color){200, 176, 110, a});
+    DrawCentered(TextFormat("%s %02d", tag, game->level.area_id), 38, 12,
+                 (Color){240, 232, 200, a});
+    DrawCentered(TextFormat("WORLD %dx%d", game->level.world_w,
+                            game->level.world_h), 52, 10,
+                 (Color){170, 180, 200, a});
 }
 
 static void DrawSubscreen(const Game *game) {
@@ -1556,6 +1588,7 @@ void Game_Render(Game *game) {
         Render_Game(&game->assets, &game->level, &game->camera,
                     &game->player, &game->projectiles, &game->objects,
                     show_hud, game->input.debug_collision);
+        DrawAreaBanner(game);
     }
     if (game->state != GAME_PLAYING)
         DrawOverlay(game);
