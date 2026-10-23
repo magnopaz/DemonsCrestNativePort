@@ -423,6 +423,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->shop_welcome = Text_Find(&game->script, "BLACK LOTUS");
         game->shop_full_urn = Text_Find(&game->script, "NEED AN URN");
         game->shop_full_vellum = Text_Find(&game->script, "VELLUM IS");
+        game->ending_text = Text_Find(&game->script, "PHALANX WOULD");
         game->dialogue_demo = getenv("DC_DIALOGUE") != NULL;
     }
     const char *password_env = getenv("DC_PASSWORD");
@@ -1002,10 +1003,19 @@ void Game_Update(Game *game) {
             Game_OpenOverworld(game);
         }
         break;
-    case GAME_ENDING:
-        if (game->input.start_pressed)
-            game->state = GAME_TITLE;
+    case GAME_ENDING: {
+        int pages = (game->ending_text >= 0)
+                        ? game->script.page_count[game->ending_text] : 0;
+        if (game->input.start_pressed) {
+            if (game->ending_page + 1 < pages) {
+                game->ending_page++;
+            } else {
+                game->ending_page = 0;
+                game->state = GAME_TITLE;
+            }
+        }
         break;
+    }
     }
     Audio_Update();
 }
@@ -1230,15 +1240,22 @@ static void DrawOverlay(const Game *game) {
                          (Color){255, 255, 255, 255});
     } else if (game->state == GAME_ENDING) {
         DrawRectangle(0, 0, 256, 224, (Color){4, 6, 12, 240});
-        DrawCentered("THE DEMON'S CREST", 40, 18,
+        DrawCentered("THE DEMON'S CREST", 24, 18,
                      (Color){240, 220, 150, 255});
-        DrawCentered("THE PHALANX IS BROKEN", 84, 10,
-                     (Color){200, 220, 255, 255});
+        if (game->ending_text >= 0 && game->script_ready) {
+            /* Real ending narration ($81:8DF2 pages). */
+            Text_DrawPage(&game->assets, &game->script, game->ending_text,
+                          game->ending_page, 16, 56, 224,
+                          (Color){240, 236, 220, 255});
+        } else {
+            DrawCentered("THE PHALANX IS BROKEN", 84, 10,
+                         (Color){200, 220, 255, 255});
+        }
         DrawCentered(TextFormat("MAX HP %d   GOLD %d", game->player.max_hp,
-                                game->player.gold), 116, 10,
+                                game->player.gold), 184, 10,
                      (Color){240, 220, 140, 255});
-        DrawCentered("TRUE ENDING", 152, 12, (Color){150, 255, 190, 255});
-        DrawCentered("PRESS ENTER", 190, 10, (Color){200, 200, 200, 255});
+        if ((game->state_timer / 30) % 2 == 0)
+            DrawCentered("PRESS ENTER", 206, 10, (Color){200, 200, 200, 255});
     }
 }
 

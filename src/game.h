@@ -51,6 +51,8 @@ typedef struct Game {
     int shop_full_urn;
     int shop_full_vellum;
     int shop_message;
+    int ending_text;   /* cached ROM narration index */
+    int ending_page;
     int shop_timer;
     bool dialogue_demo; /* DC_DIALOGUE overlay */
     bool script_ready;

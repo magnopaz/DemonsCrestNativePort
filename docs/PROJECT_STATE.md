@@ -2040,6 +2040,16 @@ Note for sandboxed shells: the game process must be able to write the trace CSV
 where the tool puts it — pass `--tmp <dir>` (or `DC_CHECK_TMP_DIR`) when only a
 specific tree is writable.
 
+### Step 17 — Ending narration from the ROM (done)
+
+The ending screen no longer uses placeholder lines: `Game_Init` caches the
+`"PHALANX WOULD"` script entry and `GAME_ENDING` paginates its three pages with
+Enter (the last page returns to the title), drawn through `Text_DrawPage` with
+the extracted BG3 font. The stats line and title stay as native UI. This is the
+first story beat wired from ROM data to the campaign flow; the same mechanism
+can drive the intro, boss intros and the other endings once their script entries
+are identified.
+
 ---
 
 ## 11. Long-term roadmap
