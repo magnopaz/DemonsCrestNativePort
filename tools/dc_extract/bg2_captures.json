@@ -52,6 +52,31 @@
    "dir": "captures/save1a",
    "frame": 90000,
    "note": "area 34 (save 1a)"
+  },
+  "8": {
+   "dir": "captures/save1b",
+   "frame": 90000,
+   "note": "area 8 city (save 1b)"
+  },
+  "10": {
+   "dir": "captures/save3b",
+   "frame": 90000,
+   "note": "area 10 enemies (save 3b)"
+  },
+  "12": {
+   "dir": "captures/save5b",
+   "frame": 90000,
+   "note": "area 12 (save 5b)"
+  },
+  "14": {
+   "dir": "captures/save7b",
+   "frame": 90000,
+   "note": "area 14 dark candle (save 7b)"
+  },
+  "16": {
+   "dir": "captures/save9b",
+   "frame": 90000,
+   "note": "area 16 boss (save 9b)"
   }
  }
 }

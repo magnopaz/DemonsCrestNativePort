@@ -2686,6 +2686,30 @@ Regression stays green after regenerating the assets.
 
 ---
 
+### Step 47 — Second save batch: city, forest, water, cave, boss (done)
+
+Twelve more saves (`save0b..save11b`) covering the next area:
+
+- **Areas captured:** 8 (city), 10 (forest/water), 12, 14 (dark cave) and 16
+  (boss room). With the earlier set, **14 areas** now have real backdrops
+  (`bg2_captures.json`); screenshots show the town skyline, the water/vine room
+  and the cave.
+- **Species added:** `$08` (46x48), `$10` (27x48), `$81` (70x36) from areas
+  10/12 and **`$6C` (16x16)** — the tiny eyeball from the Area 16 boss fight.
+- **Boss-part detection:** the object-pool filter was too strict (`flags & 0x80`);
+  boss parts use other bits, so probes now accept any non-zero flag/species
+  pair. That exposed the Area 16 parts: `$6C` x10 (tiny eyeballs), `$6B`, `$69`,
+  `$6D`, `$21` — and `$6C` baked into a clean 16x16 sheet. The large eyeball and
+  tentacle clusters (119 parts, fill 0.12) are still rejected as fragmented.
+- **Cave darkness:** Area 14 renders dark, which matches the candle gimmick; the
+  port has no candle/lighting logic yet, so it stays dark (documented).
+- City NPC dialogue was not captured: save1b has no live NPC object at the
+  sampled frame (NPCs may be level sprites or spawn on interaction).
+
+Regression PASS after regenerating the assets.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
