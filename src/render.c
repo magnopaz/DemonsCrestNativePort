@@ -6,16 +6,23 @@
 #include "raylib.h"
 
 static void DrawLayerBand(const Assets *assets, const BgLayer *layer,
-                          int area_id, bool wrap_x, float origin_x,
-                          float origin_y, int y_min, int y_max) {
+                          int area_id, bool wrap_x, bool wrap_y,
+                          float origin_x, float origin_y, int y_min,
+                          int y_max) {
     int tx0 = (int)floorf(origin_x / 8.0f);
     int ty0 = (int)floorf((origin_y + (float)y_min) / 8.0f);
     int tx1 = (int)floorf((origin_x + 256.0f) / 8.0f) + 1;
     int ty1 = (int)floorf((origin_y + (float)y_max) / 8.0f) + 1;
 
     for (int ty = ty0; ty <= ty1; ty++) {
-        if (ty < 0 || ty >= layer->map_h)
+        int map_ty = ty;
+        if (wrap_y && layer->map_h > 0) {
+            map_ty %= layer->map_h;
+            if (map_ty < 0)
+                map_ty += layer->map_h;
+        } else if (ty < 0 || ty >= layer->map_h) {
             continue;
+        }
         float dst_y = (float)ty * 8.0f - origin_y;
         if (dst_y + 8.0f <= (float)y_min || dst_y >= (float)y_max)
             continue;
@@ -28,7 +35,7 @@ static void DrawLayerBand(const Assets *assets, const BgLayer *layer,
             } else if (tx < 0 || tx >= layer->map_w) {
                 continue;
             }
-            uint16_t word = layer->tiles[ty * layer->map_w + map_tx];
+            uint16_t word = layer->tiles[map_ty * layer->map_w + map_tx];
             int tile = word & 0x3FF;
             int pal = (word >> 10) & 7;
             if (pal >= DC_BG_PALETTES)
@@ -74,8 +81,11 @@ static void DrawLayer(const Assets *assets, const BgLayer *layer,
     float offset_y = (float)layer->scroll_y - level->camera_y;
     bool wrap_x = layer->map_w < level->bg[1].map_w ||
                   layer == &level->bg[0];
+    /* A captured backdrop is one screen of a much larger room: tile it in both
+     * axes rather than leaving black gaps where the capture ends. */
+    bool wrap_y = layer == &level->bg[0] && level->world_h > 256;
     float origin_y = camera->y + offset_y;
-    if (layer == &level->bg[0] && level->world_h > 256)
+    if (wrap_y && layer->map_h * 8 > 224)
         origin_y = fmodf(camera->y * 0.5f, (float)(layer->map_h * 8 - 224));
 
     if (layer->hdma_band_count > 0 && getenv("DC_NO_HDMA") == NULL) {
@@ -87,16 +97,16 @@ static void DrawLayer(const Assets *assets, const BgLayer *layer,
                 next_y = 224;
             float band_x = (float)layer->scroll_x +
                            cam_dx * layer->hdma_bands[b].factor;
-            DrawLayerBand(assets, layer, level->area_id, wrap_x, band_x,
-                          origin_y, scan_y, next_y);
+            DrawLayerBand(assets, layer, level->area_id, wrap_x, wrap_y,
+                          band_x, origin_y, scan_y, next_y);
             scan_y = next_y;
         }
         return;
     }
 
     float origin_x = camera->x + offset_x;
-    DrawLayerBand(assets, layer, level->area_id, wrap_x, origin_x, origin_y,
-                  0, 224);
+    DrawLayerBand(assets, layer, level->area_id, wrap_x, wrap_y, origin_x,
+                  origin_y, 0, 224);
 }
 
 static Color CrestTint(int crest_form, int invuln_timer) {

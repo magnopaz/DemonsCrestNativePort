@@ -2287,6 +2287,25 @@ whole room. Tracked as a BG2 coverage issue (capture-only data).
 
 ---
 
+### Step 29 — BG2 frame merging and the Area 3 gap diagnosis (done)
+
+- `extract.py` can now merge CHR/tilemap words across sampled frames of a BG2
+  capture (`DC_BG2_MERGE_FRAMES`, default 40). The backdrop atlas for a captured
+  area therefore includes tiles that were streamed in at other camera
+  positions instead of only the manifest frame.
+- Diagnosis of the Area 3 black band: it is **not** an atlas or palette issue —
+  every CHR base decodes a full atlas (base 0 yields the most content) and the
+  BG2 layer is 64x32 tiles, i.e. 512x256 px against a 1024x1280 room. The band
+  comes from tilemap words that were still zero when the frame was captured
+  (BG2 is streamed per screen), and from BG1 block coverage for the lower rows
+  of the tall room. The real fix is a panorama stitcher that aligns several
+  captured frames by scroll offset into a room-sized tilemap; the merge added
+  here is a step toward it, not the complete solution.
+- Verified: assets regenerate with the merge (`bg2 capture area 3: merged 24
+  frames`), regression PASS.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

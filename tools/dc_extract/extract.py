@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import struct
 import sys
 from collections import Counter
@@ -410,6 +411,32 @@ def load_bg2_captures(path: Path | None) -> dict[int, dict]:
                   f"({cap_dir}/f{frame:06d}.json); skipping")
             continue
         vram, cgram, regs = read_capture_frame(cap_dir, frame)
+        # BG2 is streamed per screen, so a single frame only holds the window
+        # the camera currently sees (the rest is zero -> black gaps). Merge the
+        # CHR/tilemap words across sampled frames of the same capture so the
+        # backdrop covers more of the room.
+        merge = int(os.environ.get("DC_BG2_MERGE_FRAMES", "40"))
+        if merge > 1:
+            frames = sorted(cap_dir.glob("f*.json"))
+            step = max(1, len(frames) // merge)
+            merged = list(vram)
+            for other in frames[::step][:merge]:
+                try:
+                    n = int(other.stem[1:])
+                except ValueError:
+                    continue
+                if n == frame:
+                    continue
+                try:
+                    ovram, _ocgram, _oregs = read_capture_frame(cap_dir, n)
+                except Exception:
+                    continue
+                for i, w in enumerate(ovram):
+                    if not merged[i] and w:
+                        merged[i] = w
+            vram = merged
+            print(f"bg2 capture area {area}: merged {min(merge, len(frames[::step]))} "
+                  f"frames for CHR/tilemap coverage")
         out[area] = {"vram": vram, "cgram": cgram, "regs": regs,
                      "dir": cap_dir, "frame": frame}
     return out

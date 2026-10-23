@@ -310,6 +310,9 @@ Acceptance:
 - [x] Campaign-wide load coverage: `tools/check_areas.py` boots all 113 rooms
   headless and validates exit/frame count/player bounds; the full sweep passes
   and a 12-area subset runs in `run_regression.py`.
+- [ ] BG2 panorama stitching: align captured frames by scroll into a
+  room-sized backdrop. **Partial:** multi-frame CHR/tilemap merging is in
+  `extract.py` (`DC_BG2_MERGE_FRAMES`); offset alignment is the next step.
 - [ ] Per-room geometry/collision validation tooling. **Partial:** the audit
   covers dimensions, BG1/collision coverage, BG2 presence, spawn support,
   object bounds and transition/gate targets; per-tile oracle diffing remains.
