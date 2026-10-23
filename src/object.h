@@ -15,6 +15,7 @@
 #define OBJECT_EVENT_ENEMY_HIT 0x04
 #define OBJECT_EVENT_BOSS_DEFEATED 0x08
 #define OBJECT_EVENT_CREST_PICKUP 0x10
+#define OBJECT_EVENT_FIRE_PIECE 0x20
 
 typedef enum ObjectType {
     OBJECT_NONE = 0,
@@ -52,6 +53,7 @@ typedef struct ObjectPool {
     int events; /* one-frame sound/effect flags */
     bool boss_alive;
     bool boss_defeated;
+    int last_fire_piece; /* 1..4 = Buster/Tornado/Claw/Demon Fire */
 } ObjectPool;
 
 void Objects_Init(ObjectPool *pool, const Level *level);

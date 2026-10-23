@@ -231,6 +231,14 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
         if (o->type == OBJECT_CREST_ITEM) {
             o->timer++;
             if (PlayerTouches(o, player)) {
+                /* Crest pieces in the original grant the next Fire-Crest
+                 * element ($BE:A427..A533: Buster, Tornado, Claw, Demon Fire)
+                 * before they become plain stat upgrades. */
+                if (player->fire_element < 4) {
+                    player->fire_element++;
+                    pool->last_fire_piece = player->fire_element;
+                    pool->events |= OBJECT_EVENT_FIRE_PIECE;
+                }
                 if (player->max_hp < 10)
                     player->max_hp++;
                 player->hp = player->max_hp;

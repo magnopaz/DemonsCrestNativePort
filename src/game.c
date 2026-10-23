@@ -393,7 +393,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->trace = fopen(trace_path, "w");
         if (game->trace) {
             fprintf(game->trace,
-                    "frame,player_x,player_y,vx,vy,state,camera_x,camera_y,hp,max_hp,area,form,gold\n");
+                    "frame,player_x,player_y,vx,vy,state,camera_x,camera_y,hp,max_hp,area,form,gold,fire\n");
         } else {
             fprintf(stderr, "game: cannot open trace file %s\n", trace_path);
         }
@@ -438,6 +438,10 @@ bool Game_Init(Game *game, const char *asset_dir) {
             Text_Find(&game->script, "CREST OF \"WATER\"");
         game->crest_text[CREST_TIME] =
             Text_Find(&game->script, "CREST OF \"TIME\"");
+        game->fire_text[1] = Text_Find(&game->script, "\"BUSTER\"");
+        game->fire_text[2] = Text_Find(&game->script, "\"TORNADO\"");
+        game->fire_text[3] = Text_Find(&game->script, "\"CLAW\"");
+        game->fire_text[4] = Text_Find(&game->script, "\"DEMON FIRE\"");
         game->dialogue_demo = getenv("DC_DIALOGUE") != NULL;
     }
     const char *password_env = getenv("DC_PASSWORD");
@@ -485,6 +489,17 @@ bool Game_Init(Game *game, const char *asset_dir) {
 
     /* Dev hook: jump straight into a story page for deterministic captures
      * (`DC_STORY_TEST=<crest index>`, optional `DC_STORY_PAGE`). */
+    const char *fire_test = getenv("DC_FIRE_TEST");
+    if (fire_test && *fire_test && game->script_ready) {
+        int piece = atoi(fire_test);
+        if (piece >= 1 && piece <= 4 && game->fire_text[piece] >= 0) {
+            game->dialogue_text = game->fire_text[piece];
+            const char *page = getenv("DC_STORY_PAGE");
+            game->dialogue_page = page ? atoi(page) : 0;
+            game->dialogue_return = GAME_TITLE;
+            game->state = GAME_DIALOGUE;
+        }
+    }
     const char *story_test = getenv("DC_STORY_TEST");
     if (getenv("DC_STORY_DEBUG"))
         fprintf(stderr, "story: ready=%d crest_text=[%d %d %d %d %d %d]\n",
@@ -515,8 +530,11 @@ bool Game_Init(Game *game, const char *asset_dir) {
     return true;
 }
 
+static bool Game_NarrativeEnabled(void);
+
 static void Game_UpdateSimulation(Game *game) {
     game->objects.events = 0;
+    game->objects.last_fire_piece = 0;
     Player_Update(&game->player, &game->level, &game->input);
     if (game->player.jump_started)
         Audio_Play(SFX_JUMP);
@@ -534,6 +552,17 @@ static void Game_UpdateSimulation(Game *game) {
     }
     Objects_CheckProjectiles(&game->objects, &game->projectiles);
     Objects_Update(&game->objects, &game->level, &game->player);
+    if ((game->objects.events & OBJECT_EVENT_FIRE_PIECE) &&
+        Game_NarrativeEnabled()) {
+        int piece = game->objects.last_fire_piece;
+        if (piece >= 1 && piece <= 4 && game->fire_text[piece] >= 0) {
+            game->dialogue_text = game->fire_text[piece];
+            game->dialogue_page = 0;
+            game->dialogue_return = GAME_PLAYING;
+            game->state = GAME_DIALOGUE;
+            game->state_timer = 0;
+        }
+    }
     if (game->player.hurt_event)
         Audio_Play(SFX_HURT);
     if (game->objects.events & OBJECT_EVENT_BREAK)
@@ -577,12 +606,13 @@ static void Game_UpdateSimulation(Game *game) {
 
     if (game->trace) {
         fprintf(game->trace,
-                "%u,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%d,%d,%d,%d,%d\n",
+                "%u,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%d,%d,%d,%d,%d,%d\n",
                 game->frame, game->player.x, game->player.y,
                 game->player.vx, game->player.vy, (int)game->player.state,
                 game->camera.x, game->camera.y, game->player.hp,
                 game->player.max_hp, game->level.area_id,
-                game->player.crest_form, game->player.gold);
+                game->player.crest_form, game->player.gold,
+                game->player.fire_element);
     }
     if (game->projectile_trace) {
         for (int i = 0; i < PROJECTILE_POOL_SIZE; i++) {

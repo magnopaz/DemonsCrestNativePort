@@ -2097,6 +2097,26 @@ dialogue pairs) and for the item-found messages (`$BE:A427..A533`).
 
 ---
 
+### Step 20 — Fire-crest piece pickups (done)
+
+- Crest-item objects (`0x49`/`0x24`/`0x2D`/`0x2E`) now grant the next
+  **Fire-Crest element** (Buster → Tornado → Claw → Demon Fire) before their
+  stat bonus, matching the ROM's own `"YOU GOT THE PIECE OF THE FIRE CREST
+  CALLED ..."` pages (`$BE:A427..A533`). The pool raises
+  `OBJECT_EVENT_FIRE_PIECE` and `Game_UpdateSimulation` opens `GAME_DIALOGUE`
+  with that piece's pages (narrative runs only).
+- `DC_FIRE_TEST=<1..4>` opens a piece page directly for screenshots, and the
+  player trace CSV gained a `fire` column so the flow is assertable.
+- Regression now walks into the area-3 piece and asserts `fire` goes 0 → 1.
+
+Verification: page 2 renders `"TORNADO" / WITH IT YOU CAN JUMP` through the
+normalised text path; regression PASS.
+
+Next: boss-intro dialogue using the `$BE:B947..C128` Phalanx sets once their
+area mapping is pinned down, and the intro before Area 0.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

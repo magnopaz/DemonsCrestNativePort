@@ -241,6 +241,15 @@ def main() -> int:
         check(bool(rows13) and int(rows13[0]["area"]) == 0,
               "demo13: title NEW GAME did not enter Area 0")
 
+        # ---- Fire crest piece: walking into the pickup grants an element ----
+        fire_demo = run_demo(base, out, 1, 200,
+                             {"DC_AREA": "3", "DC_START_X": "400",
+                              "DC_START_Y": "440"})
+        fire_rows = csv_rows(fire_demo["player"])
+        fire_vals = [int(r["fire"]) for r in fire_rows]
+        check(fire_vals and fire_vals[0] == 0 and fire_vals[-1] >= 1,
+              "fire: crest piece pickup did not grant a fire element")
+
         # ---- Campaign load coverage: representative areas ----
         subset = "0,1,2,3,4,5,17,21,25,46,92,109"
         area_proc = subprocess.run(

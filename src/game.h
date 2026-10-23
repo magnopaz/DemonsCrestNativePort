@@ -57,6 +57,7 @@ typedef struct Game {
     int dialogue_page;
     int dialogue_return; /* state after the last page */
     int crest_text[6];   /* cached "YOU HAVE FOUND THE CREST OF ..." */
+    int fire_text[5];    /* cached "YOU GOT THE PIECE OF THE FIRE CREST ..." */
     int shop_timer;
     bool dialogue_demo; /* DC_DIALOGUE overlay */
     bool script_ready;

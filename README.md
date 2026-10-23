@@ -408,6 +408,7 @@ These environment variables exist for deterministic testing:
 | `DC_PASSWORD_SELFTEST=1` | Run password codec round-trips and exit (CI) |
 | `DC_NO_STORY=1` | Skip the crest/item story beats |
 | `DC_STORY_TEST=<crest>` / `DC_STORY_PAGE=n` | Open a story page directly |
+| `DC_FIRE_TEST=<1..4>` | Open a fire-crest piece page directly |
 | `SNESRECOMP_LAYER_MASK` | On the recomp side, isolate BG/OBJ layers for comparison |
 
 Example:
