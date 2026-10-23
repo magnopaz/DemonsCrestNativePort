@@ -700,6 +700,16 @@ static void Game_HandleDeath(Game *game) {
     game->state_timer = 0;
 }
 
+/* Dev hooks: place the ship for deterministic landing tests. */
+static void Game_OverworldHookPosition(Game *game) {
+    const char *ox = getenv("DC_OVERWORLD_X");
+    const char *oy = getenv("DC_OVERWORLD_Y");
+    if (ox && *ox)
+        game->overworld_x = (float)atof(ox);
+    if (oy && *oy)
+        game->overworld_y = (float)atof(oy);
+}
+
 static void Game_OpenOverworld(Game *game) {
     (void)Game_SaveProgress(game);
     game->state = GAME_OVERWORLD;
@@ -708,6 +718,7 @@ static void Game_OpenOverworld(Game *game) {
     game->overworld_y = 176.0f;
     game->overworld_angle = 0.0f;
     game->overworld_node = CAMPAIGN_GRAVEYARD;
+    Game_OverworldHookPosition(game);
 }
 
 /* Deterministic test runs fast-forward story beats; players see them. */

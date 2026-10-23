@@ -250,6 +250,16 @@ def main() -> int:
         check(any(int(r["area"]) == 0 for r in rows13),
               "demo13: title NEW GAME did not enter Area 0")
 
+        # ---- End-to-end campaign playthrough ----
+        play = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_playthrough.py"),
+             "--binary", str(binary), "--assets", str(assets),
+             "--tmp", str(out)],
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=300)
+        check(play.returncode == 0,
+              "playthrough: campaign flow failed\n" + play.stdout[-800:])
+
         # ---- Boss entries clear when the boss is defeated ----
         boss_proc = subprocess.run(
             [sys.executable, str(ROOT / "tools" / "check_campaign.py"),

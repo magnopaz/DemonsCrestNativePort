@@ -299,6 +299,8 @@ Acceptance:
 - [ ] Full-campaign regression against the recomp (movement, collisions,
   objects, bosses, transitions). **Partial:** `tools/audit_campaign.py` now
   validates every generated room structurally and can gate CI with `--strict`.
+- [x] End-to-end playthrough check (`tools/check_playthrough.py`): title →
+  clear → overworld → stage travel → boss clear → ending, all six steps green.
 - [x] Campaign completion test: every boss stage entry reaches GAME_CLEAR
   (`tools/check_campaign.py`, 7/7) with per-frame state tracing.
 - [x] Stage-select overlay listing all 66 stage-entry rooms (every area

@@ -2203,6 +2203,29 @@ instrumentation once the ROM's music format is decoded.
 
 ---
 
+### Step 25 — End-to-end campaign playthrough check (done)
+
+`tools/check_playthrough.py` drives the shipping binary through the whole
+campaign loop with deterministic hooks and asserts each observed `GameState`:
+
+1. title → NEW GAME → **Area 0** (playing);
+2. Area 0 boss defeated → **GAME_CLEAR**;
+3. `GAME_CLEAR` + Enter → **overworld**;
+4. overworld stage select + Enter → **Area 16** (playing);
+5. Area 49 boss defeated → **GAME_CLEAR**;
+6. overworld keep node + Enter (password with 4 stages cleared) → **GAME_ENDING**.
+
+All six steps pass, and the run is part of `run_regression.py`. Supporting hooks:
+`DC_OVERWORLD_X/Y` place the ship, demo 31 confirms the node, and the password
+encoder in the tool mirrors the native base-20 codec (note: the alphabet string
+has 21 characters but both encoder and decoder use 20 symbols).
+
+This is the strongest evidence that the **original campaign loop is playable end
+to end** in the port: start, clear, map, stage travel, boss clears and the
+ending all work through the real game code.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
