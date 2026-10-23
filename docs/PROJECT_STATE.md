@@ -2614,6 +2614,20 @@ regression PASS.
 
 ---
 
+### Step 44 — Release build verification (done)
+
+A **clean** configure + build (`cmake -G Ninja -DDC_RAYLIB_ROOT=...` in an empty
+directory) was run and the whole sweep executed against that binary:
+
+- `run_regression.py` — **PASS**
+- `check_areas.py` — **113/113 ok**
+- `check_campaign.py` — **7/7 boss entries clear** (59 traversal stages)
+- `check_playthrough.py` — **6/6 steps**
+
+The README now documents the asset-regeneration pipeline (base extraction,
+optional save-state captures, world map, endings) so a fresh clone can rebuild
+everything from the ROM and captures.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

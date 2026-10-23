@@ -341,6 +341,31 @@ make/ninja.
 
 Use `--assets <dir>` to load assets from another directory.
 
+## Regenerating assets
+
+`assets/generated/` and `captures/` are ROM-derived and git-ignored, so a fresh
+clone needs one extraction pass (ROM required, no assets are redistributed):
+
+```powershell
+# 1. Base extraction from the ROM + a gameplay capture set
+python tools/dc_extract/extract.py --rom "<rom>" --dump captures\graveyard `
+    --prefix stage_600 --area 1 --screens 9,10 --full-room --out assets\generated
+
+# 2. Optional: extra areas / shop / map from recomp save states
+python tools/oracle/capture_save_frames.py --save 7  --out captures\save7  --frames 0,20
+python tools/oracle/capture_save_frames.py --save 8  --out captures\save8  --frames 0,20
+python tools/oracle/capture_save_frames.py --save 9  --out captures\save9  --frames 0,20
+python tools/oracle/capture_save_frames.py --save 10 --out captures\save10 --frames 0,20
+python tools/dc_extract/build_world_map.py --capture captures\save11 --frame 61
+python tools/dc_extract/build_endings.py
+
+# 3. Verify
+python tools/run_regression.py --binary build\demonscrest --assets assets\generated
+```
+
+`tools/dc_extract/bg2_captures.json` lists which areas have captured backdrops
+(2, 3, 48, 58, 74); drop new `captures/saveN` frames there to dress more rooms.
+
 ## Status & verification
 
 The port is playable from the title screen through the campaign loop to the
