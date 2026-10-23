@@ -194,6 +194,25 @@ def main() -> int:
             print(f"  species {key}: {len(frames)} pose(s) "
                   f"{[f['texture'] for f in frames]}")
 
+    # Drop ambiguous sheets: when two species produce byte-identical images the
+    # capture did not actually show their own sprite (both fell back to the same
+    # object), so rendering them would duplicate one creature everywhere. Those
+    # species are left out of the manifest and the renderer draws a silhouette.
+    import hashlib
+    digest_to_keys: dict[str, list[str]] = {}
+    for key, entry in out_species.items():
+        for frame in entry["frames"]:
+            path = args.out / frame["texture"]
+            if path.is_file():
+                h = hashlib.sha256(path.read_bytes()).hexdigest()
+                digest_to_keys.setdefault(h, []).append(key)
+    ambiguous = {k for keys in digest_to_keys.values() if len(set(keys)) > 1
+                 for k in keys}
+    if ambiguous:
+        for key in sorted(ambiguous):
+            out_species.pop(key, None)
+        print(f"extract_species: dropped ambiguous sheets {sorted(ambiguous)}")
+
     (args.out / "species_anim.json").write_text(
         json.dumps({"species": out_species}, indent=1))
     if skipped_player:

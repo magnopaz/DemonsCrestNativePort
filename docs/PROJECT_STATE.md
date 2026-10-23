@@ -2247,6 +2247,27 @@ why the regression sets it.
 
 ---
 
+### Step 27 — Species sheet validation and enemy silhouettes (done)
+
+- `extract_species.py` now **drops ambiguous sheets**: when two species produce
+  byte-identical images the capture did not show either species' own sprite
+  (both injections fell back to the same object). Current result: `08`, `10`,
+  `2C`, `96` and `A5` are rejected, leaving trustworthy sheets for `07`, `2D`,
+  `49`, `57` and `67`.
+- `render.c` no longer falls back to the player's sprites for species without a
+  sheet. It draws a small silhouette (body, head, eyes, legs; larger with horns
+  for bosses) tinted from the species id, so rooms no longer look full of
+  Firebrand clones. Example: the Area 2 skeletons now stand as distinct
+  silhouettes beside the player.
+- Verified: species manifest has 5 sheets, regression PASS, Area 0/2 captures
+  show the new placeholders.
+
+Remaining sprite gap: the ROM's metasprite groups compose from the decompressed
+area OBJ CHR (base tile `0x60`), but the species→group mapping is still unknown,
+so authentic frames cannot be baked offline yet.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

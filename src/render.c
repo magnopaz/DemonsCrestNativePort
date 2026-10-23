@@ -242,21 +242,48 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                                  (float)sf->texture.height * scale};
                 DrawTexturePro(sf->texture, src, dst, (Vector2){0, 0}, 0.0f,
                                WHITE);
-            } else if (assets->enemy_frames > 0) {
-                int frame = (o->timer / 8) % assets->enemy_frames;
-                Texture2D tex = assets->enemy[frame];
-                Color tint = WHITE;
-                if (o->species == 0x2C)
-                    tint = (Color){210, 230, 255, 255};
-                else if (o->species == 0x07)
-                    tint = (Color){255, 180, 200, 255};
-                float scale = (o->type == OBJECT_BOSS) ? 1.5f : 1.0f;
-                Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
-                Rectangle dst = {x - (float)tex.width * 0.5f * scale,
-                                 y - (float)tex.height * 0.5f * scale,
-                                 (float)tex.width * scale,
-                                 (float)tex.height * scale};
-                DrawTexturePro(tex, src, dst, (Vector2){0, 0}, 0.0f, tint);
+            } else {
+                /* No trustworthy sheet for this species yet (the capture was
+                 * ambiguous): draw a small silhouette so rooms are not filled
+                 * with player clones. */
+                float scale = (o->type == OBJECT_BOSS) ? 1.35f : 1.0f;
+                int shade = 60 + (o->species * 41) % 70;
+                Color body = {(unsigned char)(shade / 2 + 20),
+                              (unsigned char)(shade / 3 + 16),
+                              (unsigned char)(shade + 10), 255};
+                Color eye = (Color){255, 226, 140, 255};
+                float r = 5.0f * scale;
+                float bh = 8.0f * scale;
+                float feet = y;
+                float cy = feet - bh - 4.0f * scale;
+                /* legs */
+                DrawEllipse((int)lroundf(x - r * 0.45f),
+                            (int)lroundf(feet - 2.0f * scale),
+                            (int)lroundf(1.6f * scale),
+                            (int)lroundf(2.4f * scale), body);
+                DrawEllipse((int)lroundf(x + r * 0.45f),
+                            (int)lroundf(feet - 2.0f * scale),
+                            (int)lroundf(1.6f * scale),
+                            (int)lroundf(2.4f * scale), body);
+                DrawEllipse((int)lroundf(x), (int)lroundf(cy),
+                            (int)lroundf(r), (int)lroundf(bh), body);
+                float hy = cy - bh - 2.0f * scale;
+                DrawCircleV((Vector2){x, hy}, 3.6f * scale, body);
+                DrawCircleV((Vector2){x - 1.5f * scale, hy - 0.6f * scale},
+                            1.0f * scale, eye);
+                DrawCircleV((Vector2){x + 1.5f * scale, hy - 0.6f * scale},
+                            1.0f * scale, eye);
+                if (o->type == OBJECT_BOSS) {
+                    float hr = 3.6f * scale;
+                    DrawTriangle((Vector2){x - hr * 0.8f, hy - hr * 0.7f},
+                                 (Vector2){x - hr * 1.4f, hy - hr * 2.2f},
+                                 (Vector2){x - hr * 0.1f, hy - hr * 1.1f},
+                                 body);
+                    DrawTriangle((Vector2){x + hr * 0.8f, hy - hr * 0.7f},
+                                 (Vector2){x + hr * 1.4f, hy - hr * 2.2f},
+                                 (Vector2){x + hr * 0.1f, hy - hr * 1.1f},
+                                 body);
+                }
             }
             if (o->type == OBJECT_BOSS && o->max_hp > 0 && o->hp > 0) {
                 int bw = 48;
