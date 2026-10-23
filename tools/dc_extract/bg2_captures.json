@@ -32,6 +32,26 @@
    "dir": "captures/save9",
    "frame": 61,
    "note": "save9 (area 58)"
+  },
+  "0": {
+   "dir": "captures/save0a",
+   "frame": 90000,
+   "note": "area 0 colosseum (Somulo save 0a)"
+  },
+  "4": {
+   "dir": "captures/save6a",
+   "frame": 90000,
+   "note": "area 4 (save 6a)"
+  },
+  "6": {
+   "dir": "captures/save8a",
+   "frame": 90000,
+   "note": "area 6 Arma (save 8a)"
+  },
+  "34": {
+   "dir": "captures/save1a",
+   "frame": 90000,
+   "note": "area 34 (save 1a)"
   }
  }
 }

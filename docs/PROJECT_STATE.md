@@ -2653,6 +2653,39 @@ ones, captured sprites/backdrops for the remaining areas, HDMA/tile animation,
 ROM BRR audio and the exact retail menus. The campaign plan keeps those as open
 items.
 
+### Step 46 — First-areas saves: captures, species probing, tools (done)
+
+Twelve new recomp saves (save0a..save11a, first areas + Somulo/statue/Arma)
+produced three tooling pieces and four new captured areas:
+
+- `tools/oracle/probe_saves_batch.py` — resumes a list of saves, reports area,
+  player, live object species and writes VRAM/CGRAM/OAM/WRAM dumps per save.
+  Results: save0a area 0 with **species `$33` (Somulo)**, save2a area 2 (`$67`),
+  save5a area 4 (`$67`, `$2C`x2), save6a/7a area 6 (`$26`, `$07`), save8a-11a
+  area 6 (Arma scenes, no boss object at the sampled frame).
+- `tools/dc_extract/probe_to_frames.py` — converts a probe into the extractor's
+  capture-frame format, so `bg2_captures.json` now dresses **areas 0, 4, 6 and
+  34** as well (9 captured areas total). Screenshots show the colosseum walls and
+  torches, the area-4 room and area-6 mountain backdrop.
+- `tools/dc_extract/probe_to_species.py` + `bake_object_sprites.py` — turn live
+  objects into sprite records by clustering OAM entries around the projected
+  object position, with plausibility scoring (fill ratio/aspect) so fragmented
+  sheets are rejected instead of shipped.
+  - Accepted: `$26` (32x48) and `$07` (25x32) plus the existing item/urn/ghoul
+    sheets (`$2D/$49/$57/$67`).
+  - **Rejected as fragmented:** Somulo `$33` and the skeleton `$2C` still fall
+    back to silhouettes. Multi-part bosses need their OAM base/count field
+    (candidate byte offsets `$0D/$0E` in the object record) rather than spatial
+    clustering.
+- `tools/oracle/read_bg3_text.py` decodes a save's BG3 tilemap to ASCII to map
+  cutscene frames onto script entries. The Arma saves sampled at 90 frames show
+  only HUD glyphs, so the dialogue box was not open at that moment; those saves
+  need a few frames of input (or an earlier resume point) to capture the line.
+
+Regression stays green after regenerating the assets.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
