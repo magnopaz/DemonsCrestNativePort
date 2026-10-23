@@ -409,6 +409,7 @@ These environment variables exist for deterministic testing:
 | `DC_NO_STORY=1` | Skip the crest/item story beats |
 | `DC_STORY_TEST=<crest>` / `DC_STORY_PAGE=n` | Open a story page directly |
 | `DC_FIRE_TEST=<1..4>` | Open a fire-crest piece page directly |
+| `DC_LAYER_MASK=<bits>` | Draw only selected BG layers (1 = BG2, 2 = BG1) |
 | `SNESRECOMP_LAYER_MASK` | On the recomp side, isolate BG/OBJ layers for comparison |
 
 Example:

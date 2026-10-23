@@ -2281,28 +2281,33 @@ so authentic frames cannot be baked offline yet.
 - Somulo already had its lunge/leap cycle; both boss families now have a
   projected threat instead of only contact damage.
 
-Note: the Area 3 capture in this run also exposed a large black rectangle on the
-right of the frame — the captured BG2 layer for that area does not cover the
-whole room. Tracked as a BG2 coverage issue (capture-only data).
+Note: layer-separated captures (`DC_LAYER_MASK=1` for BG2, `=2` for BG1) later
+showed that the "black rectangle" in Area 3 is the room's own backdrop: BG2 alone
+draws mountains on the left and cave wall on the right, and the middle of that
+screen is transparent BG2 tiles, so the SNES shows the backdrop colour
+(CGRAM[0] = black) there. Not a port bug.
 
 ---
 
-### Step 29 — BG2 frame merging and the Area 3 gap diagnosis (done)
+### Step 29 — BG2 frame merging and layer-separated diagnosis (done)
 
 - `extract.py` can now merge CHR/tilemap words across sampled frames of a BG2
   capture (`DC_BG2_MERGE_FRAMES`, default 40). The backdrop atlas for a captured
   area therefore includes tiles that were streamed in at other camera
-  positions instead of only the manifest frame.
-- Diagnosis of the Area 3 black band: it is **not** an atlas or palette issue —
-  every CHR base decodes a full atlas (base 0 yields the most content) and the
-  BG2 layer is 64x32 tiles, i.e. 512x256 px against a 1024x1280 room. The band
-  comes from tilemap words that were still zero when the frame was captured
-  (BG2 is streamed per screen), and from BG1 block coverage for the lower rows
-  of the tall room. The real fix is a panorama stitcher that aligns several
-  captured frames by scroll offset into a room-sized tilemap; the merge added
-  here is a step toward it, not the complete solution.
-- Verified: assets regenerate with the merge (`bg2 capture area 3: merged 24
-  frames`), regression PASS.
+  positions instead of only the manifest frame (`bg2 capture area 3: merged 24
+  frames`).
+- **Corrected diagnosis:** the Area 3 "black band" is not missing data. With
+  `DC_LAYER_MASK` the layers can be inspected separately:
+  - BG2 only: mountains on the left, cave wall on the right, transparent middle;
+  - BG1 only: terrain/paths only, everything else transparent;
+  - combined, the transparent middle shows the backdrop colour, and the
+    captured CGRAM[0] for that frame is black.
+  So the port reproduces the hardware output. Every CHR base was also checked
+  (base 0 gives the richest atlas), ruling out a base mismatch.
+- `DC_LAYER_MASK` is now documented in the README hooks table.
+
+Next: keep `DC_BG2_MERGE_FRAMES` for areas whose backdrops really are streamed
+(it is harmless otherwise), and stop treating the Area 3 middle as a bug.
 
 ---
 
