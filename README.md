@@ -410,6 +410,7 @@ These environment variables exist for deterministic testing:
 | `DC_STORY_TEST=<crest>` / `DC_STORY_PAGE=n` | Open a story page directly |
 | `DC_FIRE_TEST=<1..4>` | Open a fire-crest piece page directly |
 | `DC_LAYER_MASK=<bits>` | Draw only selected BG layers (1 = BG2, 2 = BG1) |
+| `DC_BG2_MERGE_FRAMES=<n>` | Frames merged when baking a captured BG2 atlas |
 | `SNESRECOMP_LAYER_MASK` | On the recomp side, isolate BG/OBJ layers for comparison |
 
 Example:

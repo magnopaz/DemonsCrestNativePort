@@ -28,6 +28,7 @@ typedef struct SpeciesSheet {
 typedef struct Assets {
     Texture2D bg_pal[DC_BG_PALETTES];
     Texture2D bg_area[DC_BG_PALETTES];
+    Texture2D bg2_area[DC_BG_PALETTES];
     bool bg_area_ready;
     int bg_area_id;
     char asset_dir[1024];
@@ -55,6 +56,8 @@ bool Assets_Load(Assets *assets, const char *dir);
 void Assets_Unload(Assets *assets);
 void Assets_LoadAreaBg(Assets *assets, int area);
 Texture2D Assets_AreaBg(const Assets *assets, int area, int pal);
+Texture2D Assets_AreaBg2(const Assets *assets, int pal);
+bool Assets_HasAreaBg2(const Assets *assets);
 const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species);
 int Assets_RoomKind(const Assets *assets, int area);
 

@@ -2417,6 +2417,36 @@ handlers; the ROM state machines remain the fidelity target.
 
 ---
 
+### Step 36 — Recomp save-state captures and split BG atlases (done)
+
+The user supplied two late-game recomp saves: `save10.sav` (max health, all
+items/transformations, Area 2 forest) and `save11.sav` (Mode 7 overworld map).
+New tooling loads them and captures real gameplay frames.
+
+- **`tools/oracle/capture_save_frames.py`**: resumes a recomp save, advances a
+  warmup, then writes frames in the extractor's format (`fNNNNNN.json` +
+  `.vram.bin`). It first waits for a *fully lit* frame (`inidisp & 0x0F >= 0x0C`)
+  because `run_to_frame` can stop during blanking and baking those samples
+  produces black atlases. Example:
+  `python tools/oracle/capture_save_frames.py --save 10 --out captures/save10 --frames 0,20,40`.
+- **Split BG atlases:** BG1 and BG2 CHR live at different bases, so one atlas
+  per palette cannot serve both. The extractor now writes
+  `bg_areaN_palP.png` from the ROM-decompressed CHR (BG1) and
+  `bg2_areaN_palP.png` from the captured frame's streamed CHR (BG2), and the
+  renderer picks the BG2 set for layer 0 (`Assets_AreaBg2`,
+  `Assets_HasAreaBg2`). This replaces the earlier (incorrect) attempt to mix
+  both sources into one VRAM image.
+- **Finding:** Area 2 has no BG2 tilemap at all (all-zero words) — its trees are
+  *static level sprites*, so save10's area adds no backdrop. The capture path is
+  in place for areas that do use BG2.
+- Verified: `check_areas` 113/113 and the regression suite pass after the atlas
+  split.
+
+Next: use `save11` to capture the Mode 7 overworld map (registers, tilemap and
+palette) and replace the procedural map with the real one.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

@@ -6,7 +6,7 @@
 #include "raylib.h"
 
 static void DrawLayerBand(const Assets *assets, const BgLayer *layer,
-                          int area_id, bool wrap_x, bool wrap_y,
+                          int area_id, bool wrap_x, bool wrap_y, bool bg2,
                           float origin_x, float origin_y, int y_min,
                           int y_max) {
     int tx0 = (int)floorf(origin_x / 8.0f);
@@ -65,8 +65,13 @@ static void DrawLayerBand(const Assets *assets, const BgLayer *layer,
                 dst.height -= clip;
             }
             if (dst.height > 0.0f) {
-                DrawTexturePro(Assets_AreaBg(assets, area_id, pal), src, dst,
-                               (Vector2){0, 0}, 0.0f, WHITE);
+                Texture2D tex = (bg2 && Assets_HasAreaBg2(assets))
+                                    ? Assets_AreaBg2(assets, pal)
+                                    : Assets_AreaBg(assets, area_id, pal);
+                if (IsTextureValid(tex)) {
+                    DrawTexturePro(tex, src, dst, (Vector2){0, 0}, 0.0f,
+                                   WHITE);
+                }
             }
         }
     }
@@ -98,15 +103,16 @@ static void DrawLayer(const Assets *assets, const BgLayer *layer,
             float band_x = (float)layer->scroll_x +
                            cam_dx * layer->hdma_bands[b].factor;
             DrawLayerBand(assets, layer, level->area_id, wrap_x, wrap_y,
-                          band_x, origin_y, scan_y, next_y);
+                          layer == &level->bg[0], band_x, origin_y, scan_y,
+                          next_y);
             scan_y = next_y;
         }
         return;
     }
 
     float origin_x = camera->x + offset_x;
-    DrawLayerBand(assets, layer, level->area_id, wrap_x, wrap_y, origin_x,
-                  origin_y, 0, 224);
+    DrawLayerBand(assets, layer, level->area_id, wrap_x, wrap_y,
+                  layer == &level->bg[0], origin_x, origin_y, 0, 224);
 }
 
 static Color CrestTint(int crest_form, int invuln_timer) {

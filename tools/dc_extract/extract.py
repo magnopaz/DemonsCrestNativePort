@@ -1056,25 +1056,35 @@ def write_area_bg_atlases(rom: Rom, out: Path, areas: list[int],
                           bg2_captures: dict[int, dict] | None = None) -> None:
     """Bake per-area BG tile atlases.
 
-    Areas with a BG2 capture bake every palette from the capture frame's VRAM
-    and CGRAM, so streamed tiles the static ROM set does not contain are
-    covered too. Areas without a capture still use the ROM CHR + palettes.
+    Two sets are produced:
+
+    * `bg_area<area>_pal<p>.png` from the ROM-decompressed BG CHR at base 0 —
+      used for BG1 (the level geometry), exactly as before.
+    * `bg2_area<area>_pal<p>.png` from the captured frame's VRAM at the BG2 CHR
+      base from `$210B` (high nibble) — used only for the BG2 backdrop, whose
+      streamed CHR lives at a different address than the ROM set.
+
+    Areas without a capture have no BG2 atlas (the layer stays transparent).
     """
     captures = bg2_captures or {}
     for area in areas:
         used = area_used_palettes(rom, area)
+        rom_vram = rom.decompress_area_bg_vram(area)
+        rom_cgram = area_bg_cgram(rom, area)
         capture = captures.get(area)
         if capture is not None:
-            vram = capture["vram"]
-            cgram = capture["cgram"]
-            _w, _h, bg2_tiles = tilemap_linear(vram, capture["regs"]["bgsc"][1])
-            for word in bg2_tiles:
-                used.add((word >> 10) & 7)
-        else:
-            vram = rom.decompress_area_bg_vram(area)
-            cgram = area_bg_cgram(rom, area)
+            cap_vram = capture["vram"]
+            cap_cgram = capture["cgram"]
+            _w, _h, bg2_tiles = tilemap_linear(cap_vram,
+                                               capture["regs"]["bgsc"][1])
+            cap_pals = {(word >> 10) & 7 for word in bg2_tiles}
+            tile_adr = int(str(capture["regs"].get("bgTileAdr", "0x0500")), 16)
+            base_word = ((tile_adr >> 4) & 0x0F) << 11
+            for pal in sorted(cap_pals):
+                make_bg_atlas(cap_vram, cap_cgram, pal, base_word).save(
+                    out / f"bg2_area{area}_pal{pal}.png")
         for pal in sorted(used):
-            make_bg_atlas(vram, cgram, pal).save(
+            make_bg_atlas(rom_vram, rom_cgram, pal).save(
                 out / f"bg_area{area}_pal{pal}.png")
 
 

@@ -249,6 +249,19 @@ void Assets_Unload(Assets *assets) {
     memset(assets, 0, sizeof(*assets));
 }
 
+bool Assets_HasAreaBg2(const Assets *assets) {
+    for (int p = 0; p < DC_BG_PALETTES; p++)
+        if (IsTextureValid(assets->bg2_area[p]))
+            return true;
+    return false;
+}
+
+Texture2D Assets_AreaBg2(const Assets *assets, int pal) {
+    if (pal < 0 || pal >= DC_BG_PALETTES)
+        return (Texture2D){0};
+    return assets->bg2_area[pal];
+}
+
 Texture2D Assets_AreaBg(const Assets *assets, int area, int pal) {
     (void)area;
     if (pal < 0 || pal >= DC_BG_PALETTES)
@@ -266,6 +279,9 @@ void Assets_LoadAreaBg(Assets *assets, int area) {
             if (IsTextureValid(assets->bg_area[p]))
                 UnloadTexture(assets->bg_area[p]);
             memset(&assets->bg_area[p], 0, sizeof(assets->bg_area[p]));
+            if (IsTextureValid(assets->bg2_area[p]))
+                UnloadTexture(assets->bg2_area[p]);
+            memset(&assets->bg2_area[p], 0, sizeof(assets->bg2_area[p]));
         }
         assets->bg_area_ready = false;
     }
@@ -283,6 +299,22 @@ void Assets_LoadAreaBg(Assets *assets, int area) {
             continue;
         SetTextureFilter(tex, TEXTURE_FILTER_POINT);
         assets->bg_area[p] = tex;
+        any = true;
+    }
+    /* BG2 atlases are baked from the captured frame's streamed CHR and live at
+     * a different base than the ROM BG1 set, so they are loaded separately. */
+    for (int p = 0; p < DC_BG_PALETTES; p++) {
+        char name[48];
+        snprintf(name, sizeof(name), "bg2_area%d_pal%d.png", area, p);
+        char path[1200];
+        snprintf(path, sizeof(path), "%s/%s", assets->asset_dir, name);
+        if (!FileExists(path))
+            continue;
+        Texture2D tex = LoadTexture(path);
+        if (!IsTextureValid(tex))
+            continue;
+        SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+        assets->bg2_area[p] = tex;
         any = true;
     }
     assets->bg_area_ready = any;
