@@ -95,8 +95,11 @@ without requiring recomp dumps.
 - [x] Bake per-area BG atlases (`bg_area<N>_pal<P>.png`) from ROM CHR and the
   ROM palette blocks, limited to palettes each area uses, and load them on
   room transitions.
-- [ ] Extract BG2 backdrops and BG3 HUD/font layers directly from ROM CHR +
-  tilemaps for every area. **Partial:** the extractor now takes a per-area BG2
+- [x] BG3 HUD/font layers from ROM CHR: the BG3 character base is `$5000`
+  words (`bgTileAdr & 0xF << 12`); `tools/dc_extract/extract_font.py` bakes the
+  95-glyph 8x8 font used by every text box, and dialogue renders with it.
+- [ ] Extract BG2 backdrops directly from ROM CHR + tilemaps for every area.
+  **Partial:** the extractor takes a per-area BG2
   frame from `tools/dc_extract/bg2_captures.json` and bakes its tilemap plus a
   capture-based atlas (Areas 1 and 3 are baked). The guest generates the BG2
   tilemap at runtime (`$84:A057` DMAs from WRAM `$7F`), so there is no raw ROM
@@ -254,15 +257,16 @@ Current title/pause/Area Clear is a vertical-slice skeleton.
   locking, nearest-node landing and shop access (real ROM map data pending).
 - [ ] Town NPCs, full shop dialogue and the Headbutt minigame.
 - [x] Death, Game Over, Continue and Overworld return flow.
-- [x] Text/dialogue hooks are not implemented yet; the Area 0 Somulo intro
-  exists as a boss fight and Bad/Normal/True ending screens are stubbed.
-- [ ] Text/dialogue system, intro/cutscenes, all multiple endings content and
-  credits. **Format cracked:** the script is plain ASCII with `0x01` line
-  breaks, `0x02` page breaks and `0x5D` page terminators; `extract_text.py`
-  emits 518 strings to `text_strings.json` and `extract_font.py` bakes the BG3
-  ASCII font (`font.png`), and the shop now renders its real ROM dialogue
-  ("WELCOME TO THE BLACK LOTUS", urn/vellum-full messages). The dialogue state
-  and cutscene flow are the next step.
+- [x] Text/dialogue system: ASCII script extraction (518 strings), the BG3
+  font, paging (`GAME_DIALOGUE`), control-character normalisation (`[`, `j`),
+  real shop dialogue, crest/fire-piece story beats and the four endings.
+
+- [x] Four endings (Bad/Normal/Good/True) with transcribed narration, an
+  epilogue wired to ROM text `$81:8DF2`, crest-count gating and a regression
+  check per variant.
+- [ ] Intro/cutscene sequencing (scene camera, timing, per-event script index)
+  and the ending artwork.
+
 - [x] Basic story/event flags, boss gates, crest/item collection tracking and
   stage progression (Area 0 gate and overworld stage bits).
 - [ ] Localization hooks and text encoding.

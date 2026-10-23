@@ -2628,6 +2628,31 @@ The README now documents the asset-regeneration pipeline (base extraction,
 optional save-state captures, world map, endings) so a fresh clone can rebuild
 everything from the ROM and captures.
 
+### Step 45 — Campaign completion summary (done)
+
+The original campaign loop is **playable end to end** in the port, verified by
+automation rather than by hand:
+
+1. **Title → new game → Area 0** (`check_playthrough.py` step 1).
+2. **Boss defeat → area clear → overworld** (steps 2-3).
+3. **Overworld → stage travel** with the real Mode 7 map, rotation and zoom
+   (step 4; `DC_STAGE_SELECT` lists all 66 stage entries).
+4. **Stage combat** with the ported ghoul AI, generic enemy AI (patrol / chase /
+   dive / lunge), boss spread attacks and damage feedback.
+5. **Boss clear → Area Clear → map or next stage** (step 5).
+6. **Endings** — all four variants gated by crest count, with transcribed
+   narration and the ROM epilogue (step 6, plus per-variant regression checks).
+
+Supporting systems: save/continue and manual pause-save, password codec, shop
+dialogue from ROM text, crest/fire-piece story beats, area-entry banners,
+attract mode, four music loops, 113/113 rooms loading, 7/7 boss entries
+clearing, and the full regression suite.
+
+What remains is **fidelity**, not flow: individual species AI beyond the ported
+ones, captured sprites/backdrops for the remaining areas, HDMA/tile animation,
+ROM BRR audio and the exact retail menus. The campaign plan keeps those as open
+items.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
