@@ -17,6 +17,21 @@
    "dir": "captures/save10",
    "frame": 61,
    "note": "save10 (late-game, Area 2 forest); frames 0..105 stapled for coverage"
+  },
+  "48": {
+   "dir": "captures/save7",
+   "frame": 61,
+   "note": "save7 boss room (area 48)"
+  },
+  "74": {
+   "dir": "captures/save8",
+   "frame": 61,
+   "note": "save8 (area 74)"
+  },
+  "58": {
+   "dir": "captures/save9",
+   "frame": 61,
+   "note": "save9 (area 58)"
   }
  }
 }

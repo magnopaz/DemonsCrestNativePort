@@ -2447,6 +2447,26 @@ palette) and replace the procedural map with the real one.
 
 ---
 
+### Step 37 — Three more captured areas (save7/8/9) (done)
+
+The user supplied saves in three more areas; `capture_save_frames.py` converted
+them and they are registered in `tools/dc_extract/bg2_captures.json`:
+
+| save | area | result |
+|---|---|---|
+| save7 | 48 | **excellent** — dungeon shelves, bottles, skulls, chains; the split BG1/BG2 atlases are clearly working |
+| save8 | 74 | **excellent** — forest cave with tree trunks, foliage and stalactites |
+| save9 | 58 | dark: a 256x256 boss arena that is essentially black (likely colour-math driven), no visible backdrop |
+
+Area 48/74 screenshots show the room rendering as intended, which validates the
+BG1-from-ROM + BG2-from-capture atlas split introduced in Step 36.
+
+Note: `captures/` is git-ignored (ROM-derived, large), so these captures only
+exist locally; the manifest entries document which frames to regenerate. The
+recomp saves themselves are the source of truth.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
