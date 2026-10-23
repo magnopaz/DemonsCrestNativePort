@@ -38,6 +38,8 @@ typedef struct Object {
     int state;
     int substate; /* $06: per-species state machine substate */
     int phase;    /* countdown for the current substate ($3B/$39) */
+    int hops;     /* $38: hop counter inside a burst */
+    int burst;    /* $3A: animation step inside a burst */
     int facing;   /* $09: 1 right, -1 left */
     int hp;
     int max_hp;

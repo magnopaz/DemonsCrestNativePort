@@ -1899,8 +1899,32 @@ Porting map recovered from `$83:AF74` (for the next pass):
 | `$B2C7` | land: `$2A = $DE7B`, Y += 7, clear fractional X/Y, `$06 = 6` |
 | `$B2E8` | gate: carry set when `ownX+0x70-playerX >= 0xE0`, `$47 == 0`, or `playerY-ownY` outside `[0, 0x50)` |
 
-Remaining: port states 1-4 and the `$DEA2` behaviour dispatch, which need the
-object integration helpers (`$808C14`/`$808CBF`) and the animation driver
+Further decoding (round 1):
+
+- Substate 6 (`$B034`) runs a **3-hop burst**: `$38` counts hops, each landing
+  alternates facing (`$0A ^= $40`, `$09` swapped) and restarts the hop at
+  `$AFBC`; after 3 hops it clears `$06` and re-decides. The launch velocity is
+  `$22 = 0x0398` for even `$38` and `0x04D0` for odd (`$B019..$B02D`). Ported:
+  `Object.hops` drives the burst with the alternating facing and velocity
+  variant, then the chase fallback takes over.
+- Substate 4 (`$B000`) integrates through `JSL $808C14`/`$808CBF`, lands on
+  `$04 & 4`, then jumps to `$B2C7`; its animation timer `$39` is loaded from
+  `$DE8F` (even `$38`) or `$DE93` (odd) with the animation id from `$DE9B[$3A]`.
+- State 1 (`$B065`, substate table `$B06A`): windup 32 frames → `$B2B1` →
+  `$2A = $DE7F`, `vx = 0x0120`, `vy = 0x0540` (a much bigger leap) → land
+  (`$3B = 0x10`) → hold → `$05 = 4`.
+- State 2 (`$B0E4`, substate table `$B0E9`): face the player, anim 0, 32 frames →
+  anim 6 with `$3C = 0x40` (64 frames), `$3D = 3` bursts, `$48 = 0xFF` →
+  `JSL $83B8EF` blocks until the "fire" phase, plays SFX `$27` and spawns
+  **species `$67`** as a projectile via `$82877B` at `x ± 0x13`, `y - 0x14`
+  (the spawned object's own update runs at `$82:8BDB`), three times, then
+  anim 0 with `$3B = 0x20`.
+  This means the area object list's `$67` entries are the ghoul's *projectile*
+  species, which explains why the injected capture of `$67` looked like a
+  floating round object rather than a humanoid.
+
+Remaining: port states 1-4 fully and the `$DEA2` behaviour dispatch, which need
+the object integration helpers (`$808C14`/`$808CBF`) and the animation driver
 (`$80F81D`) mapped first.
 
 ### Step 15 — Text format and BG3 font cracked (started)

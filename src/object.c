@@ -339,7 +339,8 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                         if (--o->phase <= 0) {
                             o->y_fx -= 9 * FX_ONE;
                             o->vx_fx = o->facing * 0x0050; /* $20 */
-                            o->vy_fx = 0x0398; /* $22: down 3.6 px/frame */
+                            /* $22 = 0x0398, or 0x04D0 on odd $38 ($B019). */
+                            o->vy_fx = (o->hops & 1) ? 0x04D0 : 0x0398;
                             o->substate = 4;
                             o->phase = 90;
                         }
@@ -362,11 +363,21 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                             o->phase = 6; /* $3B = 6 */
                         }
                     } else if (--o->phase <= 0) {
-                        /* Landed. The original rotates through behaviour
-                         * states chosen from $03/$DEA2; those are not ported
-                         * yet, so continue with the chase fallback. */
-                        o->state = 2;
-                        o->substate = 0;
+                        /* Landed ($B034): the original runs 3 hops ($38),
+                         * alternating facing each time ($0A bit 6 / $09 swap)
+                         * and restarting the hop at $AFBC, then returns to
+                         * substate 0 to re-decide. The behaviour states chosen
+                         * from $03/$DEA2 are not ported, so after the burst
+                         * the placeholder chase takes over. */
+                        o->hops++;
+                        if (o->hops >= 3) {
+                            o->state = 2;
+                            o->substate = 0;
+                        } else {
+                            o->facing = -o->facing; /* $0A ^= $40, $09 swapped */
+                            o->substate = 2;
+                            o->phase = 3;
+                        }
                     }
                 } else if (o->state >= 2) {
                     /* Placeholder approach until the $DEA2 behaviour states
