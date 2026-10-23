@@ -1345,6 +1345,23 @@ These were already discovered the hard way; do not rediscover them.
     `--resume-state` consumes the save file and `run_to_frame` re-pauses the
     guest at the target.
 
+25. **`save0` (Area 3) has no live objects, so teleporting will not show enemies.**
+    All 26 object slots (`$1080..$1D50`) are inactive in that save; writing the
+    player position (`$1030/$1033`, 8.8 fixed) to an enemy's listed position and
+    running 45+ frames did not activate the Area 3 species `$26`/`$07` objects.
+    Enemy sprite capture therefore needs either a different save/route or the
+    ROM-side animation data, not the current save0.
+
+26. **`$81:AE11` looks like the per-area sprite-group list.**
+    The table holds 16-bit little-endian pointers per area (`$AEF9` area 0,
+    `$AF15` area 1, `$AF22` area 2, `$AF2F` area 3, ...). Each list is a run of
+    2-byte pairs terminated by `0x00`; the first byte is a `$8B:8000` metasprite
+    group id and the second is an even frame count. Area 1:
+    `4E/2, 03/4, 61/6, 33/8, 0E/8, 16/8` (group `03` is the ghoul already baked
+    by the extractor). Area 3: `28/2, 29/4, 77/6, 5A/2, 5C/4, 4D/6`. The
+    species→group assignment is still unknown, but this is the ROM-only route to
+    per-area sprite sets.
+
 ---
 
 ## 9. Current limitations
@@ -1825,6 +1842,10 @@ Resolved questions (formerly open):
 - **BG2 backdrop storage**: generated at runtime, not in the ROM block tables;
   `$84:A057` DMAs it from WRAM `$7F` (see trap #21). The extractor consumes one
   oracle frame per area instead.
+- **Per-area sprite list**: `$81:AE11` is a 16-bit pointer table to
+  (metasprite group, frame count) pairs, one list per area, `0x00`-terminated
+  (see trap #26). This is the ROM-side source for per-species sprite baking
+  once the species→group mapping is recovered.
 
 - **How the loader remaps block tile indices to VRAM**: Resolved — there is no
   tile remap. `stage_600` is ROM Area 1 (`screens 8, 9` = `slots 9, 10`), not
