@@ -1411,10 +1411,19 @@ static bool DrawWorldMapView(const Game *game) {
     DrawTexturePro(game->assets.world_map, src, dst, (Vector2){0, 0}, 0.0f,
                    WHITE);
     EndMode2D();
-    /* Ship cursor at the centre. */
-    DrawCircleV((Vector2){128.0f, 112.0f}, 4.0f,
-                (Color){255, 236, 140, 255});
-    DrawCircleV((Vector2){128.0f, 112.0f}, 2.0f, (Color){200, 60, 40, 255});
+    /* Ship cursor at the centre: a small Firebrand marker with a glow. */
+    DrawCircleV((Vector2){128.0f, 112.0f}, 7.0f,
+                (Color){255, 220, 120, 60});
+    if (IsTextureValid(game->assets.player)) {
+        Rectangle psrc = {0, 0, (float)game->assets.player.width,
+                          (float)game->assets.player.height};
+        Rectangle pdst = {128.0f - 8.0f, 112.0f - 12.0f, 16.0f, 16.0f};
+        DrawTexturePro(game->assets.player, psrc, pdst,
+                       (Vector2){8.0f, 12.0f}, 0.0f, WHITE);
+    } else {
+        DrawCircleV((Vector2){128.0f, 112.0f}, 2.0f,
+                    (Color){200, 60, 40, 255});
+    }
     return true;
 }
 
