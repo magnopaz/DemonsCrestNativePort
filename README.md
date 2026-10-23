@@ -341,6 +341,24 @@ make/ninja.
 
 Use `--assets <dir>` to load assets from another directory.
 
+## Status & verification
+
+The port is playable from the title screen through the campaign loop to the
+endings. A full sweep before each release:
+
+| Check | Command | Current result |
+|---|---|---|
+| Regression suite | `python tools/run_regression.py --binary ... --assets ...` | **PASS** (demos 6/7/9/10/11/12/13, boss clears, area subset, playthrough, endings, save/password) |
+| All rooms load | `python tools/check_areas.py --binary ... --assets ...` | **113/113 ok** |
+| Boss stage clears | `python tools/check_campaign.py --binary ... --assets ...` | **7/7 boss entries clear** (59 traversal stages) |
+| Campaign flow | `python tools/check_playthrough.py --binary ... --assets ...` | **6/6 steps** (title → clear → map → stage travel → boss clear → ending) |
+
+Known fidelity gaps (tracked in `docs/PROJECT_STATE.md`): enemy/boss AI beyond
+the ported species runs a generic patrol/chase, a few species have silhouette
+placeholders instead of captured sprites, most areas have no captured BG2
+backdrop, the Mode 7 overworld is still procedural, and audio is a replacement
+soundtrack rather than ROM BRR/DSP data.
+
 ## Controls
 
 | Action | Keyboard | Gamepad | Original SNES (`$80:DB00`) |

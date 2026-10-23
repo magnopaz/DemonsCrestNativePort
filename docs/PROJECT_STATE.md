@@ -2532,6 +2532,22 @@ ending to replace the current black overlay.
 
 ---
 
+### Step 40 — Verification sweep (done)
+
+Full evidence run recorded for the current build:
+
+- `run_regression.py` — **PASS** (demos 6,7,9,10,11,12,13; boss clears; 12-area
+  load subset; campaign playthrough; four ending variants; save round-trip;
+  password codec; fire pickup; stage-select travel; pause save).
+- `check_areas.py` — **113/113 ok**.
+- `check_campaign.py` — **7/7 boss entries clear** (59 traversal stages have no
+  boss object).
+- `check_playthrough.py` — **6/6 steps** (title → Area 0 → clear → overworld →
+  stage travel → boss clear → ending).
+
+The README now documents these commands, the current results and the known
+fidelity gaps as the release checklist.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
