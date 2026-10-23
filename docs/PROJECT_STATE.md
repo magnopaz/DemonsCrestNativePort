@@ -2363,6 +2363,23 @@ Species handler addresses for the next ports are recorded here:
 
 ---
 
+### Step 33 — Placement-aware generic enemies (done)
+
+- The generic AI now looks at the **placement**: if there is no floor under the
+  spawn, or the floor is more than 24 px below it, the enemy is treated as a
+  flyer — it hovers with a sine bob around its spawn and drifts toward the
+  player in 2D. Grounded spawns keep the patrol/walk-toward behaviour.
+- This fixes the common `$10`/`$81` placements that hang in the air: they used
+  to be pulled down onto walkable ground by the floor snap.
+- Verified in Area 12 (`$10` x4): object traces show them bobbing over ~13 px
+  and drifting horizontally instead of snapping to a floor; regression PASS,
+  `check_areas` 113/113.
+- Species `$10`'s real handler (`$82:AC86`) is a 7-state machine
+  (state 0 wait, 1 fly-in, 2 swoop with `vx=0x40/vy=0x80`, ...). Porting it
+  remains a multi-hour job, recorded here with the dispatch table at `$ACA6`.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

@@ -560,31 +560,56 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                     }
                 }
             } else {
-                /* Generic enemy for species whose ROM handler is not ported yet:
-                 * patrol around the spawn until the player is close, then walk
-                 * toward them. Keeps rooms lively without the ghoul's hop
+                /* Generic enemy for species whose ROM handler is not ported yet.
+                 * Placement decides the style: enemies spawned well above a
+                 * floor fly (hover + 2D chase), grounded ones patrol and walk
+                 * toward the player. Keeps rooms lively without the ghoul's hop
                  * behaviour leaking into every other species. */
                 int32_t dx = player->x_fx - o->x_fx;
                 int32_t dy = player->y_fx - o->y_fx;
                 bool near = labs((long)dx) < 140 * FX_ONE &&
                             labs((long)dy) < 64 * FX_ONE;
-                if (near) {
+                float spawn_x = (float)o->origin_x_fx / FX_ONE;
+                float spawn_y = (float)o->origin_y_fx / FX_ONE;
+                float floor_y = 0.0f;
+                /* No floor under the spawn also means "flying": those spawns
+                 * hang over pits or above the walkable layer. */
+                bool airborne = !Level_FloorAt(level, spawn_x, spawn_y,
+                                               &floor_y) ||
+                                floor_y - spawn_y > 24.0f;
+                if (airborne) {
+                    /* Flyer: drift toward the player, bob around the spawn. */
                     o->facing = dx >= 0 ? 1 : -1;
-                    if (labs((long)dx) > 10 * FX_ONE)
-                        o->x_fx += o->facing * 0x0068;
+                    if (labs((long)dx) > 8 * FX_ONE)
+                        o->x_fx += o->facing * 0x0070;
+                    float target_y = (float)o->origin_y_fx / FX_ONE +
+                                     sinf(o->timer * 0.07f) * 14.0f;
+                    if (fabsf(player->y - 14.0f - target_y) < 60.0f)
+                        target_y = player->y - 14.0f;
+                    float cur_y = (float)o->y_fx / FX_ONE;
+                    if (target_y > cur_y + 1.0f)
+                        o->y_fx += 0x0050;
+                    else if (target_y < cur_y - 1.0f)
+                        o->y_fx -= 0x0050;
                 } else {
-                    if (o->vx_fx == 0)
-                        o->vx_fx = 0x0048;
-                    o->x_fx += o->vx_fx;
-                    if (labs((long)(o->x_fx - o->origin_x_fx)) >
-                        48 * FX_ONE)
-                        o->vx_fx = -o->vx_fx;
+                    if (near) {
+                        o->facing = dx >= 0 ? 1 : -1;
+                        if (labs((long)dx) > 10 * FX_ONE)
+                            o->x_fx += o->facing * 0x0068;
+                    } else {
+                        if (o->vx_fx == 0)
+                            o->vx_fx = 0x0048;
+                        o->x_fx += o->vx_fx;
+                        if (labs((long)(o->x_fx - o->origin_x_fx)) >
+                            48 * FX_ONE)
+                            o->vx_fx = -o->vx_fx;
+                    }
+                    float gx = (float)o->x_fx / FX_ONE;
+                    float gy = (float)o->y_fx / FX_ONE;
+                    float surf;
+                    if (Level_FloorAt(level, gx, gy + 4.0f, &surf))
+                        o->y_fx = (int32_t)lroundf(surf * FX_ONE);
                 }
-                float gx = (float)o->x_fx / FX_ONE;
-                float gy = (float)o->y_fx / FX_ONE;
-                float surf;
-                if (Level_FloorAt(level, gx, gy + 4.0f, &surf))
-                    o->y_fx = (int32_t)lroundf(surf * FX_ONE);
             }
             ox = (float)o->x_fx / FX_ONE;
             oy = (float)o->y_fx / FX_ONE;
