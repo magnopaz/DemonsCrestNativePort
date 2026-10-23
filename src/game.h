@@ -41,6 +41,8 @@ typedef struct Game {
     int stage_sel;
     int pause_flash; /* frames the SAVED hint stays visible */
     int intro_timer; /* frames the area-entry banner stays visible */
+    bool attract;    /* title-screen demo running */
+    int attract_frame;
     float overworld_x;
     float overworld_y;
     float overworld_angle;

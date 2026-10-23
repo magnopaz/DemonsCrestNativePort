@@ -915,6 +915,19 @@ static void Game_UpdateSubscreen(Game *game, bool left_pressed,
 
 static void Game_UpdateTitle(Game *game, bool up_pressed, bool down_pressed) {
     const int kItemCount = game->has_save ? 5 : 4;
+    /* Idle on the title for ~10 s -> attract demo, like the original. */
+    if (game->state_timer > 600 && !getenv("DC_NO_ATTRACT")) {
+        game->campaign_mode = false;
+        game->attract = true;
+        game->attract_frame = 0;
+        game->menu_cursor = 0;
+        if (!Game_TransitionToArea(game, CAMPAIGN_COLOSSEUM, 0))
+            Game_Reset(game);
+        game->state = GAME_PLAYING;
+        game->state_timer = 0;
+        game->intro_timer = 0;
+        return;
+    }
     if (up_pressed && game->menu_cursor > 0)
         game->menu_cursor--;
     if (down_pressed && game->menu_cursor < kItemCount - 1)
@@ -1100,6 +1113,34 @@ static void Game_TraceFrame(Game *game) {
 
 void Game_Update(Game *game) {
     Input_Read(&game->input, &game->input_state);
+    if (game->attract) {
+        bool cancel = game->input.start_pressed || game->input.pause_pressed ||
+                      game->input.jump_pressed || game->input.special_pressed;
+        if (cancel) {
+            game->attract = false;
+            game->state = GAME_TITLE;
+            game->state_timer = 0;
+            game->intro_timer = 0;
+            return;
+        }
+        int f = ++game->attract_frame;
+        bool right = f > 30 && f < 260;
+        bool shoot = (f % 20) == 0;
+        game->input.left = false;
+        game->input.up = false;
+        game->input.down = false;
+        game->input.jump_held = false;
+        game->input.jump_pressed = false;
+        game->input.special_pressed = false;
+        game->input.special_held = false;
+        game->input.subscreen_pressed = false;
+        game->input.form_next_pressed = false;
+        game->input.start_pressed = false;
+        game->input.pause_pressed = false;
+        game->input.right = right;
+        game->input.shot_pressed = shoot;
+        game->input.shot_held = shoot;
+    }
     game->state_timer++;
 
     /* Edge-detect direction presses for menu navigation. */
@@ -1428,6 +1469,11 @@ static void DrawOverlay(const Game *game) {
     static const char *const kMenuWithSave[] = {
         "CONTINUE", "NEW GAME", "OVERWORLD MAP", "PASSWORD", "OPTIONS"
     };
+    if (game->attract && game->state == GAME_PLAYING) {
+        DrawRectangle(0, 216, 256, 12, (Color){0, 0, 0, 170});
+        DrawCentered("DEMO   PRESS START", 217, 9,
+                     (Color){230, 220, 180, 255});
+    }
     if (game->state == GAME_TITLE) {
         DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, 185});
         DrawCentered("DEMON'S CREST", 34, 24, (Color){238, 232, 214, 255});

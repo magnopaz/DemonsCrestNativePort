@@ -250,6 +250,16 @@ def main() -> int:
         check(any(int(r["area"]) == 0 for r in rows13),
               "demo13: title NEW GAME did not enter Area 0")
 
+        # ---- Attract mode: idle title starts a demo, Start cancels it ----
+        at = run_demo(base, out, 0, 700, {"DC_TITLE": "1"})
+        at_modes = [int(r["mode"]) for r in csv_rows(at["player"])]
+        check(0 in at_modes and at_modes[-1] == 1,
+              f"title: attract demo did not start ({sorted(set(at_modes))})")
+        at2 = run_demo(base, out, 33, 700, {"DC_TITLE": "1"})
+        at2_modes = [int(r["mode"]) for r in csv_rows(at2["player"])]
+        check(at2_modes and at2_modes[-1] == 0,
+              f"title: Start did not cancel the attract demo ({sorted(set(at2_modes))})")
+
         # ---- Pause menu SAVE writes progress ----
         pause_save = out / "pause_save.json"
         if pause_save.exists():

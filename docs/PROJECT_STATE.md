@@ -2328,6 +2328,18 @@ Area 2) and the regression suite stays green.
 
 ---
 
+### Step 31 — Attract mode (done)
+
+- Idling on the title for ~10 seconds starts a **demo**: the game loads the
+  Colosseum (Area 0), scripts walk-right/shoot inputs, and shows
+  `DEMO   PRESS START` at the bottom. Start/Pause/Jump/Special cancels back to
+  the title; `DC_NO_ATTRACT=1` disables it.
+- Verified by trace: mode 0 for 600 frames, then mode 1 in Area 0 with the
+  player walking (x 128 -> 197); demo 33 presses Start after the demo begins and
+  the state returns to 0. Both cases are regression checks.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
