@@ -297,6 +297,9 @@ Acceptance:
 - [ ] Full-campaign regression against the recomp (movement, collisions,
   objects, bosses, transitions). **Partial:** `tools/audit_campaign.py` now
   validates every generated room structurally and can gate CI with `--strict`.
+- [x] Campaign-wide load coverage: `tools/check_areas.py` boots all 113 rooms
+  headless and validates exit/frame count/player bounds; the full sweep passes
+  and a 12-area subset runs in `run_regression.py`.
 - [ ] Per-room geometry/collision validation tooling. **Partial:** the audit
   covers dimensions, BG1/collision coverage, BG2 presence, spawn support,
   object bounds and transition/gate targets; per-tile oracle diffing remains.

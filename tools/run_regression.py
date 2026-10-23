@@ -241,6 +241,17 @@ def main() -> int:
         check(bool(rows13) and int(rows13[0]["area"]) == 0,
               "demo13: title NEW GAME did not enter Area 0")
 
+        # ---- Campaign load coverage: representative areas ----
+        subset = "0,1,2,3,4,5,17,21,25,46,92,109"
+        area_proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_areas.py"),
+             "--binary", str(binary), "--assets", str(assets),
+             "--areas", subset, "--frames", "30", "--tmp", str(out)],
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=300)
+        check(area_proc.returncode == 0,
+              "areas: load-check failed\n" + area_proc.stdout[-600:])
+
         # ---- Save/options persistence: autosave, then resume ----
         save_path = out / "dc_save.json"
         save_path.unlink(missing_ok=True)

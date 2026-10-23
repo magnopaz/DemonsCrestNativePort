@@ -2028,6 +2028,20 @@ characters.
 
 ---
 
+### Step 16 — Campaign load coverage (done)
+
+`tools/check_areas.py` boots the native build once per `room_area<N>.json`
+(`DC_AREA=N`, fixed frame budget, trace CSV) and validates: clean exit,
+expected frame count, finite player coordinates inside the room bounds. A full
+sweep of all **113 areas passes** (`ok=113`), and `run_regression.py` now runs a
+12-area subset (`0,1,2,3,4,5,17,21,25,46,92,109`) on every CI run.
+
+Note for sandboxed shells: the game process must be able to write the trace CSV
+where the tool puts it — pass `--tmp <dir>` (or `DC_CHECK_TMP_DIR`) when only a
+specific tree is writable.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
