@@ -715,6 +715,9 @@ static void Game_OverworldHookPosition(Game *game) {
         game->overworld_x = (float)atof(ox);
     if (oy && *oy)
         game->overworld_y = (float)atof(oy);
+    const char *oa = getenv("DC_OVERWORLD_ANGLE");
+    if (oa && *oa)
+        game->overworld_angle = (float)atof(oa);
 }
 
 static void Game_OpenOverworld(Game *game) {
@@ -830,8 +833,12 @@ static void Game_UpdateOverworld(Game *game) {
         game->overworld_y = 152.0f;
     if (game->overworld_y > 208.0f)
         game->overworld_y = 208.0f;
-    game->overworld_angle += (game->input.right ? 2.5f : 0.0f) -
-                             (game->input.left ? 2.5f : 0.0f);
+    game->overworld_angle += (game->input.right ? 1.5f : 0.0f) -
+                             (game->input.left ? 1.5f : 0.0f);
+    while (game->overworld_angle >= 360.0f)
+        game->overworld_angle -= 360.0f;
+    while (game->overworld_angle < 0.0f)
+        game->overworld_angle += 360.0f;
 
     /* Landing-point selection by nearest horizontal node. */
     static const struct { int node; float x; float y; } kNodes[] = {
@@ -1368,25 +1375,33 @@ static bool DrawWorldMapView(const Game *game) {
         return false;
     float wx = (game->overworld_x - 24.0f) / (232.0f - 24.0f) * 1024.0f;
     float wy = (game->overworld_y - 152.0f) / (208.0f - 152.0f) * 1024.0f;
-    float sx = wx - 128.0f;
-    float sy = wy - 112.0f;
-    if (sx < 0.0f)
-        sx = 0.0f;
-    if (sx > 1024.0f - 256.0f)
-        sx = 1024.0f - 256.0f;
-    if (sy < 0.0f)
-        sy = 0.0f;
-    if (sy > 1024.0f - 224.0f)
-        sy = 1024.0f - 224.0f;
-    Rectangle src = {sx, sy, 256.0f, 224.0f};
-    Rectangle dst = {0, 0, 256.0f, 224.0f};
+    /* Mode 7 style affine view: the map rotates around the ship, which stays at
+     * the screen centre (like the original's rotation). */
+    const float zoom = 1.0f;
+    float angle = game->overworld_angle;
+    while (angle < 0.0f)
+        angle += 360.0f;
+    while (angle >= 360.0f)
+        angle -= 360.0f;
+    /* Rotate a 256x224 source window around the ship so the destination stays a
+     * screen-sized quad (raylib handles rotation around the pivot). */
+    /* Full-texture draw under a camera transform: translate to the screen
+     * centre, rotate, then place the ship's map pixel there. */
+    Rectangle src = {0, 0, 1024.0f, 1024.0f};
+    Rectangle dst = {0, 0, 1024.0f, 1024.0f};
+    Camera2D cam = {0};
+    cam.offset = (Vector2){128.0f, 112.0f};
+    cam.target = (Vector2){wx, wy};
+    cam.rotation = -angle;
+    cam.zoom = zoom;
+    BeginMode2D(cam);
     DrawTexturePro(game->assets.world_map, src, dst, (Vector2){0, 0}, 0.0f,
                    WHITE);
-    /* Ship cursor. */
-    float cx = wx - sx;
-    float cy = wy - sy;
-    DrawCircleV((Vector2){cx, cy}, 4.0f, (Color){255, 236, 140, 255});
-    DrawCircleV((Vector2){cx, cy}, 2.0f, (Color){200, 60, 40, 255});
+    EndMode2D();
+    /* Ship cursor at the centre. */
+    DrawCircleV((Vector2){128.0f, 112.0f}, 4.0f,
+                (Color){255, 236, 140, 255});
+    DrawCircleV((Vector2){128.0f, 112.0f}, 2.0f, (Color){200, 60, 40, 255});
     return true;
 }
 

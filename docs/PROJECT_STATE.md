@@ -2576,6 +2576,29 @@ affine transform for rotation/zoom like the original.
 
 ---
 
+### Step 42 — Mode 7 affine overworld (done)
+
+The overworld view is now a real Mode 7-style affine camera over the captured
+world map:
+
+- `Camera2D cam = { offset = screen centre, target = the ship's map pixel,
+  rotation = -overworld_angle, zoom = 1 }` with `BeginMode2D` around the full
+  1024x1024 texture draw. This fixed the earlier attempts where
+  `DrawTexturePro`'s pivot/rotation either drew nothing or exposed the clear
+  colour at the corners.
+- L/R rotate the map at 1.5 deg/frame around the ship (the angle wraps 0-360);
+  the ship stays at the screen centre with its cursor drawn there.
+- `DC_OVERWORLD_ANGLE` sets the initial angle for screenshots; with 20 degrees a
+  castle icon is clearly visible next to the cursor.
+
+Verified: rotated overworld screenshot; regression PASS; `check_areas` 113/113.
+
+Next: map the castle icons to the stage-entry list by their world positions so
+the cursor can land directly on a castle instead of using the separate stage
+overlay.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
