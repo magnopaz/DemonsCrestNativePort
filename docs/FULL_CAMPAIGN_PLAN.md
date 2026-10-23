@@ -257,7 +257,10 @@ Current title/pause/Area Clear is a vertical-slice skeleton.
 - [x] Text/dialogue hooks are not implemented yet; the Area 0 Somulo intro
   exists as a boss fight and Bad/Normal/True ending screens are stubbed.
 - [ ] Text/dialogue system, intro/cutscenes, all multiple endings content and
-  credits.
+  credits. **Format cracked:** the script is plain ASCII with `0x01` line
+  breaks, `0x02` page breaks and `0x5D` page terminators; `extract_text.py`
+  emits 518 strings to `text_strings.json` and `extract_font.py` bakes the BG3
+  ASCII font (`font.png`). The renderer/dialogue state is the next step.
 - [x] Basic story/event flags, boss gates, crest/item collection tracking and
   stage progression (Area 0 gate and overworld stage bits).
 - [ ] Localization hooks and text encoding.

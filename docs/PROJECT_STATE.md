@@ -1903,6 +1903,45 @@ Remaining: port states 1-4 and the `$DEA2` behaviour dispatch, which need the
 object integration helpers (`$808C14`/`$808CBF`) and the animation driver
 (`$80F81D`) mapped first.
 
+### Step 15 — Text format and BG3 font cracked (started)
+
+The script turned out to be **plain ASCII** with two control codes, not a
+custom encoding:
+
+- `0x01` = line break inside a page,
+- `0x02` = page break (next text box),
+- `0x5D` (`]`) terminates the last line of a page.
+
+Evidence: the guest's pause subscreen draws labels through BG3 with tile index
+== ASCII code (a captured frame contains tiles `0x46 0x49 0x52 0x45` = "FIRE").
+The intro/ending lines sit at `$81:8DF2`:
+
+```
+I NEVER<01>EXPECTED THAT<01>PHALANX WOULD<01>BE DEFEATED]]]<02>
+IT IS WRITTEN<01>THAT THE ONE<01>WHO DEFEATS<01>THE KING<01>SHALL RULE]]]<02>
+THE NEXT TIME<01>IT WILL BE MY<01>TURN]]]<02>
+```
+
+Done:
+
+1. `tools/dc_extract/extract_text.py --rom <rom>` walks printable runs that
+   contain control codes, splits them into pages/lines and writes
+   `assets/generated/text_strings.json` (518 strings, with ROM addresses).
+   Strings that are really font/glyph tables (`$81:A49E..A60C`) are included but
+   harmless.
+2. `tools/oracle/capture_menu.py` opens the guest pause subscreen (press Start
+   on a save), dumps VRAM/CGRAM/PPU to `captures/menu/`.
+3. `tools/dc_extract/extract_font.py` decodes the BG3 2bpp tiles 0x20..0x7E at
+   the character base into `font.png` (white mask, 128x48, 86/95 glyphs) plus
+   `font.json` (first/last/cell). The renderer tints it per context.
+4. `$81:A49E..A60C` also contains runs like `"0123456789:;<=LMNO"` — a glyph
+   order/character table worth inspecting when the text renderer needs the
+   exact symbol layout.
+
+Next: `src/text.c` (glyph drawing from `font.png`, page/line control codes) and
+a dialogue state that reads `text_strings.json`, then index the script table and
+wire the intro/cutscenes/ending text.
+
 ---
 
 ## 11. Long-term roadmap

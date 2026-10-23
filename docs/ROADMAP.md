@@ -182,6 +182,11 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
   restores progress. `DC_PASSWORD` applies a code at boot,
   `DC_PASSWORD_SELFTEST=1` runs 2000 round-trips, and the regression suite
   cross-checks a Python-generated code against the C decoder.
+- **Text format cracked.** The script is plain ASCII (0x01 line break, 0x02
+  page break, 0x5D page terminator) rendered through BG3 with tile index equal
+  to the ASCII code. extract_text.py produces 	ext_strings.json (518
+  strings) and capture_menu.py + extract_font.py bake the BG3 ASCII font
+  into ont.png. A renderer and dialogue state are the next step.
 - **Ghoul handler start.** `src/object.c` now runs the authentic state-0 drop
   from `$83:AF74` (lift Y 9, vx `0x50`, vy `0x398`, gravity `0x40`, 3-frame
   windup, 6-frame landing) before the placeholder chase, and `$B2E8`/`$B298`/
