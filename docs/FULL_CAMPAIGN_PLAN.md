@@ -260,7 +260,9 @@ Current title/pause/Area Clear is a vertical-slice skeleton.
   credits. **Format cracked:** the script is plain ASCII with `0x01` line
   breaks, `0x02` page breaks and `0x5D` page terminators; `extract_text.py`
   emits 518 strings to `text_strings.json` and `extract_font.py` bakes the BG3
-  ASCII font (`font.png`). The renderer/dialogue state is the next step.
+  ASCII font (`font.png`), and the shop now renders its real ROM dialogue
+  ("WELCOME TO THE BLACK LOTUS", urn/vellum-full messages). The dialogue state
+  and cutscene flow are the next step.
 - [x] Basic story/event flags, boss gates, crest/item collection tracking and
   stage progression (Area 0 gate and overworld stage bits).
 - [ ] Localization hooks and text encoding.
