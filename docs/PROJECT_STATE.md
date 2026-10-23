@@ -142,6 +142,22 @@ Working today:
     because some Windows shells block the jobserver named pipe used by
     make/ninja;
   - `DC_WINDOW_INFO=1` prints window/render-target size and integer scale.
+- Save/options persistence (this session):
+  - `Game_SaveProgress`/`Game_LoadProgress` write/read
+    `saves/dc_save.json` (override with `DC_SAVE_PATH`) via cJSON: version,
+    current area, cleared stages, HP/max HP, Crests and form, Talismans, Fire
+    element, Urns, Spells, gold and music volume;
+  - autosave on area clear, on entering the overworld and on exit; the title
+    menu gains a `CONTINUE` entry only when a save exists (falls back to the
+    old four-item menu otherwise, so `DC_DEMO=13` is unchanged);
+  - deterministic `DC_RUN_FRAMES` runs never write unless `DC_SAVE_FORCE=1`;
+    `DC_NO_SAVE=1` disables the feature and `DC_RESUME=1` boots straight into
+    the saved run for headless tests;
+  - the regression suite now autosaves in one run and asserts area/max HP/gold
+    after resuming in a second run.
+- HUD health bar fix (this session): `hud_bar.png` is a brightness mask
+  (grey body, pink highlight); the renderer now tints the empty part dark and
+  the filled part red instead of drawing the whole bar white.
 - Collision debug overlay (`F1`), FPS (`F3`).
 - Per-frame CSV trace output plus `DC_TRACE_PROJECTILES`/`DC_TRACE_OBJECTS`.
 - Deterministic demo input modes for screenshots and comparison.
@@ -190,7 +206,8 @@ Not done yet:
 - Full talisman inventory/selection sprites and the exact retail HUD wiring
   beyond the HP bar and active slot.
 - Per-form player OAM/animations (current forms are palette tints), text and
-  cutscenes, exact password decoding, and saved-game persistence.
+  cutscenes, the exact retail password algorithm, and retail-format SRAM
+  compatibility (the native `saves/dc_save.json` format is in place).
 - Remaining bosses and secret areas, full Mode 7 overworld map data, and ROM
   music/SFX extraction or replacement. BG2 backdrops exist for Areas 1 and 3;
   the other areas need one oracle frame each in `bg2_captures.json`.
@@ -694,6 +711,11 @@ The original SNES default mapping was verified from `$80:DB00..DB40` and `save0`
 | `DC_UNLOCK_ALL=1` | unlock all six Gargoyle forms |
 | `DC_NO_HDMA=1` | disable the BG2 scanline parallax bands |
 | `DC_UNDERWATER=1` | force underwater physics for testing |
+| `DC_SAVE_PATH=path` | native save file (default `saves/dc_save.json`) |
+| `DC_NO_SAVE=1` | disable save loading/writing |
+| `DC_SAVE_FORCE=1` | allow saving inside deterministic `DC_RUN_FRAMES` runs |
+| `DC_RESUME=1` | boot into the saved run instead of the title screen |
+| `DC_WINDOW_INFO=1` | print window/render-target size and integer scale |
 
 `DC_SCREENSHOT` is handled by raylib, which writes the basename into the
 working directory even when an absolute path is supplied.
@@ -1349,8 +1371,10 @@ These were already discovered the hard way; do not rediscover them.
   comparison.
 - Audio is an original procedural development loop/SFX, not extracted ROM
   music; there is no music/sfx menu beyond the master volume option.
-- Text/dialogue, cutscenes, exact password decoding and saved-game persistence
-  are stubs (the password screen only displays a generated code).
+- Text/dialogue, cutscenes and the exact retail password algorithm are stubs
+  (the password screen only displays a generated code). Campaign progression
+  persists through the native save file (`saves/dc_save.json`), but that is not
+  the retail SRAM/password format.
 - No public-release asset path yet.
 
 ---
@@ -1700,6 +1724,35 @@ Still placeholder / remaining:
 - Mid-stage `$98:E000` CHR streaming coverage and per-area BG2 backdrops.
 
 
+### Step 11 — Save/options persistence and HUD polish (done)
+
+Done:
+
+1. `src/game.c` gained `Game_SaveProgress` / `Game_LoadProgress` /
+   `Game_HasSave`:
+   - JSON (cJSON) file at `saves/dc_save.json` (override `DC_SAVE_PATH`),
+     versioned; stores area, `stages_cleared`, HP/max HP, Crest mask + form,
+     Talisman mask + active, Fire element, Urns, Spells, gold and volume,
+   - `Game_LoadProgress` transitions to the saved area first (so the room,
+     collision and atlases are rebuilt), then applies the saved player fields
+     and clamps them,
+   - autosave at `Game_CompleteArea`, `Game_OpenOverworld` and `Game_Shutdown`
+     (only while `campaign_mode` is set),
+   - deterministic `DC_RUN_FRAMES` runs skip saves unless `DC_SAVE_FORCE=1`;
+     `DC_NO_SAVE=1` disables load/save; `DC_RESUME=1` skips the title.
+2. Title menu shows `CONTINUE` only when a save exists; otherwise the original
+   four entries are kept so `DC_DEMO=13` still starts a new game.
+3. HUD health bar: the baked texture is a brightness mask, so the renderer now
+   draws the empty part dark and the filled part red (`(235, 88, 120)`), which
+   restores the segmented red health bar look.
+4. `tools/run_regression.py` covers the save round-trip: run A autosaves with
+   `DC_SAVE_FORCE`, run B resumes with `DC_RESUME` and the trace must report the
+   same area, max HP and gold.
+
+Remaining polish: a proper CONTINUE/options screen layout, per-slot saves,
+retail SRAM/password parity, and saving mid-room position rather than the room
+spawn.
+
 ---
 
 ## 11. Long-term roadmap
@@ -1826,7 +1879,8 @@ Remaining open technical questions:
   tables from `$80:9C93` (current values are approximations).
 - Per-species OAM/animation extraction from `$82:8300` init handlers.
 - Mid-stage `$98:E000` CHR streaming and tile animation (`$81:C125`).
-- Text/dialogue/cutscene encoding, exact password algorithm and save format.
+- Text/dialogue/cutscene encoding, exact password algorithm and retail SRAM
+  format (the native JSON save format is implemented).
 - Best audio path for distribution (native BRR+sequence synth vs replacement
   tracks).
 - Widescreen support policy and Windows CI/test build path.
@@ -1863,6 +1917,7 @@ workspace copy and is no longer the authoritative history.
 8070c50 ... (imported native-port state)
         Add Firebrand animation capture and state machine (this session)
         BG2 capture pipeline, Windows build and campaign audit (2026-10-23)
+        Save/options persistence, title CONTINUE and HUD bar fix (2026-10-23)
 ```
 
 The `docs/` directory is now tracked. The accidental `docs` entry in
@@ -1907,11 +1962,12 @@ When resuming:
    `parse_player_trace.py`, not the area-2 landing route.
 9. For physics changes, compare with `compare.py` and keep a trace before/after.
 10. Run `./tools/run_regression.sh` (or `ctest --output-on-failure` in
-    `build/`) before committing; it must pass. Then run
+    `build/`) before committing; it must pass (it now includes the save/load
+    round-trip). Then run
     `python3 tools/audit_campaign.py` and compare its summary with the numbers
     recorded in section 9 (69 playable / 44 partial / 2 with BG2 as of
     2026-10-23).
-11. Do not commit `assets/generated/` or `captures/`.
+11. Do not commit `assets/generated/`, `captures/` or `saves/`.
 
 ---
 
@@ -1978,3 +2034,13 @@ native port and the regression suite run on the same machine as the oracle.
 The species dispatch tables (`$82:8000/$8180/$8300/$8480`, `JSL` init thunks)
 and the debug server's `write_ram`/`dump_vram` state access were also mapped,
 which is the starting point for the next content task: per-species OAM/AI.
+
+A follow-up pass added native save/options persistence: `Game_SaveProgress` /
+`Game_LoadProgress` write a versioned `saves/dc_save.json` (area, cleared
+stages, HP, Crests/forms, Talismans, Urns, Spells, gold, volume) on area clear,
+overworld entry and exit; the title gains a `CONTINUE` entry only when a save
+exists; `DC_SAVE_PATH`/`DC_NO_SAVE`/`DC_SAVE_FORCE`/`DC_RESUME` cover tests.
+The regression suite now autosaves in one run and asserts the resumed area,
+max HP and gold in a second, and the HUD health bar was fixed to read as a
+segmented red bar (the baked texture is a brightness mask, so the empty part is
+tinted dark and the filled part red).

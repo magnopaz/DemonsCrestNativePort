@@ -165,6 +165,18 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
   passes with the regenerated assets. `DC_WINDOW_INFO=1` prints window/render
   target size and scale.
 
+- **Save/options persistence.** `Game_SaveProgress`/`Game_LoadProgress`
+  write a versioned JSON save (`saves/dc_save.json`, `DC_SAVE_PATH` override)
+  holding area, cleared stages, HP, Crests/forms, Talismans, Fire element, Urns,
+  Spells, gold and volume; autosave runs on area clear, overworld entry and
+  exit. The title menu shows `CONTINUE` only when a save exists. Deterministic
+  runs stay disk-free unless `DC_SAVE_FORCE=1`; `DC_RESUME=1` resumes headless.
+  `run_regression.py` autosaves in one run and asserts area/max HP/gold after
+  resuming in a second.
+- **HUD health bar.** The baked `hud_bar.png` is a brightness mask, so the
+  renderer now tints the empty part dark and the filled part red instead of
+  drawing a flat white bar.
+
 ## Next (ordered by dependency)
 
 1. **Content fidelity**

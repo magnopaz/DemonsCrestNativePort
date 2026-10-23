@@ -98,6 +98,14 @@ frame-accurate oracle for movement and timing.
 - `tools/audit_campaign.py` reports per-room structure (BG1/collision coverage,
   BG2 presence, spawn support, object/transition bounds) and classifies rooms as
   playable / partial / empty; `--strict` is suitable for CI.
+- Save/options persistence: campaign progression (area, cleared stages, HP,
+  Crests/forms, Talismans, Urns, Spells, gold) and the music volume are written
+  to `saves/dc_save.json` on area clear, overworld entry and exit. When a save
+  exists the title menu gains a `CONTINUE` entry (and `DC_RESUME=1` resumes for
+  headless tests). `DC_SAVE_PATH`, `DC_NO_SAVE` and `DC_SAVE_FORCE` control it;
+  deterministic `DC_RUN_FRAMES` runs never touch the disk.
+- HUD health bar uses the extracted mask with dark/red tints (missing health is
+  dark, current HP is red) instead of the previous flat white bar.
 - Windows build on the raylib Windows installer (`tools/build_windows.ps1`,
   `-DDC_RAYLIB_ROOT`), verified with raylib 6.2 + MinGW GCC 16.2.
 - Campaign-specific debug hooks: `DC_AREA`, `DC_CAMPAIGN`, `DC_BOSS_DEFEATED`,
@@ -137,8 +145,9 @@ exact password/save and ROM audio.
   and per-species sprites remain approximations.
 - No audio from the original ROM yet; the current music/SFX are original
   procedural development placeholders.
-- Text/dialogue/cutscenes, exact password decoding and saved-game persistence
-  are stubs; the clear/password/ending screens are functional but minimal.
+- Text/dialogue/cutscenes and the exact retail password algorithm are stubs;
+  the clear/password/ending screens are functional but minimal. Native save
+  persistence (above) is in place, but it is not the retail SRAM format.
 - The HUD health bar is scaled from the extracted six-point bar and highlights
   the active Crest form; the exact retail talisman-slot icons are not done.
 
@@ -378,6 +387,10 @@ These environment variables exist for deterministic testing:
 | `DC_NO_HDMA=1` | Disable the BG2 scanline parallax bands |
 | `DC_UNDERWATER=1` | Force underwater physics |
 | `DC_WINDOW_INFO=1` | Print window/render-target size and integer scale once per frame |
+| `DC_SAVE_PATH=path` | Native save file (default `saves/dc_save.json`) |
+| `DC_NO_SAVE=1` | Disable save loading/writing |
+| `DC_SAVE_FORCE=1` | Allow saving inside deterministic `DC_RUN_FRAMES` runs |
+| `DC_RESUME=1` | Boot straight into the saved run instead of the title |
 | `SNESRECOMP_LAYER_MASK` | On the recomp side, isolate BG/OBJ layers for comparison |
 
 Example:
@@ -398,7 +411,9 @@ cd build && ctest --output-on-failure
 
 The harness runs demos 6, 7, 9, 10, 11 and 12 through `DC_RUN_FRAMES`, writes trace
 CSVs, and asserts known movement, fireball, pickup, enemy, HP, Crest-form and
-campaign-transition invariants.
+campaign-transition invariants. It also checks save/options persistence: one run
+autosaves (with `DC_SAVE_FORCE`), a second run resumes it and the trace must
+report the same area, max HP and gold.
 It exits with code 77 (CTest skip) when the binary or generated assets are
 missing.
 

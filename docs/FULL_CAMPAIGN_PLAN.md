@@ -50,7 +50,8 @@ Implemented today:
 | BG2 HDMA scanline parallax (`$84:AF65`) | working for Area 1 |
 | Six Gargoyle forms + Fire-Crest elements + wall cling/headbutt | working (form art is tinted base sheet) |
 | Area 0 Somulo boss, skeletons/bats/gargoyles, platforms, crest pickups | working (shared enemy sprites) |
-| Overworld, shop, subscreen, generated password, options, endings | working (text/password decode/save are stubs) |
+| Overworld, shop, subscreen, generated password, options, endings | working (text/password decode are stubs; native save persistence is in place) |
+| Save/options persistence (`saves/dc_save.json`, title CONTINUE) | working |
 | Per-area BG2 capture pipeline (`bg2_captures.json`) | working for Areas 1 and 3 |
 | Campaign room audit (`tools/audit_campaign.py`) | working (69 playable / 44 partial of 113) |
 | Windows build (MinGW + local raylib) | working |
@@ -231,7 +232,10 @@ Current title/pause/Area Clear is a vertical-slice skeleton.
 
 - [x] Title menu: New Game, Overworld Map, Password, Options.
 - [x] Password screen with a generated progression code (retail encode/decode
-  algorithm still pending) and in-memory campaign persistence.
+  algorithm still pending) and campaign persistence. **Partial:** native
+  save/options persistence is implemented (`saves/dc_save.json`, title
+  `CONTINUE`, autosave on clear/overworld/exit, regression-covered); the retail
+  password/SRAM format is still to be decoded.
 - [x] Pause item/crest subscreen (`X` → `$80:DC12`): Crest transformation,
   Fire-Crest element, Talisman selection, Urn use and Scroll casting, wired to
   the BG3 HUD active-slot indicator.
@@ -431,7 +435,9 @@ loading, transitions, crests, boss, overworld and menus) is already in place:
 5. Extract text/font/dialogue/cutscene script data and implement the text
    engine, intro/cutscenes, shop dialogue and all ending variants.
 6. Implement the retail password encode/decode algorithm and save/options
-   persistence.
+   persistence. **Save persistence done** (`saves/dc_save.json`, title
+   CONTINUE, autosave, regression test); the retail password/SRAM decode
+   remains.
 7. Extract or replace ROM audio (SPC700 BRR/DSP + sequences, `$80:BD57` SFX)
    and add music/SFX volume options.
 8. Run full-campaign oracle regression across all 113 areas, forms and bosses.

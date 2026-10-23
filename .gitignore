@@ -67,3 +67,6 @@ captures/
 
 __pycache__/
 *.pyc
+
+# Native save files and options
+saves/

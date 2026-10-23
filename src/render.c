@@ -248,8 +248,10 @@ static void DrawHud(const Assets *assets, const Player *player) {
         int bar_x = 24;
         int bar_y = 16;
         int width = assets->hud_bar.width;
+        /* The baked bar is a brightness mask (light body + pink highlight),
+         * so tint it: dark for missing health, red for the filled part. */
         DrawTexture(assets->hud_bar, bar_x, bar_y,
-                    (Color){90, 90, 100, 255});
+                    (Color){52, 48, 58, 255});
         if (player->max_hp > 0 && player->hp > 0) {
             float ratio = (float)player->hp / (float)player->max_hp;
             if (ratio > 1.0f)
@@ -262,7 +264,7 @@ static void DrawHud(const Assets *assets, const Player *player) {
                                  (float)filled,
                                  (float)assets->hud_bar.height};
                 DrawTexturePro(assets->hud_bar, src, dst, (Vector2){0, 0},
-                               0.0f, WHITE);
+                               0.0f, (Color){235, 88, 120, 255});
             }
         }
     }

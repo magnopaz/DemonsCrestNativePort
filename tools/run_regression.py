@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import os
 import shutil
 import subprocess
@@ -214,6 +215,38 @@ def main() -> int:
         rows13 = csv_rows(d13["player"])
         check(bool(rows13) and int(rows13[0]["area"]) == 0,
               "demo13: title NEW GAME did not enter Area 0")
+
+        # ---- Save/options persistence: autosave, then resume ----
+        save_path = out / "dc_save.json"
+        save_path.unlink(missing_ok=True)
+        run_demo(base, out, 12, 200,
+                 {"DC_AREA": "0", "DC_CAMPAIGN": "1",
+                  "DC_BOSS_DEFEATED": "1", "DC_SAVE_PATH": str(save_path),
+                  "DC_SAVE_FORCE": "1"})
+        check(save_path.is_file(), "save: autosave did not write a save file")
+        if save_path.is_file():
+            data = json.loads(save_path.read_text())
+            check(int(data.get("version", 0)) == 2, "save: unexpected version")
+            resumed = out / "resume_player.csv"
+            env = dict(os.environ,
+                       DC_RESUME="1", DC_RUN_FRAMES="2", DC_NO_AUDIO="1",
+                       DC_SAVE_PATH=str(save_path), DC_SAVE_FORCE="1",
+                       DC_TRACE_CSV=str(resumed))
+            proc = subprocess.run(base, cwd=ROOT, env=env,
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True,
+                                  timeout=120)
+            check(proc.returncode == 0, "save: resume run failed")
+            rows_s = csv_rows(resumed) if resumed.is_file() else []
+            check(bool(rows_s), "save: resume produced no trace")
+            if rows_s:
+                first = rows_s[0]
+                check(int(first["max_hp"]) == int(data["max_hp"]),
+                      "save: max_hp was not restored")
+                check(int(first["gold"]) == int(data["gold"]),
+                      "save: gold was not restored")
+                check(int(first["area"]) == int(data["area"]),
+                      "save: area was not restored")
 
         # ---- Campaign: Somulo defeat ends the area ----
         d14 = run_demo(base, out, 12, 300,

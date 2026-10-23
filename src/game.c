@@ -6,7 +6,20 @@
 #include <string.h>
 
 #include "audio.h"
+#include "cJSON.h"
 #include "render.h"
+
+#ifdef _WIN32
+#include <direct.h>
+#define DC_MKDIR(path) _mkdir(path)
+#else
+#include <sys/stat.h>
+#define DC_MKDIR(path) mkdir(path, 0755)
+#endif
+
+/* Native save format (not the retail password). One JSON file holds campaign
+ * progression plus the options that should survive a restart. */
+#define DC_SAVE_VERSION 2
 
 static void Game_OpenOverworld(Game *game);
 static void Game_CompleteArea(Game *game);
@@ -96,6 +109,166 @@ void Game_EncodePassword(const Game *game, char out[20]) {
     out[8] = '\0';
 }
 
+static const char *Game_SavePath(void) {
+    const char *env = getenv("DC_SAVE_PATH");
+    if (env && *env)
+        return env;
+    return "saves/dc_save.json";
+}
+
+static bool Game_SaveDisabled(void) {
+    if (getenv("DC_NO_SAVE"))
+        return true;
+    /* Deterministic runs must stay side-effect free unless a test opts in. */
+    if (getenv("DC_RUN_FRAMES") && !getenv("DC_SAVE_FORCE"))
+        return true;
+    return false;
+}
+
+static void Game_MakeSaveDir(const char *path) {
+    char dir[512];
+    snprintf(dir, sizeof(dir), "%s", path);
+    char *slash = strrchr(dir, '/');
+    char *bslash = strrchr(dir, '\\');
+    if (bslash && (!slash || bslash > slash))
+        slash = bslash;
+    if (!slash)
+        return;
+    *slash = '\0';
+    if (*dir)
+        (void)DC_MKDIR(dir); /* exists already -> EEXIST is fine */
+}
+
+bool Game_HasSave(void) {
+    if (Game_SaveDisabled())
+        return false;
+    FILE *f = fopen(Game_SavePath(), "rb");
+    if (!f)
+        return false;
+    fclose(f);
+    return true;
+}
+
+static int Game_JsonInt(const cJSON *root, const char *key, int fallback) {
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
+    if (!cJSON_IsNumber(item))
+        return fallback;
+    return item->valueint;
+}
+
+bool Game_SaveProgress(const Game *game) {
+    if (Game_SaveDisabled())
+        return false;
+    if (!game->campaign_mode)
+        return false;
+
+    cJSON *root = cJSON_CreateObject();
+    if (!root)
+        return false;
+    const Player *p = &game->player;
+    cJSON_AddNumberToObject(root, "version", DC_SAVE_VERSION);
+    cJSON_AddNumberToObject(root, "area", game->level.area_id);
+    cJSON_AddNumberToObject(root, "stages_cleared", game->stages_cleared);
+    cJSON_AddNumberToObject(root, "max_hp", p->max_hp);
+    cJSON_AddNumberToObject(root, "hp", p->hp);
+    cJSON_AddNumberToObject(root, "crests", p->crests_mask);
+    cJSON_AddNumberToObject(root, "form", p->crest_form);
+    cJSON_AddNumberToObject(root, "talismans", p->talisman_mask);
+    cJSON_AddNumberToObject(root, "talisman", p->active_talisman);
+    cJSON_AddNumberToObject(root, "fire_element", p->fire_element);
+    cJSON_AddNumberToObject(root, "potions", p->potions);
+    cJSON_AddNumberToObject(root, "scrolls", p->scrolls);
+    cJSON_AddNumberToObject(root, "gold", p->gold);
+    cJSON_AddNumberToObject(root, "volume", (double)Audio_GetVolume());
+
+    char *text = cJSON_Print(root);
+    cJSON_Delete(root);
+    if (!text)
+        return false;
+
+    const char *path = Game_SavePath();
+    Game_MakeSaveDir(path);
+    FILE *f = fopen(path, "wb");
+    bool ok = false;
+    if (f) {
+        ok = fwrite(text, 1, strlen(text), f) == strlen(text);
+        fclose(f);
+    }
+    cJSON_free(text);
+    if (!ok)
+        fprintf(stderr, "game: cannot write save %s\n", path);
+    return ok;
+}
+
+bool Game_LoadProgress(Game *game) {
+    if (Game_SaveDisabled())
+        return false;
+    const char *path = Game_SavePath();
+    FILE *f = fopen(path, "rb");
+    if (!f)
+        return false;
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size <= 0 || size > 65536) {
+        fclose(f);
+        return false;
+    }
+    char *text = (char *)malloc((size_t)size + 1);
+    if (!text) {
+        fclose(f);
+        return false;
+    }
+    size_t got = fread(text, 1, (size_t)size, f);
+    fclose(f);
+    text[got] = '\0';
+
+    cJSON *root = cJSON_Parse(text);
+    free(text);
+    if (!root)
+        return false;
+    if (Game_JsonInt(root, "version", 0) != DC_SAVE_VERSION) {
+        cJSON_Delete(root);
+        return false;
+    }
+
+    int area = Game_JsonInt(root, "area", game->level.area_id);
+    if (area >= 0 && area < DC_CAMPAIGN_AREAS && area != game->level.area_id)
+        (void)Game_TransitionToArea(game, area, 0);
+
+    Player *p = &game->player;
+    p->max_hp = Game_JsonInt(root, "max_hp", p->max_hp);
+    if (p->max_hp < 1)
+        p->max_hp = 6;
+    if (p->max_hp > 12)
+        p->max_hp = 12;
+    p->hp = Game_JsonInt(root, "hp", p->max_hp);
+    if (p->hp < 1)
+        p->hp = 1;
+    if (p->hp > p->max_hp)
+        p->hp = p->max_hp;
+    p->crests_mask = (uint8_t)Game_JsonInt(root, "crests", p->crests_mask);
+    int form = Game_JsonInt(root, "form", p->crest_form);
+    p->crest_form = (form >= 0 && form < CREST_COUNT) ? form : CREST_BASE;
+    p->talisman_mask = (uint8_t)Game_JsonInt(root, "talismans",
+                                             p->talisman_mask);
+    int talisman = Game_JsonInt(root, "talisman", p->active_talisman);
+    p->active_talisman = (talisman >= 0 && talisman < 5) ? talisman : 0;
+    p->fire_element = Game_JsonInt(root, "fire_element", p->fire_element) % 5;
+    p->potions = Game_JsonInt(root, "potions", p->potions);
+    p->scrolls = Game_JsonInt(root, "scrolls", p->scrolls);
+    p->gold = Game_JsonInt(root, "gold", p->gold);
+    game->stages_cleared = (uint8_t)Game_JsonInt(root, "stages_cleared",
+                                                 game->stages_cleared);
+
+    const cJSON *vol = cJSON_GetObjectItemCaseSensitive(root, "volume");
+    if (cJSON_IsNumber(vol))
+        Audio_SetVolume((float)vol->valuedouble);
+    cJSON_Delete(root);
+    game->has_save = true;
+    return true;
+}
+
 bool Game_Init(Game *game, const char *asset_dir) {
     memset(game, 0, sizeof(*game));
     snprintf(game->asset_dir, sizeof(game->asset_dir), "%s", asset_dir);
@@ -156,6 +329,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
     }
 
     game->ready = true;
+    game->has_save = Game_HasSave();
     const char *demo = getenv("DC_DEMO");
     bool force_title = getenv("DC_TITLE") != NULL;
     bool automated = !force_title &&
@@ -191,6 +365,14 @@ bool Game_Init(Game *game, const char *asset_dir) {
     game->state_timer = 0;
 
     Audio_Init();
+    /* Dev hook: resume the saved run without going through the title menu. */
+    if (getenv("DC_RESUME") && game->has_save) {
+        if (Game_LoadProgress(game)) {
+            game->campaign_mode = true;
+            game->state = GAME_PLAYING;
+            game->state_timer = 0;
+        }
+    }
     Audio_StartMusic();
     return true;
 }
@@ -333,6 +515,7 @@ static void Game_HandleDeath(Game *game) {
 }
 
 static void Game_OpenOverworld(Game *game) {
+    (void)Game_SaveProgress(game);
     game->state = GAME_OVERWORLD;
     game->state_timer = 0;
     game->overworld_x = 96.0f;
@@ -357,6 +540,7 @@ static void Game_CompleteArea(Game *game) {
     Game_EncodePassword(game, game->password_code);
     game->state = GAME_CLEAR;
     game->state_timer = 0;
+    (void)Game_SaveProgress(game);
 }
 
 static void Game_UpdateOverworld(Game *game) {
@@ -466,14 +650,26 @@ static void Game_UpdateSubscreen(Game *game, bool left_pressed,
 }
 
 static void Game_UpdateTitle(Game *game, bool up_pressed, bool down_pressed) {
-    const int kItemCount = 4;
+    const int kItemCount = game->has_save ? 5 : 4;
     if (up_pressed && game->menu_cursor > 0)
         game->menu_cursor--;
     if (down_pressed && game->menu_cursor < kItemCount - 1)
         game->menu_cursor++;
     if (!game->input.start_pressed)
         return;
-    switch (game->menu_cursor) {
+    int item = game->menu_cursor;
+    if (game->has_save) {
+        if (item == 0) {
+            if (Game_LoadProgress(game)) {
+                game->campaign_mode = true;
+                game->state = GAME_PLAYING;
+                game->state_timer = 0;
+            }
+            return;
+        }
+        item--;
+    }
+    switch (item) {
     case 0:
         game->campaign_mode = true;
         game->stages_cleared = 0;
@@ -773,14 +969,19 @@ static void DrawOverlay(const Game *game) {
     static const char *const kMenu[] = {
         "NEW GAME", "OVERWORLD MAP", "PASSWORD", "OPTIONS"
     };
+    static const char *const kMenuWithSave[] = {
+        "CONTINUE", "NEW GAME", "OVERWORLD MAP", "PASSWORD", "OPTIONS"
+    };
     if (game->state == GAME_TITLE) {
         DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, 185});
         DrawCentered("DEMON'S CREST", 34, 24, (Color){238, 232, 214, 255});
         DrawCentered("NATIVE FAN PORT", 62, 10, (Color){196, 168, 92, 255});
-        for (int i = 0; i < 4; i++) {
+        const char *const *menu = game->has_save ? kMenuWithSave : kMenu;
+        const int count = game->has_save ? 5 : 4;
+        for (int i = 0; i < count; i++) {
             Color col = game->menu_cursor == i ? (Color){255, 230, 120, 255}
                                                : (Color){190, 190, 190, 255};
-            DrawCentered(kMenu[i], 92 + i * 16, 10, col);
+            DrawCentered(menu[i], 92 + i * 16, 10, col);
         }
         DrawCentered("ARROWS SELECT   ENTER CONFIRM", 186, 10,
                      (Color){150, 150, 150, 255});
@@ -885,6 +1086,8 @@ void Game_Render(Game *game) {
 }
 
 void Game_Shutdown(Game *game) {
+    if (game->ready && game->campaign_mode)
+        (void)Game_SaveProgress(game);
     Audio_Shutdown();
     if (game->trace)
         fclose(game->trace);
