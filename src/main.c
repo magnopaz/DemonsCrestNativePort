@@ -72,6 +72,10 @@ int main(int argc, char **argv) {
             scale = sh / 224;
         if (scale < 1)
             scale = 1;
+        if (getenv("DC_WINDOW_INFO"))
+            fprintf(stderr, "window=%dx%d rt=%dx%d scale=%d\n", sw, sh,
+                    game.target.texture.width, game.target.texture.height,
+                    scale);
         int dw = 256 * scale;
         int dh = 224 * scale;
         Rectangle dst = {

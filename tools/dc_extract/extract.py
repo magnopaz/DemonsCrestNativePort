@@ -344,9 +344,75 @@ def read_cgram(path: Path) -> list[tuple[int, int, int]]:
     raw = path.read_bytes()
     if len(raw) != 0x200:
         raise SystemExit(f"{path}: expected 512-byte CGRAM dump")
+    return cgram_colors(raw)
+
+
+def cgram_colors(raw: bytes) -> list[tuple[int, int, int]]:
     words = struct.unpack("<256H", raw)
     return [((c & 31) * 8, ((c >> 5) & 31) * 8, ((c >> 10) & 31) * 8)
             for c in words]
+
+
+def _hex_reg(value) -> int:
+    return int(value, 16) if isinstance(value, str) else int(value)
+
+
+def read_capture_frame(capture_dir: Path, frame: int):
+    """Load one `capture_anim.py` frame: VRAM, CGRAM and the PPU BG registers.
+
+    `capture_anim.py` writes `fNNNNNN.json` (per-frame CPU/PPU/OAM/CGRAM state)
+    and `fNNNNNN.vram.bin` (64 KiB VRAM). This is the same oracle data the
+    Stage-1 dump provides, so a captured frame can bake an area's BG2 backdrop
+    and atlas without a hand-made VRAM capture.
+    """
+    state_path = capture_dir / f"f{frame:06d}.json"
+    vram_path = capture_dir / f"f{frame:06d}.vram.bin"
+    if not state_path.is_file() or not vram_path.is_file():
+        raise SystemExit(f"capture frame {frame} not found in {capture_dir}")
+    state = json.loads(state_path.read_text())
+    ppu = state.get("ppu", {})
+    regs = {
+        "bgsc": [_hex_reg(x) for x in ppu.get("bgXsc", [0, 0, 0, 0])],
+        "hscroll": [int(x) for x in ppu.get("hScroll", [0, 0, 0, 0])],
+        "vscroll": [int(x) for x in ppu.get("vScroll", [0, 0, 0, 0])],
+    }
+    raw_cgram = bytes.fromhex(state["cgram"].replace(" ", ""))
+    if len(raw_cgram) != 0x200:
+        raise SystemExit(f"{state_path}: expected 512-byte CGRAM blob")
+    vram = read_vram(vram_path)
+    return vram, cgram_colors(raw_cgram), regs
+
+
+def load_bg2_captures(path: Path | None) -> dict[int, dict]:
+    """Read the area -> capture-frame manifest used for per-area BG2 backdrops.
+
+    Format::
+
+        {"areas": {"3": {"dir": "captures/anim", "frame": 20614}}}
+
+    Every area with an entry gets that frame's BG2 tilemap, palette and atlas
+    instead of the transparent placeholder layer. This is the interim path
+    until the ROM-side BG2 generator is decoded; see docs/PROJECT_STATE.md.
+    """
+    if path is None or not path.is_file():
+        return {}
+    raw = json.loads(path.read_text())
+    root = Path(__file__).resolve().parents[2]
+    out: dict[int, dict] = {}
+    for key, entry in raw.get("areas", {}).items():
+        area = int(key)
+        cap_dir = Path(entry["dir"])
+        if not cap_dir.is_absolute():
+            cap_dir = root / cap_dir
+        frame = int(entry["frame"])
+        if not (cap_dir / f"f{frame:06d}.json").is_file():
+            print(f"bg2 capture for area {area} missing "
+                  f"({cap_dir}/f{frame:06d}.json); skipping")
+            continue
+        vram, cgram, regs = read_capture_frame(cap_dir, frame)
+        out[area] = {"vram": vram, "cgram": cgram, "regs": regs,
+                     "dir": cap_dir, "frame": frame}
+    return out
 
 
 def tile_pixels(vram: list[int], tile_word: int, bpp: int = 4) -> list[list[int]]:
@@ -715,7 +781,8 @@ SPECIES_KIND_MAP = {
 
 
 def build_area_room_doc(rom: Rom, area: int, bg2_layer: dict,
-                        player_feet_x: int, player_feet_y: int) -> dict:
+                        player_feet_x: int, player_feet_y: int,
+                        bg2_captures: dict[int, dict] | None = None) -> dict:
     """Build a complete 2D multi-row room JSON for any ROM area."""
     info = rom.area_info(area)
     set_id = info["set"]
@@ -810,14 +877,30 @@ def build_area_room_doc(rom: Rom, area: int, bg2_layer: dict,
         "tilemap": full_tiles,
     }
     bg2_copy = dict(bg2_layer)
-    if area != 1:
-        # BG2 backdrops are streamed per area and not yet extracted for every
-        # room; keep the layer transparent instead of reusing Area 1's forest.
+    capture = (bg2_captures or {}).get(area)
+    if capture is not None:
+        # The oracle frame was taken at its own BG1 scroll; keep the layer's
+        # *relative* offset so the backdrop sits where the original game put it
+        # for this room's camera.
+        regs = capture["regs"]
+        map_w, map_h, tiles = tilemap_linear(capture["vram"], regs["bgsc"][1])
+        bg2_copy = {
+            "name": "bg2",
+            "map_width": map_w,
+            "map_height": map_h,
+            "scroll_x": cam_x + (regs["hscroll"][1] - regs["hscroll"][0]),
+            "scroll_y": cam_y + (regs["vscroll"][1] - regs["vscroll"][0]),
+            "tilemap": tiles,
+        }
+    elif area != 1:
+        # BG2 backdrops are generated at runtime and are not in the ROM block
+        # tables; keep the layer transparent until a capture exists.
         bg2_copy["tilemap"] = [0] * len(bg2_layer["tilemap"])
         bg2_copy["scroll_x"] = 0
         bg2_copy["scroll_y"] = 0
         bg2_copy.pop("hdma_bands", None)
-    else:
+    bg2_copy.pop("hdma_bands", None)
+    if area == 1:
         bg2_copy["hdma_bands"] = AREA1_HDMA_BANDS
     return {
         "name": f"area{area}_full_room",
@@ -859,39 +942,64 @@ def build_area_room_doc(rom: Rom, area: int, bg2_layer: dict,
     }
 
 
-def write_area_bg_atlases(rom: Rom, out: Path, areas: list[int]) -> None:
-    """Bake per-area BG tile atlases from ROM CHR + ROM palettes."""
-    for area in areas:
-        bg_vram = rom.decompress_area_bg_vram(area)
-        colors = [(0, 0, 0)] * 128
-        for pal in (0, 1):
-            off = lo(0x99, 0x9080 + pal * 32)
-            words = struct.unpack_from("<16H", rom.data, off)
-            colors[pal * 16:(pal + 1) * 16] = [
-                ((c & 31) * 8, ((c >> 5) & 31) * 8, ((c >> 10) & 31) * 8)
-                for c in words]
-        val = rom.u16(0x81, 0x8909 + area * 2)
-        base = 0xA900 + (val & 0xFFC0)
-        for pal in range(2, 8):
-            off = lo(0x99, base + (pal - 2) * 32)
-            words = struct.unpack_from("<16H", rom.data, off)
-            colors[pal * 16:(pal + 1) * 16] = [
-                ((c & 31) * 8, ((c >> 5) & 31) * 8, ((c >> 10) & 31) * 8)
-                for c in words]
+def area_bg_cgram(rom: Rom, area: int) -> list[tuple[int, int, int]]:
+    """ROM BG palette block for `area`: palettes 0/1 fixed, 2..7 per area."""
+    colors = [(0, 0, 0)] * 128
+    for pal in (0, 1):
+        off = lo(0x99, 0x9080 + pal * 32)
+        words = struct.unpack_from("<16H", rom.data, off)
+        colors[pal * 16:(pal + 1) * 16] = [
+            ((c & 31) * 8, ((c >> 5) & 31) * 8, ((c >> 10) & 31) * 8)
+            for c in words]
+    val = rom.u16(0x81, 0x8909 + area * 2)
+    base = 0xA900 + (val & 0xFFC0)
+    for pal in range(2, 8):
+        off = lo(0x99, base + (pal - 2) * 32)
+        words = struct.unpack_from("<16H", rom.data, off)
+        colors[pal * 16:(pal + 1) * 16] = [
+            ((c & 31) * 8, ((c >> 5) & 31) * 8, ((c >> 10) & 31) * 8)
+            for c in words]
+    return colors
 
-        # Only bake palettes actually referenced by this area's screens.
-        info = rom.area_info(area)
-        used = {0}
-        for row in info["grid"]:
-            for slot in row:
-                if not slot:
-                    continue
-                scr = info["screens"][slot - 1]
-                for tm in rom.screen_tilemap(info["set"], scr):
-                    for word in tm:
-                        used.add((word >> 10) & 7)
+
+def area_used_palettes(rom: Rom, area: int) -> set[int]:
+    """BG palettes referenced by the area's ROM block tables."""
+    info = rom.area_info(area)
+    used = {0}
+    for row in info["grid"]:
+        for slot in row:
+            if not slot:
+                continue
+            scr = info["screens"][slot - 1]
+            for tm in rom.screen_tilemap(info["set"], scr):
+                for word in tm:
+                    used.add((word >> 10) & 7)
+    return used
+
+
+def write_area_bg_atlases(rom: Rom, out: Path, areas: list[int],
+                          bg2_captures: dict[int, dict] | None = None) -> None:
+    """Bake per-area BG tile atlases.
+
+    Areas with a BG2 capture bake every palette from the capture frame's VRAM
+    and CGRAM, so streamed tiles the static ROM set does not contain are
+    covered too. Areas without a capture still use the ROM CHR + palettes.
+    """
+    captures = bg2_captures or {}
+    for area in areas:
+        used = area_used_palettes(rom, area)
+        capture = captures.get(area)
+        if capture is not None:
+            vram = capture["vram"]
+            cgram = capture["cgram"]
+            _w, _h, bg2_tiles = tilemap_linear(vram, capture["regs"]["bgsc"][1])
+            for word in bg2_tiles:
+                used.add((word >> 10) & 7)
+        else:
+            vram = rom.decompress_area_bg_vram(area)
+            cgram = area_bg_cgram(rom, area)
         for pal in sorted(used):
-            make_bg_atlas(bg_vram, colors, pal).save(
+            make_bg_atlas(vram, cgram, pal).save(
                 out / f"bg_area{area}_pal{pal}.png")
 
 
@@ -944,12 +1052,19 @@ def main() -> int:
                     help="CGRAM OBJ palette for the item (default 0; -1 = use OAM bits)")
     ap.add_argument("--fb", type=Path,
                     help="framebuffer BMP for palette matching (default: <dump>/<prefix>.fb.bmp)")
+    ap.add_argument("--bg2-map", type=Path,
+                    default=Path(__file__).with_name("bg2_captures.json"),
+                    help="area -> capture-frame manifest for per-area BG2 "
+                         "backdrops (default: tools/dc_extract/bg2_captures.json)")
     ap.add_argument("--out", required=True, type=Path)
     args = ap.parse_args()
 
     rom = Rom(args.rom)
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
+    bg2_captures = load_bg2_captures(args.bg2_map)
+    if bg2_captures:
+        print(f"bg2 captures: {sorted(bg2_captures)} from {args.bg2_map}")
 
     vram = read_vram(args.dump / f"{args.prefix}.vram.bin")
     cgram = read_cgram(args.dump / f"{args.prefix}.cgram.bin")
@@ -1035,7 +1150,7 @@ def main() -> int:
     campaign_areas = valid_campaign_areas(rom)
     for p in range(8):
         make_bg_atlas(vram, cgram, p).save(out / f"bg_pal{p}.png")
-    write_area_bg_atlases(rom, out, campaign_areas)
+    write_area_bg_atlases(rom, out, campaign_areas, bg2_captures)
 
     rom_obj_vram, slot_tiles = rom.decompress_area_obj_vram(args.area)
     item_cgram = list(cgram)
@@ -1255,7 +1370,8 @@ def main() -> int:
         if area_id == args.area and args.full_room:
             continue
         doc = build_area_room_doc(rom, area_id, bg_layers[0],
-                                  player_feet_x, player_feet_y)
+                                  player_feet_x, player_feet_y,
+                                  bg2_captures)
         (out / f"room_area{area_id}.json").write_text(json.dumps(doc, indent=1))
 
     campaign_doc = {
@@ -1274,9 +1390,10 @@ def main() -> int:
         "campaign_areas": campaign_areas,
         "object_list_index": object_list_index,
         "objects": len(objects),
+        "bg2_captures": sorted(bg2_captures),
         "source": f"{args.prefix} ({args.dump})",
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "tool": "dc_extract 0.3",
+        "tool": "dc_extract 0.4",
         "tile_size": 8,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))

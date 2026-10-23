@@ -4,18 +4,41 @@ project(DemonsCrestNativePort C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-include(FetchContent)
+# raylib source: either a local install (offline / Windows desktop) or the
+# pinned upstream release fetched over the network.
+set(DC_RAYLIB_ROOT "" CACHE PATH
+    "Existing raylib root (containing src/raylib.h) to link instead of fetching")
 
-# raylib is fetched at configure time; it is not vendored.
-set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(
-    raylib
-    URL https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
-FetchContent_MakeAvailable(raylib)
+if(DC_RAYLIB_ROOT)
+    find_path(DC_RAYLIB_INCLUDE_DIR raylib.h
+        PATHS "${DC_RAYLIB_ROOT}/src" "${DC_RAYLIB_ROOT}/include"
+        NO_DEFAULT_PATH)
+    find_library(DC_RAYLIB_LIBRARY NAMES raylib raylib_static
+        PATHS "${DC_RAYLIB_ROOT}/src" "${DC_RAYLIB_ROOT}/lib"
+        NO_DEFAULT_PATH)
+    if(NOT DC_RAYLIB_INCLUDE_DIR OR NOT DC_RAYLIB_LIBRARY)
+        message(FATAL_ERROR
+            "DC_RAYLIB_ROOT=${DC_RAYLIB_ROOT} does not contain src/raylib.h "
+            "and a raylib library (src/libraylib.a or lib/libraylib.a)")
+    endif()
+    message(STATUS "raylib: local ${DC_RAYLIB_LIBRARY}")
+    add_library(raylib UNKNOWN IMPORTED)
+    set_target_properties(raylib PROPERTIES
+        IMPORTED_LOCATION "${DC_RAYLIB_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${DC_RAYLIB_INCLUDE_DIR}")
+else()
+    include(FetchContent)
+    # raylib is fetched at configure time; it is not vendored.
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        raylib
+        URL https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(raylib)
+endif()
 
 add_executable(demonscrest
     src/main.c
@@ -38,7 +61,11 @@ target_include_directories(demonscrest PRIVATE
     external/cJSON
 )
 
-target_link_libraries(demonscrest PRIVATE raylib m)
+if(WIN32)
+    target_link_libraries(demonscrest PRIVATE raylib winmm gdi32 opengl32 shell32)
+else()
+    target_link_libraries(demonscrest PRIVATE raylib m)
+endif()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
