@@ -79,6 +79,20 @@ void Text_UnloadScript(TextScript *script) {
     memset(script, 0, sizeof(*script));
 }
 
+int Text_Find(const TextScript *script, const char *needle) {
+    if (!script || !needle || !*needle)
+        return -1;
+    for (int i = 0; i < script->count; i++) {
+        for (int p = 0; p < script->page_count[i]; p++) {
+            for (int l = 0; l < script->line_count[i][p]; l++) {
+                if (strstr(script->pages[i][p][l], needle))
+                    return i;
+            }
+        }
+    }
+    return -1;
+}
+
 int Text_Width(const char *text) {
     int w = 0;
     for (const char *p = text; *p; p++) {

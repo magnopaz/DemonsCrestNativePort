@@ -47,6 +47,12 @@ typedef struct Game {
     int password_status; /* 0 neutral, 1 accepted, -1 invalid */
     bool campaign_mode;
     TextScript script;
+    int shop_welcome; /* cached text indices (ROM shop dialogue) */
+    int shop_full_urn;
+    int shop_full_vellum;
+    int shop_message;
+    int shop_timer;
+    bool dialogue_demo; /* DC_DIALOGUE overlay */
     bool script_ready;
     bool has_save;
     bool prev_up;

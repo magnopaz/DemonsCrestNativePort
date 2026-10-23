@@ -418,8 +418,13 @@ bool Game_Init(Game *game, const char *asset_dir) {
 
     game->ready = true;
     game->has_save = Game_HasSave();
-    if (getenv("DC_DIALOGUE"))
-        game->script_ready = Text_LoadScript(&game->script, asset_dir);
+    if (Text_LoadScript(&game->script, asset_dir)) {
+        game->script_ready = true;
+        game->shop_welcome = Text_Find(&game->script, "BLACK LOTUS");
+        game->shop_full_urn = Text_Find(&game->script, "NEED AN URN");
+        game->shop_full_vellum = Text_Find(&game->script, "VELLUM IS");
+        game->dialogue_demo = getenv("DC_DIALOGUE") != NULL;
+    }
     const char *password_env = getenv("DC_PASSWORD");
     if (password_env && *password_env) {
         if (Game_ApplyPassword(game, password_env)) {
@@ -803,15 +808,29 @@ static void Game_UpdateTitle(Game *game, bool up_pressed, bool down_pressed) {
 
 static void Game_UpdateShop(Game *game, bool left_pressed,
                             bool right_pressed, bool up_pressed) {
-    if (left_pressed && game->player.gold >= 30 && game->player.potions < 5) {
-        game->player.gold -= 30;
-        game->player.potions++;
-        Audio_Play(SFX_PICKUP);
+    if (game->shop_timer > 0)
+        game->shop_timer--;
+    if (left_pressed) {
+        if (game->player.potions >= 5) {
+            /* "YOUR URN IS ALREADY FULL OF" ($85:87AC) */
+            game->shop_message = game->shop_full_urn;
+            game->shop_timer = 120;
+        } else if (game->player.gold >= 30) {
+            game->player.gold -= 30;
+            game->player.potions++;
+            Audio_Play(SFX_PICKUP);
+        }
     }
-    if (right_pressed && game->player.gold >= 50 && game->player.scrolls < 5) {
-        game->player.gold -= 50;
-        game->player.scrolls++;
-        Audio_Play(SFX_PICKUP);
+    if (right_pressed) {
+        if (game->player.scrolls >= 5) {
+            /* "YOUR VELLUM IS ALREADY FULL OF" ($85:875B) */
+            game->shop_message = game->shop_full_vellum;
+            game->shop_timer = 120;
+        } else if (game->player.gold >= 50) {
+            game->player.gold -= 50;
+            game->player.scrolls++;
+            Audio_Play(SFX_PICKUP);
+        }
     }
     if (up_pressed && game->player.gold >= 80 && game->player.max_hp < 10) {
         game->player.gold -= 80;
@@ -1139,9 +1158,17 @@ static void DrawOverlay(const Game *game) {
         DrawSubscreen(game);
     } else if (game->state == GAME_SHOP) {
         DrawRectangle(0, 0, 256, 224, (Color){10, 8, 14, 240});
-        DrawCentered("POTION & SPELL SHOP", 24, 14,
-                     (Color){238, 220, 160, 255});
-        DrawCentered(TextFormat("GOLD %d", game->player.gold), 48, 10,
+        int shop_gold_y = 52;
+        if (game->shop_welcome >= 0) {
+            int h = Text_DrawPage(&game->assets, &game->script,
+                                  game->shop_welcome, 0, 16, 16, 220,
+                                  (Color){240, 236, 220, 255});
+            shop_gold_y = 16 + h + 10;
+        } else {
+            DrawCentered("POTION & SPELL SHOP", 24, 14,
+                         (Color){238, 220, 160, 255});
+        }
+        DrawCentered(TextFormat("GOLD %d", game->player.gold), shop_gold_y, 10,
                      (Color){255, 224, 120, 255});
         DrawCentered("LEFT  - BUY URN (30G)", 88, 10,
                      (Color){200, 220, 255, 255});
@@ -1153,7 +1180,11 @@ static void DrawOverlay(const Game *game) {
                                 game->player.potions, game->player.scrolls,
                                 game->player.max_hp), 152, 10,
                      (Color){240, 220, 140, 255});
-        DrawCentered("ENTER / ESC RETURN", 192, 10,
+        if (game->shop_timer > 0 && game->shop_message >= 0) {
+            Text_DrawPage(&game->assets, &game->script, game->shop_message, 0,
+                          16, 150, 220, (Color){255, 210, 160, 255});
+        }
+        DrawCentered("ENTER / ESC RETURN", 208, 10,
                      (Color){170, 170, 170, 255});
     } else if (game->state == GAME_PASSWORD) {
         DrawRectangle(0, 0, 256, 224, (Color){6, 10, 16, 240});
@@ -1225,7 +1256,7 @@ void Game_Render(Game *game) {
     }
     if (game->state != GAME_PLAYING)
         DrawOverlay(game);
-    if (game->script_ready && game->script.count > 0) {
+    if (game->dialogue_demo && game->script_ready && game->script.count > 0) {
         /* Dev hook (`DC_DIALOGUE=1`): show the extracted ROM script with the
          * baked BG3 font, advancing a page every two seconds. The real
          * dialogue state will drive this from story events instead. */

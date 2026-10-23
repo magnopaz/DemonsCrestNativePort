@@ -24,6 +24,9 @@ typedef struct TextScript {
 bool Text_LoadScript(TextScript *script, const char *asset_dir);
 void Text_UnloadScript(TextScript *script);
 
+/* Index of the first string containing `needle`, or -1. */
+int Text_Find(const TextScript *script, const char *needle);
+
 /* Draws one line with the baked BG3 ASCII font (8x8, white mask). */
 void Text_DrawString(const Assets *assets, const char *text, int x, int y,
                      Color tint);

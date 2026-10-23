@@ -1945,6 +1945,17 @@ Known gap: the ghoul lands on its perch at y≈96 and cannot descend to Firebran
 on the floor, because the `$DEA2` behaviour states that would move it between
 ledges are still unported. Its volleys are the main threat in that room.
 
+Sprite-data lead (round 3): diffing the object slots of a species that captures
+correctly (urn `$57`) against one that draws Firebrand (`$2C`) shows the init
+handlers write **species-specific 16-bit pointers** into `$28/$2A/$2E`
+(`$D229/$D219/$D874` for the urn, `$D5A6/$D59A/0` for the skeleton). Those
+offsets land inside the metasprite data block at the end of bank `$8B`
+(`$8B:D219` etc. decode as 5-byte sprite parts), i.e. the ROM does hold
+per-species frame data and it is addressable from the init handlers. The exact
+frame-selection rule (which of the three pointers the renderer uses per state)
+is still open, and decoding the frames needs the area's OBJ CHR
+(`decompress_area_obj_vram`) plus the object palette.
+
 Remaining: port states 1-4 fully and the `$DEA2` behaviour dispatch, which need
 the object integration helpers (`$808C14`/`$808CBF`) and the animation driver
 (`$80F81D`) mapped first.
@@ -1998,9 +2009,22 @@ The pause-menu font is a bold italic 8x8 design (glyph cells are full height),
 so the renderer needs 2 px of leading: `Text_DrawPage` now advances
 `TEXT_LINE_H = 10`, and `DC_DIALOGUE=1` renders the real intro page legibly.
 
-Next: wire the dialogue into the actual flow (intro before Area 0, shop/NPC
-text, ending variants), index the script table by event, and re-extract
-`font.png` per context if dialogue turns out to use a second font block.
+Shop/NPC text wiring (round 3):
+
+- `Text_Find(script, needle)` locates a script entry by substring, and the
+  script is now loaded unconditionally (it is small): `src/game.c` caches the
+  shop entries for `"BLACK LOTUS"`, `"NEED AN URN"` and `"VELLUM IS"`.
+- The shop screen draws the authentic ROM box `WELCOME TO / "THE BLACK LOTUS" /
+  WE CARRY ONLY THE / FINEST POTIONS` through `Text_DrawPage`, with GOLD placed
+  below the measured box height, and failed purchases display
+  `YOUR URN IS ALREADY FULL OF` / `YOUR VELLUM IS ALREADY FULL OF` for 120
+  frames. Regression stays green.
+- The ROM text uses `[` for an apostrophe (`DON[T`), `"`/`\` for quotes and
+  `]` as the page terminator — worth normalising in the text renderer later.
+
+Next: wire the dialogue state into the flow (intro before Area 0, ending
+variants), index the script table by event, and normalise the `[`/`]` control
+characters.
 
 ---
 
