@@ -281,7 +281,8 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                         o->y_fx = (int32_t)lroundf(surf * FX_ONE);
                 }
             } else {
-                /* Hippogriff / Stage Boss: swoop and hover above Firebrand. */
+                /* Hippogriff / Stage Boss: swoop and hover above Firebrand,
+                 * and punish with a three-shot spread every 110 frames. */
                 if (abs(dx) > 12 * FX_ONE)
                     o->x_fx += (dx > 0) ? 0x0100 : -0x0100;
                 int32_t target_y = o->origin_y_fx +
@@ -293,6 +294,24 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 else if (o->y_fx > target_y)
                     o->y_fx -= 0x00C0;
                 (void)dy;
+                if (o->timer % 110 == 40) {
+                    float bx = (float)o->x_fx / FX_ONE;
+                    float by = (float)o->y_fx / FX_ONE;
+                    float tx = player->x - bx;
+                    float ty = (player->y - 10.0f) - by;
+                    float len = sqrtf(tx * tx + ty * ty);
+                    if (len < 0.001f)
+                        len = 1.0f;
+                    tx /= len;
+                    ty /= len;
+                    for (int k = -1; k <= 1; k++) {
+                        float ang = (float)k * 0.35f;
+                        float cx = tx * cosf(ang) - ty * sinf(ang);
+                        float cy = tx * sinf(ang) + ty * cosf(ang);
+                        SpawnEnemyShot(pool, bx, by, (int32_t)(cx * 1.4f * FX_ONE),
+                                       (int32_t)(cy * 1.4f * FX_ONE));
+                    }
+                }
             }
             float ox = (float)o->x_fx / FX_ONE;
             float oy = (float)o->y_fx / FX_ONE;
@@ -559,6 +578,9 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
             continue;
         }
 
+        if (o->hit_flash > 0)
+            o->hit_flash--;
+
         if (o->type == OBJECT_ENEMY_SHOT) {
             o->timer++;
             o->x_fx += o->vx_fx;
@@ -645,6 +667,7 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                 if (fabsf(px - ox) <= 12.0f && fabsf(py - oy) <= 12.0f) {
                     p->active = false;
                     o->hp -= dmg;
+                    o->hit_flash = 8;
                     pool->events |= OBJECT_EVENT_ENEMY_HIT;
                     if (o->hp <= 0) {
                         SpawnPickup(pool, ox, oy + 8.0f);
@@ -663,6 +686,7 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                 if (fabsf(px - ox) <= 20.0f && fabsf(py - oy) <= 24.0f) {
                     p->active = false;
                     o->hp -= dmg;
+                    o->hit_flash = 8;
                     pool->events |= OBJECT_EVENT_ENEMY_HIT;
                     if (o->hp <= 0) {
                         o->active = false;

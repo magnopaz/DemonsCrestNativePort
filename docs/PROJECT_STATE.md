@@ -2268,6 +2268,25 @@ so authentic frames cannot be baked offline yet.
 
 ---
 
+### Step 28 — Boss attacks and hit feedback (done)
+
+- Non-Somulo bosses now fire a **three-shot spread** every 110 frames: the shot
+  direction is the unit vector toward Firebrand, rotated by ±0.35 rad, spawned
+  through the same `OBJECT_ENEMY_SHOT` path the ghoul uses. Standing next to the
+  Area 3 boss for 260 frames now costs all 4 HP (4 hits taken, 345 projectile
+  rows in the object trace).
+- New `Object.hit_flash`: set to 8 frames when a fireball hits an enemy or boss;
+  the renderer tints the sprite white for the first frames and pink afterwards,
+  so hits read clearly.
+- Somulo already had its lunge/leap cycle; both boss families now have a
+  projected threat instead of only contact damage.
+
+Note: the Area 3 capture in this run also exposed a large black rectangle on the
+right of the frame — the captured BG2 layer for that area does not cover the
+whole room. Tracked as a BG2 coverage issue (capture-only data).
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

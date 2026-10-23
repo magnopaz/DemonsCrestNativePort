@@ -240,8 +240,12 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                 Rectangle dst = {dx, dy,
                                  (float)sf->texture.width * scale,
                                  (float)sf->texture.height * scale};
+                Color tint = o->hit_flash > 0 ? (Color){255, 200, 200, 255}
+                                              : WHITE;
+                if (o->hit_flash > 4)
+                    tint = (Color){255, 255, 255, 255};
                 DrawTexturePro(sf->texture, src, dst, (Vector2){0, 0}, 0.0f,
-                               WHITE);
+                               tint);
             } else {
                 /* No trustworthy sheet for this species yet (the capture was
                  * ambiguous): draw a small silhouette so rooms are not filled
