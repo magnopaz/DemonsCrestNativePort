@@ -2183,6 +2183,26 @@ behaviour table (random idle/attack choices) for the ghoul.
 
 ---
 
+### Step 24 — State-driven music tracks (done)
+
+- `audio.c` now builds a small bank of procedural chiptune loops instead of a
+  single track: `MUSIC_TITLE`, `MUSIC_STAGE`, `MUSIC_BOSS`, `MUSIC_ENDING`
+  (64 steps each, different tempos/duty cycles). `Audio_SetTrack` stops the
+  previous loop and starts the new one; `Audio_StartMusic` maps to the stage
+  track for compatibility.
+- `Game_SyncMusic` (called from `Game_Update`) picks the track from the state:
+  title → title theme, ending → ending theme, gameplay/pause/subscreen/shop →
+  boss theme while `objects.boss_present && boss_alive`, otherwise the stage
+  theme.
+- Verified with `DC_AUDIO_FORCE=1 DC_AUDIO_DEBUG=1` and a dummy SDL device:
+  `4/4 tracks loaded`, stage gameplay selects track 2, area 0 selects track 3
+  (boss), title selects track 1. Audio stays off in deterministic runs.
+
+Next: fade between tracks instead of hard cuts, and area-specific
+instrumentation once the ROM's music format is decoded.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

@@ -1034,6 +1034,37 @@ static void Game_UpdateOptions(Game *game) {
     }
 }
 
+/* Title, stage, boss and ending loops follow the game state. */
+static void Game_SyncMusic(Game *game) {
+    int track = MUSIC_STAGE;
+    switch ((GameState)game->state) {
+    case GAME_TITLE:
+        track = MUSIC_TITLE;
+        break;
+    case GAME_ENDING:
+        track = MUSIC_ENDING;
+        break;
+    case GAME_PLAYING:
+    case GAME_PAUSED:
+    case GAME_SUBSCREEN:
+    case GAME_SHOP:
+        track = (game->objects.boss_present && game->objects.boss_alive)
+                    ? MUSIC_BOSS
+                    : MUSIC_STAGE;
+        break;
+    case GAME_OVERWORLD:
+    case GAME_CLEAR:
+    case GAME_DIALOGUE:
+    case GAME_PASSWORD:
+    case GAME_OPTIONS:
+    case GAME_OVER:
+    default:
+        track = MUSIC_STAGE;
+        break;
+    }
+    Audio_SetTrack(track);
+}
+
 /* Writes one trace row per frame regardless of game state, so tests can
  * observe menu/clear/dialogue modes as well as gameplay. */
 static void Game_TraceFrame(Game *game) {
@@ -1190,6 +1221,7 @@ void Game_Update(Game *game) {
     }
     }
     Game_TraceFrame(game);
+    Game_SyncMusic(game);
     Audio_Update();
 }
 

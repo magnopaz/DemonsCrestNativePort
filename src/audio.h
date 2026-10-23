@@ -14,11 +14,22 @@ typedef enum SfxId {
     SFX_COUNT
 } SfxId;
 
+typedef enum MusicTrack {
+    MUSIC_NONE = 0,
+    MUSIC_TITLE,
+    MUSIC_STAGE,
+    MUSIC_BOSS,
+    MUSIC_ENDING,
+    MUSIC_TRACK_COUNT
+} MusicTrack;
+
 bool Audio_Init(void);
 void Audio_Shutdown(void);
 void Audio_Update(void);
 void Audio_Play(SfxId id);
 void Audio_StartMusic(void);
+/* Switches the looping track (no-op when unchanged or audio is off). */
+void Audio_SetTrack(int track);
 void Audio_SetVolume(float volume);
 float Audio_GetVolume(void);
 

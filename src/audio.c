@@ -15,9 +15,10 @@
 
 static bool ready;
 static Sound sfx[SFX_COUNT];
-static Music music;
-static unsigned char *music_wav;
-static bool music_loaded;
+static Music music[MUSIC_TRACK_COUNT];
+static unsigned char *music_wav[MUSIC_TRACK_COUNT];
+static bool music_loaded[MUSIC_TRACK_COUNT];
+static int current_track = MUSIC_NONE;
 static float master_vol = 1.0f;
 
 static void Put16(unsigned char *p, uint16_t v) {
@@ -64,53 +65,83 @@ static int16_t Square(float phase, float amp) {
     return (int16_t)((phase < 0.5f ? amp : -amp) * 32767.0f);
 }
 
-static void BuildMusic(void) {
-    static const int melody[MUSIC_STEPS] = {
-        69, 72, 76, 72, 69, 72, 76, 79,
-        65, 69, 72, 69, 65, 69, 72, 76,
-        67, 71, 74, 71, 67, 71, 74, 79,
-        64, 67, 71, 67, 64, 67, 71, 74,
-        69, 72, 76, 79, 76, 72, 69, 65,
-        65, 69, 72, 76, 72, 69, 65, 62,
-        67, 71, 74, 79, 74, 71, 67, 64,
-        64, 67, 71, 74, 71, 67, 64, 57
-    };
-    static const int bass[16] = {
-        45, 45, 41, 41, 43, 43, 40, 40,
-        45, 45, 41, 41, 43, 43, 40, 40
-    };
+/* Track data: 64-step loops, one per game state family. */
+static const int kStageMelody[64] = {
+    69, 72, 76, 72, 69, 72, 76, 79, 65, 69, 72, 69, 65, 69, 72, 76,
+    67, 71, 74, 71, 67, 71, 74, 79, 64, 67, 71, 67, 64, 67, 71, 74,
+    69, 72, 76, 79, 76, 72, 69, 65, 65, 69, 72, 76, 72, 69, 65, 62,
+    67, 71, 74, 79, 74, 71, 67, 64, 64, 67, 71, 74, 71, 67, 64, 57};
+static const int kStageBass[16] = {45, 45, 41, 41, 43, 43, 40, 40,
+                                   45, 45, 41, 41, 43, 43, 40, 40};
+static const int kTitleMelody[64] = {
+    57, 60, 64, 69, 64, 60, 57, 60, 55, 59, 62, 67, 62, 59, 55, 59,
+    53, 57, 60, 65, 60, 57, 53, 57, 52, 55, 59, 64, 59, 55, 52, 55,
+    57, 60, 64, 69, 72, 69, 64, 60, 55, 59, 62, 67, 71, 67, 62, 59,
+    53, 57, 60, 65, 69, 65, 60, 57, 52, 55, 59, 64, 67, 64, 59, 55};
+static const int kTitleBass[16] = {33, 33, 31, 31, 29, 29, 28, 28,
+                                   33, 33, 31, 31, 29, 29, 28, 28};
+static const int kBossMelody[64] = {
+    64, 64, 67, 64, 62, 62, 64, 62, 60, 60, 63, 60, 58, 58, 60, 58,
+    64, 67, 70, 67, 64, 67, 70, 73, 62, 65, 68, 65, 62, 65, 68, 71,
+    64, 64, 67, 64, 62, 62, 64, 62, 60, 63, 67, 70, 63, 60, 58, 55,
+    52, 55, 58, 61, 58, 55, 52, 55, 53, 56, 59, 62, 59, 56, 53, 50};
+static const int kBossBass[16] = {28, 28, 28, 28, 26, 26, 26, 26,
+                                  24, 24, 24, 24, 23, 23, 23, 23};
+static const int kEndingMelody[64] = {
+    69, 67, 65, 64, 65, 67, 69, 72, 71, 69, 67, 65, 67, 69, 71, 74,
+    72, 71, 69, 67, 69, 71, 72, 76, 74, 72, 71, 69, 67, 65, 64, 62,
+    64, 65, 67, 69, 71, 72, 74, 76, 74, 72, 71, 69, 67, 65, 64, 62,
+    60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60, 57};
+static const int kEndingBass[16] = {45, 45, 43, 43, 41, 41, 40, 40,
+                                    45, 45, 43, 43, 41, 41, 40, 40};
 
-    int step_frames = (int)(MUSIC_SR * MUSIC_STEP_SECONDS);
-    int frames = step_frames * MUSIC_STEPS;
-    int16_t *pcm = calloc((size_t)frames, sizeof(int16_t));
-    if (!pcm)
-        return;
-
-    for (int s = 0; s < MUSIC_STEPS; s++) {
-        float mf = NoteHz(melody[s]);
-        int b = (s / 4) % 16;
-        float bf = NoteHz(bass[b]);
-        for (int i = 0; i < step_frames; i++) {
-            float t = (float)i / MUSIC_SR;
-            float env = 1.0f - (float)i / step_frames;
-            int16_t m = Square(fmodf(t * mf, 1.0f), 0.18f * env);
-            int16_t bass_note = Square(fmodf(t * bf, 1.0f), 0.22f);
-            int mix = (int)m + (int)bass_note;
-            if (mix > 32767) mix = 32767;
-            if (mix < -32768) mix = -32768;
-            pcm[s * step_frames + i] = (int16_t)mix;
+static void BuildAllTracks(void) {
+    struct {
+        const int *melody;
+        const int *bass;
+        float step;
+        float duty;
+    } defs[MUSIC_TRACK_COUNT] = {
+        {NULL, NULL, 0.0f, 0.0f},
+        {kTitleMelody, kTitleBass, 0.30f, 0.5f},
+        {kStageMelody, kStageBass, 0.25f, 0.5f},
+        {kBossMelody, kBossBass, 0.20f, 0.25f},
+        {kEndingMelody, kEndingBass, 0.36f, 0.5f},
+    };
+    for (int i = MUSIC_TITLE; i < MUSIC_TRACK_COUNT; i++) {
+        /* BuildTrack keeps its WAV alive by returning it through the stream;
+         * remember the buffer so Shutdown can free it. */
+        int step_frames = (int)(MUSIC_SR * defs[i].step);
+        int frames = step_frames * MUSIC_STEPS;
+        int16_t *pcm = calloc((size_t)frames, sizeof(int16_t));
+        if (!pcm)
+            continue;
+        for (int s = 0; s < MUSIC_STEPS; s++) {
+            float mf = NoteHz(defs[i].melody[s]);
+            int bi = (s / 4) % 16;
+            float bf = NoteHz(defs[i].bass[bi]);
+            for (int k = 0; k < step_frames; k++) {
+                float tt = (float)k / MUSIC_SR;
+                float env = 1.0f - (float)k / step_frames;
+                float duty = defs[i].duty;
+                int mix = (int)((fmodf(tt * mf, 1.0f) < duty ? 1.0f : -1.0f) *
+                                0.18f * env * 32767.0f) +
+                          (int)Square(fmodf(tt * bf, 1.0f), 0.22f);
+                if (mix > 32767) mix = 32767;
+                if (mix < -32768) mix = -32768;
+                pcm[s * step_frames + k] = (int16_t)mix;
+            }
         }
-    }
-
-    int size = 0;
-    music_wav = WrapWav(pcm, frames, &size);
-    free(pcm);
-    if (!music_wav)
-        return;
-    music = LoadMusicStreamFromMemory(".wav", music_wav, size);
-    if (IsMusicValid(music)) {
-        music.looping = true;
-        music_loaded = true;
+        int size = 0;
+        music_wav[i] = WrapWav(pcm, frames, &size);
+        free(pcm);
+        if (!music_wav[i])
+            continue;
+        music[i] = LoadMusicStreamFromMemory(".wav", music_wav[i], size);
+        if (IsMusicValid(music[i])) {
+            music[i].looping = true;
+            music_loaded[i] = true;
+        }
     }
 }
 
@@ -170,11 +201,15 @@ bool Audio_Init(void) {
     sfx[SFX_HURT] = MakeSfx(0.20f, 160.0f, 55.0f, 0.25f, 0.35f);
     sfx[SFX_ENEMY_HIT] = MakeSfx(0.08f, 500.0f, 220.0f, 0.4f, 0.28f);
 
-    BuildMusic();
+    BuildAllTracks();
     ready = true;
-    if (getenv("DC_AUDIO_DEBUG"))
-        fprintf(stderr, "audio: device ready, music %s\n",
-                music_loaded ? "loaded" : "unavailable");
+    if (getenv("DC_AUDIO_DEBUG")) {
+        int loaded = 0;
+        for (int i = MUSIC_TITLE; i < MUSIC_TRACK_COUNT; i++)
+            loaded += music_loaded[i] ? 1 : 0;
+        fprintf(stderr, "audio: device ready, %d/%d tracks loaded\n", loaded,
+                MUSIC_TRACK_COUNT - 1);
+    }
     return true;
 }
 
@@ -188,18 +223,22 @@ void Audio_Shutdown(void) {
         if (IsSoundValid(sfx[i]))
             UnloadSound(sfx[i]);
     }
-    if (music_loaded)
-        UnloadMusicStream(music);
-    free(music_wav);
-    music_wav = NULL;
-    music_loaded = false;
+    for (int i = MUSIC_TITLE; i < MUSIC_TRACK_COUNT; i++) {
+        if (music_loaded[i])
+            UnloadMusicStream(music[i]);
+        free(music_wav[i]);
+        music_wav[i] = NULL;
+        music_loaded[i] = false;
+    }
+    current_track = MUSIC_NONE;
     CloseAudioDevice();
     ready = false;
 }
 
 void Audio_Update(void) {
-    if (ready && music_loaded)
-        UpdateMusicStream(music);
+    if (ready && current_track > MUSIC_NONE && current_track < MUSIC_TRACK_COUNT &&
+        music_loaded[current_track])
+        UpdateMusicStream(music[current_track]);
 }
 
 void Audio_Play(SfxId id) {
@@ -210,10 +249,23 @@ void Audio_Play(SfxId id) {
 }
 
 void Audio_StartMusic(void) {
-    if (!ready || !music_loaded)
+    Audio_SetTrack(MUSIC_STAGE);
+}
+
+void Audio_SetTrack(int track) {
+    if (!ready || track == current_track)
         return;
-    if (!IsMusicStreamPlaying(music))
-        PlayMusicStream(music);
+    if (track < MUSIC_NONE || track >= MUSIC_TRACK_COUNT)
+        return;
+    if (current_track > MUSIC_NONE && current_track < MUSIC_TRACK_COUNT &&
+        music_loaded[current_track])
+        StopMusicStream(music[current_track]);
+    current_track = track;
+    if (getenv("DC_AUDIO_DEBUG"))
+        fprintf(stderr, "audio: track %d\n", track);
+    if (track > MUSIC_NONE && music_loaded[track] &&
+        !IsMusicStreamPlaying(music[track]))
+        PlayMusicStream(music[track]);
 }
 
 void Audio_SetVolume(float volume) {
