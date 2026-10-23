@@ -12,12 +12,45 @@
 #define TEXT_FIRST 0x20
 #define TEXT_LAST 0x7E
 
+/* The ROM script uses ASCII with a few in-band symbols: `[` is an apostrophe,
+ * `\` a full stop/quote stand-in and `j` a line break inside one line. Expand
+ * them while loading so the renderer only sees printable text. */
 static void CopyLine(char *dst, size_t cap, const char *src) {
     size_t n = strlen(src);
     if (n >= cap)
         n = cap - 1;
-    memcpy(dst, src, n);
+    for (size_t i = 0; i < n; i++) {
+        char c = src[i];
+        if (c == '[')
+            c = '\'';
+        else if (c == '\\')
+            c = '.';
+        dst[i] = c;
+    }
     dst[n] = '\0';
+}
+
+/* Splits one ROM line on the in-line break symbol, up to `max` output lines. */
+static int SplitLine(char out[TEXT_MAX_LINES][TEXT_LINE_MAX], int start,
+                     int max, const char *src) {
+    int count = 0;
+    char buf[TEXT_LINE_MAX];
+    size_t n = 0;
+    for (const char *p = src; ; p++) {
+        if (*p == 'j' || *p == '\0') {
+            buf[n] = '\0';
+            if (start + count < max && n > 0) {
+                CopyLine(out[start + count], TEXT_LINE_MAX, buf);
+                count++;
+            }
+            n = 0;
+            if (!*p)
+                break;
+        } else if (n + 1 < sizeof(buf)) {
+            buf[n++] = *p;
+        }
+    }
+    return count;
 }
 
 bool Text_LoadScript(TextScript *script, const char *asset_dir) {
@@ -50,11 +83,9 @@ bool Text_LoadScript(TextScript *script, const char *asset_dir) {
             cJSON_ArrayForEach(line, page) {
                 if (l >= TEXT_MAX_LINES)
                     break;
-                if (cJSON_IsString(line)) {
-                    CopyLine(script->pages[index][p][l], TEXT_LINE_MAX,
-                             line->valuestring);
-                    l++;
-                }
+                if (cJSON_IsString(line))
+                    l += SplitLine(script->pages[index][p], l,
+                                   TEXT_MAX_LINES, line->valuestring);
             }
             script->line_count[index][p] = l;
             if (l > 0)

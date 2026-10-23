@@ -53,6 +53,10 @@ typedef struct Game {
     int shop_message;
     int ending_text;   /* cached ROM narration index */
     int ending_page;
+    int dialogue_text;   /* script entry shown by GAME_DIALOGUE */
+    int dialogue_page;
+    int dialogue_return; /* state after the last page */
+    int crest_text[6];   /* cached "YOU HAVE FOUND THE CREST OF ..." */
     int shop_timer;
     bool dialogue_demo; /* DC_DIALOGUE overlay */
     bool script_ready;
@@ -90,7 +94,8 @@ typedef enum GameState {
     GAME_PASSWORD = 7,
     GAME_OPTIONS = 8,
     GAME_OVER = 9,
-    GAME_ENDING = 10
+    GAME_ENDING = 10,
+    GAME_DIALOGUE = 11
 } GameState;
 
 #endif

@@ -406,6 +406,8 @@ These environment variables exist for deterministic testing:
 | `DC_RESUME=1` | Boot straight into the saved run instead of the title |
 | `DC_PASSWORD=<code>` | Apply a native 10-letter password at boot |
 | `DC_PASSWORD_SELFTEST=1` | Run password codec round-trips and exit (CI) |
+| `DC_NO_STORY=1` | Skip the crest/item story beats |
+| `DC_STORY_TEST=<crest>` / `DC_STORY_PAGE=n` | Open a story page directly |
 | `SNESRECOMP_LAYER_MASK` | On the recomp side, isolate BG/OBJ layers for comparison |
 
 Example:

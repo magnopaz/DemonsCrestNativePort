@@ -430,6 +430,14 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->shop_full_urn = Text_Find(&game->script, "NEED AN URN");
         game->shop_full_vellum = Text_Find(&game->script, "VELLUM IS");
         game->ending_text = Text_Find(&game->script, "PHALANX WOULD");
+        game->crest_text[CREST_EARTH] =
+            Text_Find(&game->script, "CREST OF \"EARTH\"");
+        game->crest_text[CREST_AIR] =
+            Text_Find(&game->script, "CREST OF \"AIR\"");
+        game->crest_text[CREST_WATER] =
+            Text_Find(&game->script, "CREST OF \"WATER\"");
+        game->crest_text[CREST_TIME] =
+            Text_Find(&game->script, "CREST OF \"TIME\"");
         game->dialogue_demo = getenv("DC_DIALOGUE") != NULL;
     }
     const char *password_env = getenv("DC_PASSWORD");
@@ -474,6 +482,25 @@ bool Game_Init(Game *game, const char *asset_dir) {
             game->state = GAME_ENDING;
     }
     game->state_timer = 0;
+
+    /* Dev hook: jump straight into a story page for deterministic captures
+     * (`DC_STORY_TEST=<crest index>`, optional `DC_STORY_PAGE`). */
+    const char *story_test = getenv("DC_STORY_TEST");
+    if (getenv("DC_STORY_DEBUG"))
+        fprintf(stderr, "story: ready=%d crest_text=[%d %d %d %d %d %d]\n",
+                game->script_ready, game->crest_text[0], game->crest_text[1],
+                game->crest_text[2], game->crest_text[3], game->crest_text[4],
+                game->crest_text[5]);
+    if (story_test && *story_test && game->script_ready) {
+        int crest = atoi(story_test);
+        if (crest >= 0 && crest < CREST_COUNT && game->crest_text[crest] >= 0) {
+            game->dialogue_text = game->crest_text[crest];
+            const char *page = getenv("DC_STORY_PAGE");
+            game->dialogue_page = page ? atoi(page) : 0;
+            game->dialogue_return = GAME_TITLE;
+            game->state = GAME_DIALOGUE;
+        }
+    }
 
     Audio_Init();
     /* Dev hook: resume the saved run without going through the title menu. */
@@ -635,23 +662,44 @@ static void Game_OpenOverworld(Game *game) {
     game->overworld_node = CAMPAIGN_GRAVEYARD;
 }
 
+/* Deterministic test runs fast-forward story beats; players see them. */
+static bool Game_NarrativeEnabled(void) {
+    return getenv("DC_RUN_FRAMES") == NULL && getenv("DC_NO_STORY") == NULL;
+}
+
 static void Game_CompleteArea(Game *game) {
     int area = game->level.area_id;
     if (area >= 0 && area < 8)
         game->stages_cleared |= (uint8_t)(1u << area);
     /* Story progression: each cleared area grants the next Gargoyle Crest. */
+    int granted = -1;
     switch (area) {
-    case 0: game->player.crests_mask |= 0x02; break; /* Earth */
-    case 1: game->player.crests_mask |= 0x04; break; /* Aerial */
-    case 2: game->player.crests_mask |= 0x08; break; /* Water */
-    case 3: game->player.crests_mask |= 0x10; break; /* Time */
-    case 4: game->player.crests_mask |= 0x20; break; /* Ultimate */
+    case 0: granted = CREST_EARTH; break;
+    case 1: granted = CREST_AIR; break;
+    case 2: granted = CREST_WATER; break;
+    case 3: granted = CREST_TIME; break;
+    case 4: granted = CREST_ULTIMATE; break;
     default: break;
+    }
+    if (granted >= 0) {
+        static const uint8_t kBits[CREST_COUNT] = {0x01, 0x02, 0x04, 0x08,
+                                                  0x10, 0x20};
+        game->player.crests_mask |= kBits[granted];
     }
     Game_EncodePassword(game, game->password_code);
     game->state = GAME_CLEAR;
     game->state_timer = 0;
     (void)Game_SaveProgress(game);
+    /* Show the ROM's "YOU HAVE FOUND THE CREST OF ..." pages before the clear
+     * banner when a crest was just granted and story beats are enabled. */
+    if (granted >= 0 && granted < CREST_COUNT &&
+        game->crest_text[granted] >= 0 && Game_NarrativeEnabled()) {
+        game->dialogue_text = game->crest_text[granted];
+        game->dialogue_page = 0;
+        game->dialogue_return = GAME_CLEAR;
+        game->state = GAME_DIALOGUE;
+        game->state_timer = 0;
+    }
 }
 
 static void Game_UpdateOverworld(Game *game) {
@@ -1009,6 +1057,18 @@ void Game_Update(Game *game) {
             Game_OpenOverworld(game);
         }
         break;
+    case GAME_DIALOGUE: {
+        int pages = game->script.page_count[game->dialogue_text];
+        if (game->input.start_pressed) {
+            if (game->dialogue_page + 1 < pages) {
+                game->dialogue_page++;
+            } else {
+                game->state = game->dialogue_return;
+                game->state_timer = 0;
+            }
+        }
+        break;
+    }
     case GAME_ENDING: {
         int pages = (game->ending_text >= 0)
                         ? game->script.page_count[game->ending_text] : 0;
@@ -1244,6 +1304,15 @@ static void DrawOverlay(const Game *game) {
         if ((game->state_timer / 30) % 2 == 0)
             DrawCentered("PRESS ENTER TO CONTINUE", 148, 10,
                          (Color){255, 255, 255, 255});
+    } else if (game->state == GAME_DIALOGUE) {
+        DrawRectangle(0, 0, 256, 224, (Color){4, 6, 12, 235});
+        if (game->dialogue_text >= 0)
+            Text_DrawPage(&game->assets, &game->script, game->dialogue_text,
+                          game->dialogue_page, 16, 64, 224,
+                          (Color){240, 236, 220, 255});
+        if ((game->state_timer / 30) % 2 == 0)
+            DrawCentered("PRESS ENTER", 196, 10,
+                         (Color){200, 200, 200, 255});
     } else if (game->state == GAME_ENDING) {
         DrawRectangle(0, 0, 256, 224, (Color){4, 6, 12, 240});
         DrawCentered("THE DEMON'S CREST", 24, 18,

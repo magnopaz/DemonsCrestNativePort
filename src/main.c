@@ -27,9 +27,17 @@ int main(int argc, char **argv) {
     SetWindowMinSize(512, 448);
     SetTargetFPS(0); /* presentation is decoupled from the fixed 60 Hz sim */
 
-    Game game;
-    if (!Game_Init(&game, FindAssetDir(argc, argv))) {
+    /* The Game struct holds the loaded text script (~1 MB), so keep it off the
+     * stack. */
+    Game *game = (Game *)calloc(1, sizeof(Game));
+    if (!game) {
+        fprintf(stderr, "main: out of memory for Game\n");
+        CloseWindow();
+        return 1;
+    }
+    if (!Game_Init(game, FindAssetDir(argc, argv))) {
         fprintf(stderr, "main: Game_Init failed\n");
+        free(game);
         CloseWindow();
         return 1;
     }
@@ -46,7 +54,7 @@ int main(int argc, char **argv) {
         if (deterministic) {
             /* Headless captures stay exactly one update per loop so
              * DC_RUN_FRAMES/DC_TRACE_CSV remain reproducible. */
-            Game_Update(&game);
+            Game_Update(game);
             frames++;
         } else {
             double dt = GetFrameTime();
@@ -55,7 +63,7 @@ int main(int argc, char **argv) {
             accumulator += dt;
             int updates = 0;
             while (accumulator >= step && updates < 8) {
-                Game_Update(&game);
+                Game_Update(game);
                 accumulator -= step;
                 frames++;
                 updates++;
@@ -64,7 +72,7 @@ int main(int argc, char **argv) {
                 accumulator = 0.0; /* drop the backlog rather than spiral */
         }
 
-        Game_Render(&game);
+        Game_Render(game);
         BeginDrawing();
         ClearBackground((Color){0, 0, 0, 255});
 
@@ -77,7 +85,7 @@ int main(int argc, char **argv) {
             scale = 1;
         if (getenv("DC_WINDOW_INFO"))
             fprintf(stderr, "window=%dx%d rt=%dx%d scale=%d\n", sw, sh,
-                    game.target.texture.width, game.target.texture.height,
+                    game->target.texture.width, game->target.texture.height,
                     scale);
         int dw = 256 * scale;
         int dh = 224 * scale;
@@ -88,7 +96,7 @@ int main(int argc, char **argv) {
             (float)dh
         };
         Rectangle src = {0, 0, 256, -224};
-        DrawTexturePro(game.target.texture, src, dst, (Vector2){0, 0}, 0.0f,
+        DrawTexturePro(game->target.texture, src, dst, (Vector2){0, 0}, 0.0f,
                        WHITE);
         if (IsKeyDown(KEY_F3))
             DrawFPS(8, 8);
@@ -100,7 +108,8 @@ int main(int argc, char **argv) {
         }
     }
 
-    Game_Shutdown(&game);
+    Game_Shutdown(game);
+    free(game);
     CloseWindow();
     return 0;
 }

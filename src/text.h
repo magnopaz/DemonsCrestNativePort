@@ -6,7 +6,7 @@
 #include "assets.h"
 #include "raylib.h"
 
-#define TEXT_MAX_STRINGS 64
+#define TEXT_MAX_STRINGS 512
 #define TEXT_MAX_PAGES 6
 #define TEXT_MAX_LINES 8
 #define TEXT_LINE_MAX 48

@@ -2071,6 +2071,32 @@ and drive cutscene/arena handling for `partial` rooms explicitly.
 
 ---
 
+### Step 19 — Story dialogue state and crest narrative (done)
+
+- New `GAME_DIALOGUE` state: dims the frame, draws a `Text_DrawPage` page and
+  advances with Enter; after the last page it returns to `dialogue_return`
+  (`GAME_CLEAR` or `GAME_TITLE`).
+- `Game_CompleteArea` now shows the ROM's **"YOU HAVE FOUND THE CREST OF ..."**
+  pages (Earth/Air/Water/Time, cached from `$BE:A599..A6F7`) before the Area
+  Clear banner. Deterministic runs (`DC_RUN_FRAMES`) and `DC_NO_STORY` skip the
+  beat so tests stay byte-stable.
+- Text loading normalises the ROM's in-band symbols: `[` → `'`, `\` → `.` and
+  `j` → a line break inside the page (the `j` split is done at load time, so
+  pages keep their real line count).
+- The script cap rose from 64 to 512 strings (the crest texts sit at index
+  ~483 in ROM order). Since `Game` now embeds ~1.2 MB of script storage it is
+  allocated on the heap in `main.c` instead of on the stack.
+- `DC_STORY_TEST=<crest>` / `DC_STORY_PAGE=n` open a story page directly and
+  `DC_STORY_DEBUG=1` prints the cached crest indices, for deterministic
+  screenshots.
+- Verified: story page renders the real Earth-crest text; regression PASS;
+  `check_areas` 113/113; audit agrees with the extractor on every room.
+
+Next: use `GAME_DIALOGUE` for boss intros (bank `$BE:B947..C128` has the Phalanx
+dialogue pairs) and for the item-found messages (`$BE:A427..A533`).
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
