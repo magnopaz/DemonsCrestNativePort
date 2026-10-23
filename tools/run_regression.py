@@ -260,6 +260,12 @@ def main() -> int:
         check(at2_modes and at2_modes[-1] == 0,
               f"title: Start did not cancel the attract demo ({sorted(set(at2_modes))})")
 
+        # ---- City NPC conversation (A near the NPC opens the dialogue) ----
+        npc = run_demo(base, out, 0, 100,
+                       {"DC_AREA": "8", "DC_DEMO": "34"})
+        npc_modes = [int(r["mode"]) for r in csv_rows(npc["player"])]
+        check(11 in npc_modes, "npc: talking to the city NPC did not open dialogue")
+
         # ---- Ending variants render ----
         for variant in ("bad", "normal", "good", "true"):
             er = run_demo(base, out, 0, 12,

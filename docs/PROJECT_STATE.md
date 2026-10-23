@@ -2710,6 +2710,38 @@ Regression PASS after regenerating the assets.
 
 ---
 
+### Step 48 — City NPC conversation from the ROM script (done)
+
+`save0ba` (NPC mid-conversation) let the BG3 reader decode the real line, and
+matching it in the extracted script gave the whole exchange:
+
+- `$85:9596` "HEY YOU! I HAVEN'T SEEN YOU AROUND HERE BEFORE!"
+- `$85:95CD` "ARE YOU A STRANGER HERE?" plus the `YES   NO` prompt at `$85:9587`
+- YES branch: `$85:95EB` "THEY SAY THAT THE RED DEMON KNOWN AS FIREBRAND HAS
+  RISEN", `$85:962C`, `$85:9667`, `$85:968E` ("...TAKE CARE OF YOURSELF")
+
+Implemented:
+
+- `GAME_DIALOGUE` gained scripted conversations: `talk_seq/talk_len/talk_pos`,
+  a YES/NO choice state drawn under the page, and selection with up/down.
+- NPC objects: new `OBJECT_NPC`/`LEVEL_OBJECT_NPC` kind, inert in the update
+  loop, drawn from the captured `$96` sheet, talkable with A within 30x36 px.
+  (`$10` opens the shop instead.)
+- `tools/dc_extract/merge_npc_objects.py` copies probed NPCs into room JSONs
+  (the extractor's object lists miss scripted NPCs).
+- `DC_TALK=<step>` jumps straight to a conversation page for captures; demo 34
+  presses A near the NPC and pages through, and regression asserts that mode 11
+  (dialogue) is reached.
+
+Verified: greeting/question/story captures and the in-world demo both show the
+ROM text; regression PASS.
+
+Note: the real city is wider than our extracted 256x768 area 8 (the save has the
+player at x=604), so the NPC is placed near the room spawn for the demo; a full
+city extraction needs the multi-screen room set.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

@@ -47,7 +47,8 @@ typedef enum LevelObjectType {
     LEVEL_OBJECT_PICKUP_CREST,
     LEVEL_OBJECT_BOSS,
     LEVEL_OBJECT_EXIT
-} LevelObjectType;
+,
+    LEVEL_OBJECT_NPC} LevelObjectType;
 
 typedef struct LevelObject {
     LevelObjectType type;

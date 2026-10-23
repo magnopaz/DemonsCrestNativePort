@@ -1,4 +1,5 @@
 #include "object.h"
+#include <stdio.h>
 
 #include <math.h>
 #include <stdlib.h>
@@ -165,8 +166,28 @@ static void SpawnBoss(ObjectPool *pool, const LevelObject *src) {
     }
 }
 
+/* City NPCs ($96): inert, talkable, drawn from the captured sheet. */
+static void SpawnNpc(ObjectPool *pool, const LevelObject *src) {
+    Object *o = Alloc(pool);
+    if (!o)
+        return;
+    memset(o, 0, sizeof(*o));
+    o->active = true;
+    o->type = OBJECT_NPC;
+    o->species = (uint8_t)(src->species ? src->species : 0x96);
+    o->x_fx = (int32_t)lroundf(src->x * FX_ONE);
+    o->y_fx = (int32_t)lroundf(src->y * FX_ONE);
+    o->origin_x_fx = o->x_fx;
+    o->origin_y_fx = o->y_fx;
+    o->hp = 1;
+    o->facing = -1;
+}
+
 void Objects_Init(ObjectPool *pool, const Level *level) {
     memset(pool, 0, sizeof(*pool));
+    if (getenv("DC_DEBUG_OBJ"))
+        fprintf(stderr, "objects: init with %d level objects\n",
+                level->object_count);
     for (int i = 0; i < level->object_count; i++) {
         const LevelObject *o = &level->objects[i];
         if (o->type == LEVEL_OBJECT_URN)
@@ -179,6 +200,20 @@ void Objects_Init(ObjectPool *pool, const Level *level) {
             SpawnCrestItem(pool, o);
         else if (o->type == LEVEL_OBJECT_BOSS)
             SpawnBoss(pool, o);
+        else if (o->type == LEVEL_OBJECT_NPC)
+            SpawnNpc(pool, o);
+    }
+    if (getenv("DC_DEBUG_OBJ")) {
+        int n = 0;
+        for (int i = 0; i < OBJECT_POOL_SIZE; i++)
+            if (pool->slots[i].active) {
+                fprintf(stderr, "objects: slot %d type %d species %d at %.0f,%.0f\n",
+                        i, (int)pool->slots[i].type, pool->slots[i].species,
+                        pool->slots[i].x_fx / 256.0,
+                        pool->slots[i].y_fx / 256.0);
+                n++;
+            }
+        fprintf(stderr, "objects: %d active\n", n);
     }
 }
 
@@ -214,6 +249,11 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
         Object *o = &pool->slots[i];
         if (!o->active)
             continue;
+
+        if (o->type == OBJECT_NPC) {
+            o->timer++;
+            continue; /* talkable but inert */
+        }
 
         if (o->type == OBJECT_PLATFORM) {
             o->timer++;

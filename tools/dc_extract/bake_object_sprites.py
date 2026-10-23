@@ -162,7 +162,7 @@ def main() -> int:
             aspect = max(crop.width, crop.height) / max(1, min(crop.width,
                                                                crop.height))
             area = crop.width * crop.height
-            min_fill = 0.15 if area <= 40 * 40 else 0.32
+            min_fill = 0.15 if area <= 40 * 40 else 0.42
             plausible = (area >= 64 and fill >= min_fill and aspect <= 3.0)
             candidates.setdefault(species, []).append({
                 "img": crop, "tag": tag, "dist": best_d, "fill": fill,
@@ -190,8 +190,9 @@ def main() -> int:
         entry = anim["species"][key]
         tex = entry["frames"][0]["texture"] if entry.get("frames") else ""
         fill, aspect, size = sheet_stats(args.out / tex)
-        ok_existing = (size[0] * size[1] >= 64 and fill >= 0.30
-                       and aspect <= 3.0)
+        area = size[0] * size[1]
+        min_fill = 0.15 if area <= 40 * 40 else 0.42
+        ok_existing = (area >= 64 and fill >= min_fill and aspect <= 3.0)
         species = int(key, 16)
         cands = [c for c in candidates.get(species, []) if c["plausible"]]
         if ok_existing:

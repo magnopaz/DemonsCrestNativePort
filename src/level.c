@@ -306,6 +306,8 @@ static bool Level_LoadFile(Level *level, const Assets *assets,
                 dst->type = LEVEL_OBJECT_BOSS;
             else if (strcmp(type->valuestring, "exit") == 0)
                 dst->type = LEVEL_OBJECT_EXIT;
+            else if (strcmp(type->valuestring, "npc") == 0)
+                dst->type = LEVEL_OBJECT_NPC;
             else
                 continue;
             if (!ReadFloat(o, "x", &dst->x) ||
@@ -313,6 +315,11 @@ static bool Level_LoadFile(Level *level, const Assets *assets,
                 continue;
             ReadInt(o, "species", &dst->species);
             ReadInt(o, "flags", &dst->flags);
+            if (getenv("DC_DEBUG_OBJ"))
+                fprintf(stderr,
+                        "level: object %d type %d species %d at %.0f,%.0f\n",
+                        level->object_count, (int)dst->type, dst->species,
+                        dst->x, dst->y);
             level->object_count++;
         }
     }

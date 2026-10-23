@@ -23,6 +23,8 @@
 
 static void Game_OpenOverworld(Game *game);
 static void Game_CompleteArea(Game *game);
+static void Game_StartTownTalk(Game *game);
+static void Game_TryTalk(Game *game);
 
 /* Campaign stage nodes on the Mode 7 overworld map. */
 #define CAMPAIGN_COLOSSEUM 0
@@ -452,6 +454,13 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->shop_full_urn = Text_Find(&game->script, "NEED AN URN");
         game->shop_full_vellum = Text_Find(&game->script, "VELLUM IS");
         game->ending_text = Text_Find(&game->script, "PHALANX WOULD");
+        game->town_greet = Text_Find(&game->script, "HAVEN'T SEEN YOU");
+        game->town_question = Text_Find(&game->script, "ARE YOU A STRANGER");
+        game->town_story[0] = Text_Find(&game->script, "FIREBRAND HAS RISEN");
+        game->town_story[1] = Text_Find(&game->script, "BURNT THE DEMON REALM");
+        game->town_story[2] = Text_Find(&game->script, "RESCUED US");
+        game->town_story[3] = Text_Find(&game->script, "ARROGANT FOOL");
+        game->town_story[4] = Text_Find(&game->script, "ESCAPED FROM THE COLOSSEUM");
         game->crest_text[CREST_EARTH] =
             Text_Find(&game->script, "CREST OF \"EARTH\"");
         game->crest_text[CREST_AIR] =
@@ -527,6 +536,32 @@ bool Game_Init(Game *game, const char *asset_dir) {
             game->dialogue_page = page ? atoi(page) : 0;
             game->dialogue_return = GAME_TITLE;
             game->state = GAME_DIALOGUE;
+        }
+    }
+    /* Dev hook: start the city-NPC conversation at page N (0 greeting,
+     * 1 question + YES/NO, 2+ story pages after answering YES). */
+    const char *talk = getenv("DC_TALK");
+    if (talk && *talk && game->script_ready) {
+        Game_StartTownTalk(game);
+        int step = atoi(talk);
+        for (int i = 0; i < step; i++) {
+            if (game->talk_choice == 1) {
+                int story[6] = {game->town_story[0], game->town_story[1],
+                                game->town_story[2], game->town_story[3], -1,
+                                -1};
+                for (int k = 0; k < 6; k++)
+                    if (story[k] >= 0 && game->talk_len < 10)
+                        game->talk_seq[game->talk_len++] = story[k];
+                game->talk_choice = 0;
+            }
+            if (game->talk_pos + 1 < game->talk_len) {
+                game->talk_pos++;
+                game->dialogue_text = game->talk_seq[game->talk_pos];
+                game->dialogue_page = 0;
+            }
+            if (game->dialogue_text == game->town_question &&
+                game->talk_pos + 1 >= game->talk_len)
+                game->talk_choice = 1;
         }
     }
     const char *story_test = getenv("DC_STORY_TEST");
@@ -1115,6 +1150,62 @@ static void Game_SyncMusic(Game *game) {
     Audio_SetTrack(track);
 }
 
+/* Start a dialogue page sequence; indices < 0 are skipped. */
+static void Game_StartTalk(Game *game, const int *pages, int count) {
+    game->talk_len = 0;
+    for (int i = 0; i < count && game->talk_len < 10; i++) {
+        if (pages[i] >= 0)
+            game->talk_seq[game->talk_len++] = pages[i];
+    }
+    if (game->talk_len == 0)
+        return;
+    game->talk_pos = 0;
+    game->talk_choice = 0;
+    game->talk_choice_sel = 0;
+    game->dialogue_text = game->talk_seq[0];
+    game->dialogue_page = 0;
+    game->state = GAME_DIALOGUE;
+    game->state_timer = 0;
+}
+
+/* The city NPC's conversation: greeting, question, then the story pages. */
+static void Game_StartTownTalk(Game *game) {
+    int pages[3] = {game->town_greet, game->town_question, -1};
+    Game_StartTalk(game, pages, 3);
+}
+
+/* A presses near an NPC: 0x96 talks (city), 0x10 opens the shop. */
+static void Game_TryTalk(Game *game) {
+    if (getenv("DC_DEBUG_OBJ"))
+        fprintf(stderr, "trytalk: player %.0f,%.0f\n", game->player.x,
+                game->player.y);
+    for (int i = 0; i < OBJECT_POOL_SIZE; i++) {
+        const Object *o = &game->objects.slots[i];
+        if (!o->active)
+            continue;
+        float ox = (float)o->x_fx / 256.0f;
+        float oy = (float)o->y_fx / 256.0f;
+        if (fabsf(ox - game->player.x) > 30.0f ||
+            fabsf(oy - game->player.y) > 36.0f)
+            continue;
+        if (getenv("DC_DEBUG_OBJ"))
+            fprintf(stderr,
+                    "talk: slot %d type %d species %d at %.0f,%.0f "
+                    "(player %.0f,%.0f)\n",
+                    i, (int)o->type, o->species, ox, oy, game->player.x,
+                    game->player.y);
+        if (o->species == 0x96 && game->town_greet >= 0) {
+            Game_StartTownTalk(game);
+            return;
+        }
+        if (o->species == 0x10) {
+            game->state = GAME_SHOP;
+            game->state_timer = 0;
+            return;
+        }
+    }
+}
+
 /* Writes one trace row per frame regardless of game state, so tests can
  * observe menu/clear/dialogue modes as well as gameplay. */
 static void Game_TraceFrame(Game *game) {
@@ -1190,6 +1281,11 @@ void Game_Update(Game *game) {
             game->level.gate_next_area < 0 && game->input.start_pressed) {
             Game_OpenOverworld(game);
             break;
+        }
+        if (game->input.special_pressed) {
+            Game_TryTalk(game);
+            if (game->state != GAME_PLAYING)
+                break;
         }
         if (game->input.subscreen_pressed) {
             game->state = GAME_SUBSCREEN;
@@ -1286,6 +1382,54 @@ void Game_Update(Game *game) {
         break;
     case GAME_DIALOGUE: {
         int pages = game->script.page_count[game->dialogue_text];
+        if (game->talk_len > 0) {
+            /* Scripted conversation (city NPC): page the sequence, and show a
+             * YES/NO choice on the question page. */
+            bool last = game->talk_pos + 1 >= game->talk_len;
+            if (last && game->talk_choice == 0 &&
+                game->dialogue_text == game->town_question) {
+                game->talk_choice = 1;
+            }
+            if (game->talk_choice == 1) {
+                if (up_pressed || down_pressed)
+                    game->talk_choice_sel = 1 - game->talk_choice_sel;
+                if (game->input.start_pressed) {
+                    if (game->talk_choice_sel == 0) {
+                        int story[6] = {game->town_story[0],
+                                        game->town_story[1],
+                                        game->town_story[2],
+                                        game->town_story[3], -1, -1};
+                        for (int i = 0; i < 6; i++)
+                            if (story[i] >= 0 &&
+                                game->talk_len < 10) {
+                                game->talk_seq[game->talk_len++] = story[i];
+                            }
+                        game->talk_choice = 0;
+                        game->talk_pos++;
+                        game->dialogue_text =
+                            game->talk_seq[game->talk_pos];
+                        game->dialogue_page = 0;
+                    } else {
+                        game->talk_len = 0;
+                        game->state = game->dialogue_return;
+                        game->state_timer = 0;
+                    }
+                }
+                break;
+            }
+            if (game->input.start_pressed) {
+                if (game->talk_pos + 1 < game->talk_len) {
+                    game->talk_pos++;
+                    game->dialogue_text = game->talk_seq[game->talk_pos];
+                    game->dialogue_page = 0;
+                } else {
+                    game->talk_len = 0;
+                    game->state = game->dialogue_return;
+                    game->state_timer = 0;
+                }
+            }
+            break;
+        }
         if (game->input.start_pressed) {
             if (game->dialogue_page + 1 < pages) {
                 game->dialogue_page++;
@@ -1725,6 +1869,14 @@ static void DrawOverlay(const Game *game) {
             Text_DrawPage(&game->assets, &game->script, game->dialogue_text,
                           game->dialogue_page, 16, 64, 224,
                           (Color){240, 236, 220, 255});
+        if (game->talk_choice == 1) {
+            Color cy = game->talk_choice_sel == 0 ? (Color){255, 236, 140, 255}
+                                                  : (Color){150, 150, 160, 255};
+            Color cn = game->talk_choice_sel == 1 ? (Color){255, 236, 140, 255}
+                                                  : (Color){150, 150, 160, 255};
+            Text_DrawString(&game->assets, "YES", 96, 150, cy);
+            Text_DrawString(&game->assets, "NO", 160, 150, cn);
+        }
         if ((game->state_timer / 30) % 2 == 0)
             DrawCentered("PRESS ENTER", 196, 10,
                          (Color){200, 200, 200, 255});

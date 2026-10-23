@@ -67,6 +67,15 @@ typedef struct Game {
     int dialogue_page;
     int dialogue_return; /* state after the last page */
     int crest_text[6];   /* cached "YOU HAVE FOUND THE CREST OF ..." */
+    /* City NPC conversation (revealed by the save0ba dialogue capture). */
+    int town_greet;      /* "HEY YOU! I HAVEN'T SEEN YOU AROUND HERE BEFORE!" */
+    int town_question;   /* "ARE YOU A STRANGER HERE?" */
+    int town_story[5];   /* the "Firebrand has risen" explanation pages */
+    int talk_seq[10];    /* conversation script indices in order */
+    int talk_len;
+    int talk_pos;
+    int talk_choice;     /* 0 none, 1 waiting on YES/NO */
+    int talk_choice_sel; /* 0 YES, 1 NO */
     int fire_text[5];    /* cached "YOU GOT THE PIECE OF THE FIRE CREST ..." */
     int shop_timer;
     bool dialogue_demo; /* DC_DIALOGUE overlay */

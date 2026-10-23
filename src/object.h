@@ -25,7 +25,8 @@ typedef enum ObjectType {
     OBJECT_PLATFORM = 4,
     OBJECT_CREST_ITEM = 5,
     OBJECT_BOSS = 6,
-    OBJECT_ENEMY_SHOT = 7 /* hostile projectile (species $67) */
+    OBJECT_ENEMY_SHOT = 7, /* hostile projectile (species $67) */
+    OBJECT_NPC = 8        /* talkable city NPC (species $96) */
 } ObjectType;
 
 typedef struct Object {

@@ -238,7 +238,8 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             int py = (int)lroundf(y);
             DrawRectangle(px, py, 32, 6, (Color){128, 120, 108, 255});
             DrawRectangleLines(px, py, 32, 6, (Color){200, 192, 168, 255});
-        } else if ((o->type == OBJECT_ENEMY || o->type == OBJECT_BOSS)) {
+        } else if ((o->type == OBJECT_ENEMY || o->type == OBJECT_BOSS ||
+                    o->type == OBJECT_NPC)) {
             const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, o->species);
             if (sheet && sheet->frame_count > 0) {
                 int frame = (o->timer / sheet->duration) % sheet->frame_count;
