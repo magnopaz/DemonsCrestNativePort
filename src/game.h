@@ -10,6 +10,7 @@
 #include "level.h"
 #include "player.h"
 #include "projectile.h"
+#include "object.h"
 #include "raylib.h"
 
 typedef struct Game {
@@ -17,12 +18,14 @@ typedef struct Game {
     Level level;
     Player player;
     ProjectilePool projectiles;
+    ObjectPool objects;
     GameCamera camera;
     Input input;
     InputState input_state;
     RenderTexture2D target;
     FILE *trace;
     FILE *projectile_trace;
+    FILE *object_trace;
     unsigned frame;
     bool ready;
 } Game;

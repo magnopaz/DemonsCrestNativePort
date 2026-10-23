@@ -73,8 +73,15 @@ Working today:
   machine.
 - 7-slot fireball projectile pool (`src/projectile.c`): original spawn
   offset/velocity, palette-6 OAM animation, pillar and screen-edge despawn.
+- 26-slot object pool (`src/object.c`) driven by the Area 1 object list:
+  - destructible urns (species `$57`) that shatter on fireball hits,
+  - bouncing heart pickups with the `$85:C180` arc and HP heal,
+  - first-pass species `$67` ghouls with emerge, chase, contact damage,
+    knockback and heart drop.
+- BG3 HUD from `save0`: six-point health bar, three crest slots and an active
+  spell-slot highlight at the top of the frame.
 - Collision debug overlay (`F1`), FPS (`F3`).
-- Per-frame CSV trace output plus `DC_TRACE_PROJECTILES` slot logging.
+- Per-frame CSV trace output plus `DC_TRACE_PROJECTILES`/`DC_TRACE_OBJECTS`.
 - Deterministic demo input modes for screenshots and comparison.
 - Oracle tooling:
   - WRAM trace parser,
@@ -114,8 +121,9 @@ Working today:
 
 Not done yet:
 
-- Enemies/object behaviour (`$1080..$1D50` loop + `$85:C180` heart pickup).
-- HUD (`BG3` status bar wired to `$1062` HP / `$1E50` max HP).
+- Real species `$67` enemy handler/animations and hurt/death player clips;
+  current ghoul and heart art are first-pass placeholders.
+- Talisman inventory/selection and full HUD wiring beyond the HP bar.
 - Audio.
 - BG2 HDMA per-scanline parallax and the `$1070` walk-speed ramp (slope
   surfaces themselves are done).
@@ -143,6 +151,7 @@ projetos/opencode/DemonsCrestNativePort
 │   ├── input.c / input.h
 │   ├── player.c / player.h
 │   ├── projectile.c / projectile.h
+│   ├── object.c / object.h
 │   ├── camera.c / camera.h
 │   └── render.c / render.h
 ├── tools/
@@ -371,9 +380,11 @@ physics difference.
   timing.
 - `projectile.c` — 7-slot player fireball pool, spawn offset/velocity,
   terrain and viewport despawn.
+- `object.c` — 26-slot level object pool: urns, pickups, first-pass enemies,
+  `$85:C180` bounce/pickup and fireball hit handling.
 - `camera.c` — deadzone follow, clamped to level-provided camera bounds.
 - `render.c` — BG tile drawing, static sprites, animated player, fireball
-  stream, debug collision overlay.
+  stream, object sprites, BG3 HUD, debug collision overlay.
 
 ### Room format (`assets/generated/room.json`)
 
@@ -407,7 +418,11 @@ physics difference.
   "spawn": { "x": 332, "y": 164 },
   "player": { "texture": "player_idle.png",
               "feet_x": 13, "feet_y": 43 },
-  "sprites": [ { "texture": "item_00.png", "x": 385, "y": 111 } ]
+  "sprites": [],
+  "objects": [
+    { "type": "urn", "species": 87, "x": 392, "y": 120 },
+    { "type": "enemy", "species": 103, "x": 958, "y": 76 }
+  ]
 }
 ```
 
@@ -555,6 +570,10 @@ The original SNES default mapping was verified from `$80:DB00..DB40` and `save0`
 | `DC_DEMO=6` | exact `save0` Step 3 physics replay (603 frames) |
 | `DC_DEMO=7` | projectile demo: right shots into the pillar, long left shot |
 | `DC_DEMO=8` | full-room traversal: walk left, then hover right across pillars |
+| `DC_DEMO=9` | urn → bouncing heart → heal regression |
+| `DC_DEMO=10` | enemy chase/damage/drop regression (pair with `DC_START_X`) |
+| `DC_START_X` / `DC_START_Y` | spawn override for focused tests |
+| `DC_TRACE_OBJECTS=path` | per-frame active object slots CSV |
 | `DC_TRACE_PROJECTILES=path` | per-frame active projectile slots CSV |
 | `DC_FLY_DEBUG=1` | enable non-canonical B+Up vertical flight |
 | `DC_DEBUG_COLLISION=1` | enable the `F1` collision overlay in headless captures |
@@ -566,13 +585,19 @@ working directory even when an absolute path is supplied.
 Native trace CSV columns:
 
 ```
-frame,player_x,player_y,vx,vy,state,camera_x,camera_y
+frame,player_x,player_y,vx,vy,state,camera_x,camera_y,hp,max_hp
 ```
 
 Projectile trace CSV columns (one row per active slot per frame):
 
 ```
 frame,slot,x,y,vx,age
+```
+
+Object trace CSV columns:
+
+```
+frame,slot,type,x,y,vx,vy,state
 ```
 
 ---
@@ -803,6 +828,23 @@ Fireball extraction (resolved):
   that happens at world X 704 when the camera right edge is `448 + 256`.
 - `extract_anim.py` emits `fireball_0..8.png` and `fireball_anim.json`; the
   native pool draws one step per guest frame and mirrors it for left shots.
+
+Object list and HUD extraction:
+
+- `extract.py --full-room` reads the 3-byte pointer table at `$81:C874`
+  (index `area` by default; Area 1 = index 1) and parses 6-byte records
+  `[species, flags, x16, y16]`. The high Y byte is the screen-row offset
+  (subtract `row_index * 256`).
+- Species `$57` becomes a destructible urn object; species `$67` becomes an
+  enemy object. The static OAM urn is omitted when the object list contains an
+  urn so it is not drawn twice.
+- Area 1 yields four urns at `(392,120)`, `(888,168)`, `(904,168)`,
+  `(1640,152)` and four `$67` enemies.
+- `extract_anim.py` bakes the save0 BG3 HUD into `hud_bar.png` (six 8×8 health
+  tiles at tile column 3, row 2) and `hud_slots.png` (three 2×2 crest slots at
+  columns 18..29, rows 1..2), with the brown BG3 backdrop made transparent.
+- Heart/enemy sprites are original placeholders (`heart_00..01.png`,
+  `enemy_00..01.png`) until their ROM OAM frames are captured.
 
 ---
 
@@ -1094,8 +1136,11 @@ These were already discovered the hard way; do not rediscover them.
     pass-through. The `$1070` walk-speed probe is still separate from the
     surface table.
 
-14. **The HUD is absent.**
-    BG3/status bar extraction is a later step.
+14. **The HUD is extracted from `save0`, not `stage_600`.**
+    `stage_600` is a cinematic frame with no BG3 status bar; `save0` has the
+    health bar and crest slots. `extract_anim.py` bakes them as
+    `hud_bar.png`/`hud_slots.png`. The active spell slot is currently a
+    placeholder highlight (no talisman inventory yet).
 
 15. **No audio yet.**
     The game is silent. Do not mistake this for a bug.
@@ -1138,13 +1183,17 @@ These were already discovered the hard way; do not rediscover them.
 - Animation covers idle/walk/jump/hover/fall/land, the 17-frame `Y` shot and
   the 31-frame `A` spell. Hurt, death and wall-cling clips are still needed;
   one directional set is mirrored by the renderer.
-- The projectile kind is currently the base fireball only; no charged shot,
-  crest variants, enemy hit detection or damage yet.
+- The projectile kind is currently the base fireball only; no charged shot or
+  crest variants yet. Fireball hits urns/enemies but there is no damage type
+  system.
+- Enemy behavior is a first-pass chase/damage/drop implementation, not the full
+  `$83:AF74` species `$67` handler; its sprite and the heart sprite are
+  original placeholders.
+- The HUD shows HP and three static crest slots; talisman inventory/selection
+  is not implemented, so the first slot is highlighted.
 - The `$1070` terrain probe that selects the `0x00B3` initial walk step /
   `$80:8B85` acceleration path is not wired yet; walking keeps the `0x0166`
   cap on both flat ground and slopes.
-- No enemies.
-- No HUD.
 - No audio.
 - Slope shapes `0x03..0x14` are decoded; edge/hazard shapes (`0x19`, `0x21`)
   still use conservative full-floor behavior.
@@ -1320,32 +1369,48 @@ Acceptance:
 - Remaining Step 5 sub-item: BG2 HDMA per-scanline parallax; the current
   backdrop uses a flat 1:1 offset plus horizontal wrapping.
 
-### Step 6 — Object system (`$1080..$1D50`), one graveyard enemy & heart pickup (`$85:C180`)
+### Step 6 — Object system (`$1080..$1D50`), one graveyard enemy & heart pickup (`$85:C180`) (done)
 
-Tasks:
+Done:
 
-1. Implement the 26-slot object table (`$1080..$1D50`, stride `$50`) and the
-   `$82:8611` update/cull loop + `$82:8BDB` area object list spawner (`$81:C874`
-   for Area 1).
-2. Port the already-disassembled dropped heart / urn item (`$85:C180..C250`:
-   pop-up `$22 = 0x0400`, gravity `$26 = 0x0040`, bounce decay `-0x0100`, pickup
-   check `$80:9C93`, heals `$1062` up to `$1E50`).
-3. Port one graveyard enemy species from Area 1's object list (rising zombie /
-   skeleton), including fireball hit detection, damage, knockback (`State 0x1C`
-   at `$80:EDF1`), and item drop.
+1. Added a 26-slot `ObjectPool` (`src/object.c`) and a data-driven spawn pass
+   from the Area 1 object list (`$81:C874`, 6-byte records). The first seven
+   projectile slots remain in `src/projectile.c`; the object pool holds urns,
+   pickups and enemies.
+2. Ported the `$85:C180` pickup behavior:
+   - pop-up `0x0400` (4.0 px/frame), gravity `0x0040` (0.25),
+   - `$39` bounce value starts at `0x0400`, loses `0x0100` per landing, then
+     rests,
+   - player overlap increments `$1062`/HP up to `$1E50`/max.
+3. Added destructible urns for species `$57`: fireball hits shatter the urn and
+   spawn a pickup at its bottom edge. Area 1 has four urns.
+4. Added a first-pass species `$67` enemy:
+   - emerges for 24 frames, then chases within 220 px,
+   - contact costs 1 HP with 60-frame invulnerability and horizontal knockback,
+   - two fireball hits kill it and drop a heart.
+   This is the correct species/object-list plumbing, but its sprite and
+   behavior are placeholders until `$83:AF74` is fully ported.
+5. Added `DC_TRACE_OBJECTS`, `DC_DEMO=9` (urn → heart → heal) and
+   `DC_DEMO=10` + `DC_START_X` (enemy chase/damage/drop) for validation.
 
 Acceptance:
 
-- Destroying the urn at `(385, 111)` or killing the graveyard enemy drops a
-  bouncing pickup with the exact `$85:C180` arc, and touching it increments
-  player HP.
+- Destroying the urn at `(392,120)` drops a heart that follows the measured
+  `$85:C180` arc and heals HP on touch.
+- `DC_DEMO=10` confirms the species `$67` enemy can be hit, killed and drops a
+  heart.
 
-### Step 7 — BG3 HUD status bar
+### Step 7 — BG3 HUD status bar (done)
 
-- Extract the BG3 status bar (`bgsc[2] = $5A` → `$5800`, 2bpp character base
-  `$5000`) and crest/health icons from `save0` or `stage_600`.
-- Render current HP (`$1062`) and max HP (`$1E50`) roses/skulls plus current
-  talisman/spell icon at the top of the 256×224 frame.
+- `extract_anim.py` decodes the save0 BG3 2bpp layer and emits
+  `hud_bar.png` (six health tiles) and `hud_slots.png` (three 2×2 crest slots).
+- `render.c` draws the HUD in screen space: translucent top strip, current HP
+  bar scaled over a dark max-HP bar, three crest slots, and a gold highlight on
+  the active spell slot.
+- Player HP is initialized to 4/6 so hearts visibly heal; the trace CSV now
+  includes `hp,max_hp`.
+- Remaining HUD work: real talisman inventory/selection and the exact
+  per-talisman icons. The current first-slot highlight is a placeholder.
 
 ### Step 8 — Engine hardening & automated regression harness
 
@@ -1380,7 +1445,7 @@ Acceptance:
 | 0 | Extraction proof: graveyard map + VRAM/CGRAM dump + static render | done (needs `--area 1` re-extract) |
 | 1 | Engine skeleton: raylib, fixed 60 Hz, BG layers, input, camera | done |
 | 2 | Firebrand core: Bank `$80` state machine, physics, slopes, animations | done: state machine, slopes, shot/spell/fireball |
-| 3 | Combat and objects: fireball, `$1080` objects, enemy, `$85:C180` pickup, HUD | fireball done; enemies/HUD next |
+| 3 | Combat and objects: fireball, `$1080` objects, enemy, `$85:C180` pickup, HUD | done: fireballs, object pool, urns, hearts, first-pass enemy, HUD |
 | 4 | Vertical slice: full Area 1–3 scrolling rooms, transitions, title/menu, audio | not started |
 | 5 | Full campaign: all areas, bosses, forms, Mode 7, password/save | not started |
 | 6 | Fan-game content: new levels/story/art | not started |
@@ -1427,7 +1492,7 @@ Definition of done for the **final fan game**:
 | Projectile OAM overlap with palette-7 player group | fireball could stretch the player bbox | resolved for `save0`: projectile OAM is palette 6 and the extractor also windows around the object slot |
 | BG2 HDMA parallax scroll splits | flat `scroll_x` on BG2 loses per-scanline sky/tree parallax | read HDMA table on channel 1 (`$210F` `BG2HOFS`) or approximate band scroll |
 | Audio extraction | no soundtrack | BRR/DSP decoder or recorded development placeholder |
-| Object AI breadth | huge scope | port `$82:8611` loop + `$85:C180` heart pickup + one enemy at a time |
+| Object AI breadth | huge scope | 26-slot pool + Area 1 list wired; species `$67` is a first-pass chase/damage/drop enemy, remaining species pending |
 | Legal | distribution risk | no assets in repo; ROM-generated locally at install/setup time |
 | GPL randomizer code | license contamination | reimplement formats from ROM disassembly; keep GPL tools separate |
 | raylib flip quirks | visual corruption | pre-baked flips for BG; verify or pre-bake mirrored player frames |
@@ -1470,6 +1535,12 @@ Resolved questions (formerly open):
   gives surface offsets for `0x03..0x14`; `Level_FloorAt` snaps Firebrand to
   `block_top + offset`, so spawn is `y=164` on `attr=0x09` and the hill is
   walkable in both directions.
+- **Area 1 object list and heart arc**: Resolved. The `$81:C874` pointer table
+  gives a 6-byte record list; species `$57` is the urn (four in Area 1) and
+  `$67` the enemy group. Urns drop a pickup using the `$85:C180` values
+  (`0x0400` pop-up, `0x0040` gravity, `-0x0100` bounce decay); touching it
+  increments HP. The HUD BG3 source is `save0` (not the HUD-less `stage_600`
+  cinematic).
 
 Remaining open technical questions:
 
@@ -1580,6 +1651,11 @@ Step 5 is also done: `--full-room` emits the populated Area 1 screen row as a
 2048×256 BG1 map (the ROM grid's other row is empty padding) with a 128×16
 collision grid, the `$80:962B` surface table gives smooth `0x03..0x14` slope
 walking (spawn `y=164` on `attr=0x09`), BG2 wraps horizontally, and the camera
-follows across the room with deadzones. The ordered next milestone is the
-`$1080..$1D50` object loop, one graveyard enemy, the `$85:C180` heart pickup,
-and the BG3 HUD; BG2 HDMA parallax remains a polish item.
+follows across the room with deadzones. Steps 6–7 add the 26-slot object pool
+and the `$81:C874` Area 1 object list: four destructible species `$57` urns,
+bouncing `$85:C180` heart pickups that heal HP, and a first-pass species `$67`
+ghoul that chases, damages with knockback and drops hearts. The save0 BG3
+status bar is baked as `hud_bar.png`/`hud_slots.png` and rendered with the
+current HP bar and crest slots. The next milestone is Step 8: fixed timestep,
+pre-baked flips/regression harness and audio; BG2 HDMA parallax, the real
+`$83:AF74` enemy handler and talisman inventory remain polish items.

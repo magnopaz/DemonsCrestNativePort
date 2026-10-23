@@ -21,6 +21,7 @@ typedef enum AnimClipId {
 
 typedef struct AnimStep {
     Texture2D texture;
+    Texture2D flipped; /* pre-baked horizontal mirror (left facing) */
     int anchor_x;   /* pixels from the image left edge to the body centre */
     int anchor_y;   /* pixels from the image top edge to the feet */
     int duration;   /* game frames */

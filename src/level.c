@@ -212,6 +212,33 @@ bool Level_Load(Level *level, const Assets *assets, const char *dir) {
         }
     }
 
+    cJSON *objects = cJSON_GetObjectItemCaseSensitive(root, "objects");
+    if (cJSON_IsArray(objects)) {
+        int n = cJSON_GetArraySize(objects);
+        if (n > DC_MAX_LEVEL_OBJECTS)
+            n = DC_MAX_LEVEL_OBJECTS;
+        for (int i = 0; i < n; i++) {
+            cJSON *o = cJSON_GetArrayItem(objects, i);
+            cJSON *type = cJSON_GetObjectItemCaseSensitive(o, "type");
+            if (!cJSON_IsString(type))
+                continue;
+            LevelObject *dst = &level->objects[level->object_count];
+            if (strcmp(type->valuestring, "urn") == 0)
+                dst->type = LEVEL_OBJECT_URN;
+            else if (strcmp(type->valuestring, "enemy") == 0)
+                dst->type = LEVEL_OBJECT_ENEMY;
+            else
+                continue;
+            if (!ReadFloat(o, "x", &dst->x) ||
+                !ReadFloat(o, "y", &dst->y))
+                continue;
+            int species = 0;
+            ReadInt(o, "species", &species);
+            dst->species = species;
+            level->object_count++;
+        }
+    }
+
     ok = true;
 
 done:

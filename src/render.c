@@ -110,9 +110,68 @@ static void DrawProjectiles(const Assets *assets, const GameCamera *camera,
     }
 }
 
+static void DrawObjects(const Assets *assets, const GameCamera *camera,
+                        const ObjectPool *objects) {
+    for (int i = 0; i < OBJECT_POOL_SIZE; i++) {
+        const Object *o = &objects->slots[i];
+        if (!o->active)
+            continue;
+        float x = (float)o->x_fx / 256.0f - camera->x;
+        float y = (float)o->y_fx / 256.0f - camera->y;
+
+        if (o->type == OBJECT_URN) {
+            Texture2D tex = assets->item;
+            DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
+                        (int)lroundf(y - tex.height * 0.5f), WHITE);
+        } else if (o->type == OBJECT_PICKUP) {
+            Texture2D tex = assets->heart;
+            DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
+                        (int)lroundf(y - tex.height), WHITE);
+        } else if (o->type == OBJECT_ENEMY && assets->enemy_frames > 0) {
+            int frame = (o->timer / 8) % assets->enemy_frames;
+            Texture2D tex = assets->enemy[frame];
+            DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
+                        (int)lroundf(y - tex.height * 0.5f), WHITE);
+        }
+    }
+}
+
+static void DrawHud(const Assets *assets, const Player *player) {
+    DrawRectangle(0, 0, 256, 24, (Color){0, 0, 0, 150});
+
+    if (IsTextureValid(assets->hud_bar)) {
+        int bar_x = 24;
+        int bar_y = 16;
+        int width = assets->hud_bar.width;
+        DrawTexture(assets->hud_bar, bar_x, bar_y,
+                    (Color){90, 90, 100, 255});
+        if (player->max_hp > 0 && player->hp > 0) {
+            float ratio = (float)player->hp / (float)player->max_hp;
+            if (ratio > 1.0f)
+                ratio = 1.0f;
+            int filled = (int)lroundf(ratio * width);
+            if (filled > 0) {
+                Rectangle src = {0, 0, (float)filled,
+                                 (float)assets->hud_bar.height};
+                Rectangle dst = {(float)bar_x, (float)bar_y,
+                                 (float)filled,
+                                 (float)assets->hud_bar.height};
+                DrawTexturePro(assets->hud_bar, src, dst, (Vector2){0, 0},
+                               0.0f, WHITE);
+            }
+        }
+    }
+
+    if (IsTextureValid(assets->hud_slots)) {
+        DrawTexture(assets->hud_slots, 144, 8, WHITE);
+        /* Current talisman/spell slot is the first one for now. */
+        DrawRectangleLines(144, 8, 32, 16, (Color){240, 200, 80, 220});
+    }
+}
+
 void Render_Game(const Assets *assets, const Level *level, const GameCamera *camera,
                  const Player *player, const ProjectilePool *projectiles,
-                 bool debug_collision) {
+                 const ObjectPool *objects, bool debug_collision) {
     static int layer_mask = -1;
     if (layer_mask < 0) {
         const char *env = getenv("DC_LAYER_MASK");
@@ -134,6 +193,8 @@ void Render_Game(const Assets *assets, const Level *level, const GameCamera *cam
 
     DrawPlayer(assets, level, camera, player);
     DrawProjectiles(assets, camera, projectiles);
+    DrawObjects(assets, camera, objects);
+    DrawHud(assets, player);
 
     if (debug_collision) {
         const Collision *c = &level->collision;
@@ -157,7 +218,8 @@ void Render_Game(const Assets *assets, const Level *level, const GameCamera *cam
                            (int)(player->y - 22 - camera->y),
                            12, 22, (Color){255, 220, 40, 220});
         DrawRectangle(0, 0, 256, 12, (Color){0, 0, 0, 170});
-        DrawText(TextFormat("x=%.0f y=%.0f  F1 collision", player->x, player->y),
+        DrawText(TextFormat("x=%.0f y=%.0f hp=%d/%d  F1 collision",
+                            player->x, player->y, player->hp, player->max_hp),
                  3, 1, 10, (Color){220, 220, 220, 255});
     }
 }

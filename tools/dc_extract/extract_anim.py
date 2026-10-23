@@ -78,6 +78,64 @@ def frame_paths(dump: Path, frame: int):
     return stem.with_suffix(".json"), stem.with_suffix(".vram.bin")
 
 
+def build_hud(dump: Path, meta: dict, out: Path):
+    """Bake the BG3 status bar elements from the first idle capture frame.
+
+    BG3 is 2bpp: map base from bgXsc[2], character base $5000, CGRAM palette
+    groups of four colours. The full BG3 plane has a repeating brown backdrop;
+    only the health bar and crest-slot group are emitted.
+    """
+    if not has_segment(meta, "idle"):
+        return
+    idle = segment_frames(meta, "idle")
+    frame = idle[0]
+    state = read_frame_state(dump, frame)
+    if state is None:
+        return
+    _json_path, vram_path = frame_paths(dump, frame)
+    if not vram_path.exists():
+        return
+    vram = dc.read_vram(vram_path)
+    raw = struct.pack("<32768H", *vram)
+    cgram = cgram_from_hex(state["cgram"])
+    bgsc = int(state["ppu"]["bgXsc"][2], 16)
+    map_base = (bgsc & 0xFC) << 8
+    char_base = 0x5000
+
+    image = Image.new("RGBA", (256, 224), (0, 0, 0, 0))
+    px = image.load()
+    for ty in range(28):
+        for tx in range(32):
+            word = vram[(map_base + ty * 32 + tx) & 0x7FFF]
+            tile = word & 0x3FF
+            pal = (word >> 10) & 7
+            hf = bool(word & 0x4000)
+            vf = bool(word & 0x8000)
+            tile_word = char_base // 2 + tile * 8
+            for y in range(8):
+                b0 = raw[(tile_word + y) * 2]
+                b1 = raw[(tile_word + y) * 2 + 1]
+                for x in range(8):
+                    p = ((b0 >> (7 - x)) & 1) | (((b1 >> (7 - x)) & 1) << 1)
+                    if p == 0:
+                        continue
+                    sx = 7 - x if hf else x
+                    sy = 7 - y if vf else y
+                    px[tx * 8 + sx, ty * 8 + sy] = (*cgram[pal * 4 + p], 255)
+
+    # save0 HUD geometry: six 8x8 health tiles at tile column 3, row 2;
+    # three 2x2 crest slots at columns 18..29, rows 1..2.
+    image.crop((24, 16, 72, 24)).save(out / "hud_bar.png")
+    slots = image.crop((144, 8, 240, 24))
+    sp = slots.load()
+    for y in range(slots.height):
+        for x in range(slots.width):
+            r, g, b, a = sp[x, y]
+            if a and r > 80 and g < r * 0.8 and b < g * 0.8:
+                sp[x, y] = (0, 0, 0, 0)
+    slots.save(out / "hud_slots.png")
+
+
 def compose_player(dump: Path, frame: int, palette: int) -> Pose:
     json_path, vram_path = frame_paths(dump, frame)
     if not json_path.exists() or not vram_path.exists():
@@ -444,6 +502,8 @@ def main() -> int:
         for old in args.out.glob("fireball_*.png"):
             old.unlink()
         (args.out / "fireball_anim.json").unlink(missing_ok=True)
+        for name in ("hud_bar.png", "hud_slots.png"):
+            (args.out / name).unlink(missing_ok=True)
 
     document = {
         "source": "capture_anim.py",
@@ -507,6 +567,10 @@ def main() -> int:
               f"({len(steps)} steps)")
     else:
         print("fireball: no projectile OAM found in the shoot segment")
+
+    build_hud(args.dump, meta, args.out)
+    if (args.out / "hud_bar.png").exists():
+        print(f"wrote {args.out / 'hud_bar.png'} + hud_slots.png")
     return 0
 
 

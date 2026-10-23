@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: playable full-room graveyard slice with authentic physics, fireballs and slopes.
+Status: playable graveyard slice with physics, slopes, fireballs, objects and HUD.
 
 ## Done
 
@@ -29,6 +29,11 @@ Status: playable full-room graveyard slice with authentic physics, fireballs and
 - `$80:962B` slope-surface table: Firebrand walks up/down `0x03..0x14` slopes
   and spawns at `y=164` on `attr=0x09`.
 - Camera deadzone scrolling across the full room; `DC_DEMO=8` exercises it.
+- 26-slot object pool (`src/object.c`) with data-driven Area 1 object list:
+  destructible urns (`species $57`), bouncing hearts (`$85:C180` arc) and a
+  first-pass species `$67` ghoul that chases, damages and drops hearts.
+- BG3 status bar extracted from `save0`: health bar + three crest slots, wired
+  to `$1062`/`$1E50` HP and drawn at the top of the frame.
 
 ## Physics constants and Bank `$80` state machine recovered
 
@@ -82,22 +87,36 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
 
 ## Next (ordered by dependency)
 
-1. **Combat, `$1080` object table, one enemy & `$85:C180` pickup**
-   - Port the 26-slot `$1080..$1D50` object loop (`$82:8611`), `$82:8BDB` area
-     spawner (`$81:C874`), one graveyard enemy species, and the already-decoded
-     `$85:C180..C250` bouncing heart pickup (heals `$1062` up to `$1E50`).
-
-2. **HUD, engine hardening & audio**
-   - Extract BG3 status bar (`$5800` map, `$5000` 2bpp tiles) wired to `$1062` /
-     `$1E50` HP.
+1. **Engine hardening, regression harness & audio**
    - Add a fixed-timestep 60 Hz accumulator in `main.c`, verify or pre-bake
      left-facing player frames, and add an automated `compare.py` regression
      test script.
-   - Add development audio loop and finalize legal public-release asset path.
+   - Tighten the first-pass enemy into the real species `$67` handler
+     (`$83:AF74`) and replace placeholder heart/enemy art with ROM OAM.
+   - Add development audio and finalize the legal public-release asset path.
+
+2. **Flow, content & polish**
+   - Room transitions, title/password/menu flow, remaining Area 1–3 rooms,
+     bosses, crest forms and the Mode 7 overworld.
 
 ## Done recently
 
-1. **Full-room Area 1 map, slopes & camera scrolling (Step 5)**
+1. **Object system, urn, heart pickup & HUD (Steps 6–7)**
+   - `src/object.c` implements a 26-slot pool and loads the `$81:C874` object
+     list for Area 1: four destructible urns (`species $57`) and four species
+     `$67` enemies.
+   - Urns shatter on fireball contact and drop a pickup with the `$85:C180`
+     arc: initial 4.0 px/frame up, gravity 0.25, bounce decay 1.0 per landing.
+     Touching it increments HP up to max.
+   - The first-pass enemy emerges, chases within 220 px, damages on contact
+     with knockback/invulnerability, dies to fireballs and drops a heart.
+   - `extract_anim.py` bakes the save0 BG3 HUD (`hud_bar.png`,
+     `hud_slots.png`); `render.c` draws the 6-point health bar, three crest
+     slots and highlights the active spell slot.
+   - `DC_DEMO=9` exercises urn → heart → heal; `DC_DEMO=10` with
+     `DC_START_X` exercises enemy chase, damage and drop.
+
+2. **Full-room Area 1 map, slopes & camera scrolling (Step 5)**
    - `extract.py --full-room` emits the populated 8-screen Area 1 row as a
      2048×256 BG1 map and a 128×16 collision grid. The ROM grid's second row is
      all-zero padding, so it is omitted and recorded in `manifest.json`.
@@ -111,7 +130,7 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
    - Remaining polish: BG2 HDMA per-scanline parallax and the `$1070` walk-speed
      ramp are not wired yet.
 
-2. **Y Fireball shot & projectile pool (Step 4)**
+3. **Y Fireball shot & projectile pool (Step 4)**
    - Captured `Y` in `save0`: the grounded shot animation is 17 frames
      (idle press frame + 6-frame pose A + 10-frame pose B), and the projectile
      spawns on the press frame in object slot `$1080`.
@@ -126,7 +145,7 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
      viewport. `DC_DEMO=7` exercises right shots into the pillar and a
      long left-facing shot; `DC_TRACE_PROJECTILES=path` logs every active slot.
 
-3. **Bank `$80` player state machine ported (Step 3)**
+4. **Bank `$80` player state machine ported (Step 3)**
    - `src/player.c` now stores positions, velocities and walk speed as 8.8
      fixed point and follows the recovered grounded / jump-substate / hover
      flow (`$80:E0EE`, `$80:E1DA`, `$80:E29F`).
@@ -143,7 +162,7 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
      `x=0.00 px`, `y=0.53 px` (threshold 1 px). The residual Y delta is the
      known `$1000` task-idle oscillation, not a physics divergence.
 
-4. **Graveyard Area 1 extraction & collision alignment**
+5. **Graveyard Area 1 extraction & collision alignment**
    - Updated `tools/dc_extract/extract.py` default `--area` to `1` (`screens 8,
      9` = `slots 9, 10`) and regenerated `assets/generated/room.json`.
    - Masked block collision shapes by `attr & 0x1F` (`$80:8FDB`) so `0xA0`
@@ -153,7 +172,7 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
    - Verified stone pillar (`cx=24`, `x=384..399`, `y=128..159`) and floor
      (`by=10`, `y=160..175`) alignment in `physics_check.png`.
 
-5. **Animation extraction**
+6. **Animation extraction**
    - Captured OAM/VRAM/CGRAM per frame through the debug-server state ring.
    - Extracted idle, 6-pose walk, jump rise, hover/fly, fall, landing, Y shot,
      A spell and fireball clips with per-frame anchors and frame durations.

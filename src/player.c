@@ -91,17 +91,18 @@ static void IntegrateVertical(Player *player, const Level *level) {
 
 /* Horizontal movement is a single 8.8 add per frame ($80:8D35/8D46). The
  * 0.5 px sweep only resolves the native AABB against the 16 px block grid. */
-static void MoveHorizontal(Player *player, const Level *level, int dir) {
+static void MoveHorizontal(Player *player, const Level *level, int dir,
+                           int32_t speed_fx) {
     float old_x = FX_TO_FLOAT(player->x_fx);
     if (dir == 0) {
         player->vx = 0.0f;
         return;
     }
 
-    float step = FX_TO_FLOAT(player->walk_speed_fx) * (float)dir;
+    float step = FX_TO_FLOAT(speed_fx) * (float)dir;
     float target = old_x + step;
     if (!PlayerCollides(level, target, player->y)) {
-        player->x_fx += dir * player->walk_speed_fx;
+        player->x_fx += dir * speed_fx;
     } else {
         float reached = old_x;
         float dist = fabsf(step);
@@ -176,11 +177,19 @@ void Player_Init(Player *player, const Level *level) {
     memset(player, 0, sizeof(*player));
     player->x_fx = FLOAT_TO_FX(level->spawn_x);
     player->y_fx = FLOAT_TO_FX(level->spawn_y);
+    const char *start_x = getenv("DC_START_X");
+    if (start_x && *start_x)
+        player->x_fx = FLOAT_TO_FX(strtof(start_x, NULL));
+    const char *start_y = getenv("DC_START_Y");
+    if (start_y && *start_y)
+        player->y_fx = FLOAT_TO_FX(strtof(start_y, NULL));
     player->walk_speed_fx = PLAYER_WALK_MAX_FX;
     player->facing = 1;
     player->state = PLAYER_IDLE;
     player->anim_clip = -1;
     player->fly_enabled = getenv("DC_FLY_DEBUG") != NULL;
+    player->max_hp = 6;
+    player->hp = 4; /* leave room for heart pickups */
     SyncPublic(player);
 
     if (PlayerCollides(level, player->x, player->y)) {
@@ -268,6 +277,8 @@ void Player_Update(Player *player, const Level *level, const Input *input) {
         player->shot_timer--;
     if (player->land_timer > 0)
         player->land_timer--;
+    if (player->invuln_timer > 0)
+        player->invuln_timer--;
 
     if (input->special_pressed && player->special_timer == 0)
         player->special_timer = PLAYER_SPECIAL_FRAMES;
@@ -277,11 +288,16 @@ void Player_Update(Player *player, const Level *level, const Input *input) {
     }
 
     int dir = ReadDirection(input);
-    if (dir != 0)
-        player->facing = dir;
-
-    UpdateWalkSpeed(player, dir, player->prev_dir);
-    MoveHorizontal(player, level, dir);
+    if (player->knockback_timer > 0) {
+        player->knockback_timer--;
+        dir = player->knockback_dir;
+        MoveHorizontal(player, level, dir, 0x0200);
+    } else {
+        if (dir != 0)
+            player->facing = dir;
+        UpdateWalkSpeed(player, dir, player->prev_dir);
+        MoveHorizontal(player, level, dir, player->walk_speed_fx);
+    }
     player->prev_dir = dir;
 
     bool grounded_at_start = player->on_ground;

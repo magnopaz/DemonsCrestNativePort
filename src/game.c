@@ -18,6 +18,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
     }
     Player_Init(&game->player, &game->level);
     Projectiles_Init(&game->projectiles);
+    Objects_Init(&game->objects, &game->level);
     Camera_Init(&game->camera, &game->level);
     game->target = LoadRenderTexture(256, 224);
     if (!IsRenderTextureValid(game->target)) {
@@ -33,7 +34,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->trace = fopen(trace_path, "w");
         if (game->trace) {
             fprintf(game->trace,
-                    "frame,player_x,player_y,vx,vy,state,camera_x,camera_y\n");
+                    "frame,player_x,player_y,vx,vy,state,camera_x,camera_y,hp,max_hp\n");
         } else {
             fprintf(stderr, "game: cannot open trace file %s\n", trace_path);
         }
@@ -47,6 +48,18 @@ bool Game_Init(Game *game, const char *asset_dir) {
         } else {
             fprintf(stderr, "game: cannot open projectile trace %s\n",
                     proj_trace_path);
+        }
+    }
+
+    const char *object_trace_path = getenv("DC_TRACE_OBJECTS");
+    if (object_trace_path && *object_trace_path) {
+        game->object_trace = fopen(object_trace_path, "w");
+        if (game->object_trace) {
+            fprintf(game->object_trace,
+                    "frame,slot,type,x,y,vx,vy,state\n");
+        } else {
+            fprintf(stderr, "game: cannot open object trace %s\n",
+                    object_trace_path);
         }
     }
 
@@ -64,13 +77,16 @@ void Game_Update(Game *game) {
         Projectiles_Spawn(&game->projectiles, &game->player);
         game->player.shot_fired = false;
     }
+    Objects_CheckProjectiles(&game->objects, &game->projectiles);
+    Objects_Update(&game->objects, &game->level, &game->player);
     Player_Animate(&game->player, &game->assets.player_anim);
     Camera_Update(&game->camera, &game->level, &game->player);
     if (game->trace) {
-        fprintf(game->trace, "%u,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f\n",
+        fprintf(game->trace, "%u,%.3f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%d,%d\n",
                 game->frame, game->player.x, game->player.y,
                 game->player.vx, game->player.vy, (int)game->player.state,
-                game->camera.x, game->camera.y);
+                game->camera.x, game->camera.y, game->player.hp,
+                game->player.max_hp);
     }
     if (game->projectile_trace) {
         for (int i = 0; i < PROJECTILE_POOL_SIZE; i++) {
@@ -83,13 +99,26 @@ void Game_Update(Game *game) {
                     p->age);
         }
     }
+    if (game->object_trace) {
+        for (int i = 0; i < OBJECT_POOL_SIZE; i++) {
+            const Object *o = &game->objects.slots[i];
+            if (!o->active)
+                continue;
+            fprintf(game->object_trace, "%u,%d,%d,%.3f,%.3f,%.3f,%.3f,%d\n",
+                    game->frame, i, (int)o->type,
+                    (float)o->x_fx / 256.0f, (float)o->y_fx / 256.0f,
+                    (float)o->vx_fx / 256.0f, (float)o->vy_fx / 256.0f,
+                    o->state);
+        }
+    }
     game->frame++;
 }
 
 void Game_Render(Game *game) {
     BeginTextureMode(game->target);
     Render_Game(&game->assets, &game->level, &game->camera, &game->player,
-                &game->projectiles, game->input.debug_collision);
+                &game->projectiles, &game->objects,
+                game->input.debug_collision);
     EndTextureMode();
 }
 
@@ -98,6 +127,8 @@ void Game_Shutdown(Game *game) {
         fclose(game->trace);
     if (game->projectile_trace)
         fclose(game->projectile_trace);
+    if (game->object_trace)
+        fclose(game->object_trace);
     if (IsRenderTextureValid(game->target))
         UnloadRenderTexture(game->target);
     Level_Unload(&game->level);

@@ -43,6 +43,25 @@ static int ReadInt(cJSON *obj, const char *key, int *out) {
     return 1;
 }
 
+static bool LoadStepTextures(AnimStep *step, const char *path) {
+    Image image = LoadImage(path);
+    if (!image.data) {
+        fprintf(stderr, "anim: failed to load %s\n", path);
+        return false;
+    }
+    step->texture = LoadTextureFromImage(image);
+    ImageFlipHorizontal(&image);
+    step->flipped = LoadTextureFromImage(image);
+    UnloadImage(image);
+    if (!IsTextureValid(step->texture) || !IsTextureValid(step->flipped)) {
+        fprintf(stderr, "anim: failed to create textures for %s\n", path);
+        return false;
+    }
+    SetTextureFilter(step->texture, TEXTURE_FILTER_POINT);
+    SetTextureFilter(step->flipped, TEXTURE_FILTER_POINT);
+    return true;
+}
+
 void Anim_Unload(PlayerAnim *anim) {
     for (int i = 0; i < anim->step_count; i++) {
         Texture2D tex = anim->steps[i].texture;
@@ -117,13 +136,10 @@ bool Anim_Load(PlayerAnim *anim, const char *dir) {
             char tex_path[1024];
             snprintf(tex_path, sizeof(tex_path), "%s/%s", dir,
                      tex->valuestring);
-            step->texture = LoadTexture(tex_path);
-            if (!IsTextureValid(step->texture)) {
-                fprintf(stderr, "anim: failed to load %s\n", tex_path);
+            if (!LoadStepTextures(step, tex_path)) {
                 ok = false;
                 break;
             }
-            SetTextureFilter(step->texture, TEXTURE_FILTER_POINT);
             anim->step_count++;
         }
         dst->step_count = count;

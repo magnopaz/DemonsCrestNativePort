@@ -28,6 +28,21 @@ typedef struct StaticSprite {
     float y;
 } StaticSprite;
 
+#define DC_MAX_LEVEL_OBJECTS 32
+
+typedef enum LevelObjectType {
+    LEVEL_OBJECT_NONE = 0,
+    LEVEL_OBJECT_URN,
+    LEVEL_OBJECT_ENEMY
+} LevelObjectType;
+
+typedef struct LevelObject {
+    LevelObjectType type;
+    int species;
+    float x;
+    float y;
+} LevelObject;
+
 typedef struct Level {
     char name[64];
     int world_w;
@@ -59,6 +74,9 @@ typedef struct Level {
 
     StaticSprite sprites[16];
     int sprite_count;
+
+    LevelObject objects[DC_MAX_LEVEL_OBJECTS];
+    int object_count;
 } Level;
 
 bool Level_Load(Level *level, const Assets *assets, const char *dir);

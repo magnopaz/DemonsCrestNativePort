@@ -51,6 +51,16 @@ frame-accurate oracle for movement and timing.
     `floor(player.y) - 8` with velocity `0x0300` (3.0 px/frame),
   - palette-6 OAM stream baked as `fireball_0..8.png` + `fireball_anim.json`,
   - despawn on solid walls or camera viewport exit, mirrored for left shots.
+- Object system (`src/object.c`, 26 slots) driven by the Area 1 `$81:C874`
+  object list:
+  - four destructible urns (`species $57`) at the listed positions,
+  - fireball hits shatter urns and drop a heart with the `$85:C180` arc
+    (4.0 px/frame pop-up, 0.25 gravity, decreasing bounces),
+  - touching a heart increments HP up to max,
+  - first-pass `species $67` ghouls emerge, chase, damage on contact with
+    knockback and drop hearts when killed by fireballs.
+- BG3 HUD extracted from `save0`: six-point health bar plus three crest slots
+  at the top of the frame; the active spell slot is highlighted.
 - Saved-state validation from `save0` (normal graveyard gameplay):
   - walk speed measured 1.40 px/frame,
   - default SNES bindings (`$80:DB00` via `$1E3A..$1E4C`): **B = Jump/Hover**,
@@ -62,7 +72,8 @@ frame-accurate oracle for movement and timing.
 - Debug collision overlay (`F1` or `DC_DEBUG_COLLISION=1`), FPS (`F3`).
 
 This is a playable technical foundation, not a finished game. The next
-milestone is the `$1080` object loop, one graveyard enemy and the heart pickup.
+milestone is engine hardening: fixed timestep, automated regression, real
+enemy/HUD art and audio.
 
 ### Current limitations
 
@@ -75,9 +86,13 @@ milestone is the `$1080` object loop, one graveyard enemy and the heart pickup.
 - The `$1070` terrain probe that selects the `0x00B3` initial walk step and
   `$80:8B85` acceleration path is not wired to the slope surface table yet;
   flat/slope walking keeps the `0x0166` cap.
-- Hurt, death and wall-cling player clips are still to be captured; the fireball
-  currently only interacts with terrain and viewport bounds, not enemies.
-- No enemies, HUD or audio yet.
+- Hurt/death player animations and the real species `$67` handler
+  (`$83:AF74`) are still to be ported; the current ghoul is a first-pass
+  chase/damage/drop implementation with placeholder art. The heart sprite and
+  HUD active-slot marker are also placeholders.
+- No audio yet.
+- The HUD health bar is scaled from the extracted six-point bar; talisman
+  inventory/selection is not implemented yet, so the first slot is highlighted.
 
 ## Requirements
 
@@ -178,9 +193,11 @@ python3 tools/dc_extract/extract_anim.py \
 This writes `player_idle_0.png`, `player_walk_0..5.png`,
 `player_jump_0..2.png`, `player_hover_0.png`, `player_fall_0..1.png`,
 `player_land_0..1.png`, `player_attack_0..2.png`, `player_spell_0..2.png`,
-`fireball_0..8.png`, `player_anim.json` and `fireball_anim.json`.
+`fireball_0..8.png`, `heart_00..01.png`, `enemy_00..01.png`,
+`hud_bar.png`, `hud_slots.png`, `player_anim.json` and
+`fireball_anim.json`.
 The engine falls back to `player_idle.png` if the player JSON is absent, and
-renders projectiles invisibly if `fireball_anim.json` is absent.
+skips the HUD if `hud_bar.png`/`hud_slots.png` are absent.
 
 ## 2c. Validate Step 3 movement against `save0`
 
@@ -242,6 +259,10 @@ These environment variables exist for deterministic testing:
 | `DC_DEMO=6` | Exact `save0` Step 3 physics replay (603 frames) |
 | `DC_DEMO=7` | Fireball demo: right shots into the pillar, long left shot |
 | `DC_DEMO=8` | Full-room traversal: walk left, then hover right across pillars |
+| `DC_DEMO=9` | Urn → bouncing heart → heal regression |
+| `DC_DEMO=10` | Enemy chase/damage/drop regression (pair with `DC_START_X`) |
+| `DC_START_X` / `DC_START_Y` | Override the player spawn for focused tests |
+| `DC_TRACE_OBJECTS=path` | Write active object slots as CSV |
 | `DC_TRACE_PROJECTILES=path` | Write per-frame active projectile slots as CSV |
 | `DC_FLY_DEBUG=1` | Enable the non-canonical B+Up vertical flight |
 | `DC_DEBUG_COLLISION=1` | Enable the `F1` collision overlay in headless runs |
@@ -260,6 +281,7 @@ DC_DEMO=2 DC_RUN_FRAMES=120 DC_TRACE_CSV=/tmp/native.csv ./build/demonscrest
 src/                  native engine
 src/anim.c            player_anim.json / fireball_anim.json loaders
 src/projectile.c      7-slot fireball pool
+src/object.c          26-slot urn/enemy/pickup pool
 tools/dc_extract/     extraction from ROM + dump (room and animation frames)
 tools/capture_graveyard.sh  recomp dump helper
 tools/oracle/         WRAM/OAM trace parsers, probe routes, comparison and

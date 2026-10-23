@@ -6,9 +6,10 @@
 #include "level.h"
 #include "player.h"
 #include "projectile.h"
+#include "object.h"
 
 void Render_Game(const Assets *assets, const Level *level, const GameCamera *camera,
                  const Player *player, const ProjectilePool *projectiles,
-                 bool debug_collision);
+                 const ObjectPool *objects, bool debug_collision);
 
 #endif

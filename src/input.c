@@ -105,6 +105,20 @@ void Input_Read(Input *in, InputState *st) {
         jump = (demo_frame >= 260 && demo_frame < 285) ||
                (demo_frame >= 286 && demo_frame < 287) ||
                (demo_frame >= 1000 && demo_frame < 1001);
+    } else if (demo_mode == 9) {
+        /* Urn + pickup regression: shoot the urn, then jump to collect the
+         * bouncing heart after it lands on the pillar. */
+        demo_frame++;
+        right = (demo_frame >= 20 && demo_frame < 40) ||
+                (demo_frame >= 95 && demo_frame < 135);
+        jump = (demo_frame >= 45 && demo_frame < 70) ||
+               (demo_frame >= 95 && demo_frame < 125);
+        shot = demo_frame >= 52 && demo_frame < 54;
+    } else if (demo_mode == 10) {
+        /* Enemy regression: pair with DC_START_X near an Area 1 species $67. */
+        demo_frame++;
+        int phase = demo_frame - 60;
+        shot = phase >= 0 && (phase % 20) < 2;
     }
 
     in->left = left;

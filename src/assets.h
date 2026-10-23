@@ -14,6 +14,11 @@ typedef struct Assets {
     Texture2D obj_pal[DC_OBJ_PALETTES];
     Texture2D player;
     Texture2D item;
+    Texture2D heart;
+    Texture2D enemy[2];
+    int enemy_frames;
+    Texture2D hud_bar;
+    Texture2D hud_slots;
     PlayerAnim player_anim;
     ProjectileAnim projectile_anim;
     bool ready;

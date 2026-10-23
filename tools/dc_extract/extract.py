@@ -105,6 +105,31 @@ class Rom:
                     out[by * 2 + j // 2][bx * 2 + j % 2] = word
         return out
 
+    def object_list(self, index: int):
+        """Read one entry of the 3-byte-pointer object-list table at $81:C874.
+
+        Records are 6 bytes: species, flags, X (u16), Y (u16). The high Y
+        byte carries the screen-row offset (256 per row).
+        """
+        base = 0xC874 + index * 3
+        ptr = self.u16(0x81, base)
+        bank = self.u8(0x81, base + 2)
+        offset = lo(bank, ptr)
+        count = self.data[offset]
+        records = []
+        for k in range(count):
+            start = offset + 1 + k * 6
+            rec = self.data[start:start + 6]
+            if len(rec) != 6:
+                break
+            records.append({
+                "species": rec[0],
+                "flags": rec[1],
+                "x": rec[2] | (rec[3] << 8),
+                "y": rec[4] | (rec[5] << 8),
+            })
+        return records
+
 
 def read_vram(path: Path) -> list[int]:
     raw = path.read_bytes()
@@ -162,6 +187,102 @@ def make_bg_atlas(vram: list[int], cgram, palette: int, base_word: int = 0) -> I
                     sx = 7 - x if fx else x
                     sy = 7 - y if fy else y
                     px[qx + tx + sx, qy + ty + sy] = color
+    return img
+
+
+def make_heart_sprite(scale: int = 1, pulse: bool = False) -> Image.Image:
+    """Original placeholder heart pickup (replaced when the ROM heart OAM is baked)."""
+    pattern = [
+        "..###..###..",
+        ".#####.#####.",
+        "############",
+        "############",
+        ".##########.",
+        "..########..",
+        "...######...",
+        "....####....",
+        ".....##.....",
+    ]
+    if pulse:
+        pattern = ["." + row + "." for row in pattern]
+    w = len(pattern[0]) * scale
+    h = len(pattern) * scale
+    img = Image.new("RGBA", (w + 2, h + 2), (0, 0, 0, 0))
+    px = img.load()
+    for y, row in enumerate(pattern):
+        for x, ch in enumerate(row):
+            if ch != "#":
+                continue
+            for sy in range(scale):
+                for sx in range(scale):
+                    px[1 + x * scale + sx, 1 + y * scale + sy] = (232, 60, 84, 255)
+    # A one-pixel dark outline around the silhouette.
+    out = img.copy()
+    op = out.load()
+    for y in range(img.height):
+        for x in range(img.width):
+            if px[x, y][3]:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < img.width and 0 <= ny < img.height and px[nx, ny][3]:
+                    op[x, y] = (48, 16, 24, 255)
+                    break
+    return out
+
+
+def make_enemy_sprite(frame: int = 0) -> Image.Image:
+    """Original placeholder graveyard ghoul (species $67) until its OAM is baked."""
+    pattern = [
+        "....####....",
+        "...######...",
+        "..##.##.##..",
+        "..########..",
+        "...##.##....",
+        "...######...",
+        "..##.##.##..",
+        ".##.####.##.",
+        "..#.####.#..",
+        "...######...",
+        "....####....",
+        ".....##.....",
+        ".....##.....",
+        "....#..#....",
+        "...#....#...",
+        "..#......#..",
+    ]
+    if frame:
+        pattern = [
+            "....####....",
+            "...######...",
+            "..##.##.##..",
+            "..########..",
+            "...##.##....",
+            "...######...",
+            "..##.##.##..",
+            ".####.####..",
+            ".#.####.##..",
+            "...######...",
+            "....####....",
+            ".....##.....",
+            ".....##.....",
+            "....#..#....",
+            "...#....#...",
+            ".##......##.",
+        ]
+    w, h = len(pattern[0]) + 2, len(pattern) + 2
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    px = img.load()
+    bone = (216, 208, 168, 255)
+    shade = (104, 96, 72, 255)
+    for y, row in enumerate(pattern):
+        for x, ch in enumerate(row):
+            if ch != "#":
+                continue
+            px[1 + x, 1 + y] = shade if (x + y) % 7 == 0 else bone
+    # Red eye socket.
+    px[5, 4] = (208, 32, 40, 255)
+    px[9, 4] = (208, 32, 40, 255)
     return img
 
 
@@ -346,6 +467,9 @@ def main() -> int:
     ap.add_argument("--full-room", action="store_true",
                     help="build every screen in the captured screen row from the "
                          "ROM block tables (2048 px wide for Area 1)")
+    ap.add_argument("--object-list-index", type=int, default=None,
+                    help="row index into the $81:C874 object-list pointer table "
+                         "(default: the ROM area index; Area 1 = 1)")
     ap.add_argument("--player-oam", default="1-11",
                     help="OAM slots composing the player (default 1-11)")
     ap.add_argument("--player-palette", type=int, default=2,
@@ -444,6 +568,11 @@ def main() -> int:
     # --- palettes -------------------------------------------------------
     for p in range(8):
         make_bg_atlas(vram, cgram, p).save(out / f"bg_pal{p}.png")
+    # Original placeholder heart pickup until the ROM heart OAM is baked.
+    make_heart_sprite(1).save(out / "heart_00.png")
+    make_heart_sprite(1, pulse=True).save(out / "heart_01.png")
+    make_enemy_sprite(0).save(out / "enemy_00.png")
+    make_enemy_sprite(1).save(out / "enemy_01.png")
     # OBJ base for the current OBSEL.
     obj_base = (regs["obsel"] & 7) << 13
     for p in range(8):
@@ -533,11 +662,31 @@ def main() -> int:
                 b = g[cby][cbx % 16]
                 attrs.append(rom.block_attr(set_id, b))
 
+    # --- data-driven objects -------------------------------------------
+    world_w = bg1["map_width"] * 8
+    world_h = bg1["map_height"] * 8
+    objects = []
+    object_list_index = args.object_list_index
+    if object_list_index is None and args.full_room:
+        object_list_index = args.area
+    if object_list_index is not None:
+        row_offset = (row_index * 256) if args.full_room else 0
+        type_by_species = {0x57: "urn", 0x67: "enemy"}
+        for rec in rom.object_list(object_list_index):
+            x = rec["x"]
+            y = rec["y"] - row_offset
+            kind = type_by_species.get(rec["species"])
+            if kind is None or not (0 <= x < world_w and 0 <= y < world_h):
+                continue
+            objects.append({"type": kind, "species": rec["species"],
+                            "x": x, "y": y})
+        if any(obj["type"] == "urn" for obj in objects):
+            # The visible OAM item is the same urn; the object pool owns it now.
+            sprites = []
+
     # --- room document --------------------------------------------------
     spawn_x = regs["hscroll"][0] + bx + bw // 2
     spawn_y = regs["vscroll"][0] + by + bh
-    world_w = bg1["map_width"] * 8
-    world_h = bg1["map_height"] * 8
     if args.full_room:
         camera = {
             "x": regs["hscroll"][0], "y": regs["vscroll"][0],
@@ -571,6 +720,7 @@ def main() -> int:
         "collision": {"cell": 16, "width": col_w, "height": col_h,
                       "attrs": attrs},
         "spawn": {"x": spawn_x, "y": spawn_y},
+        "objects": objects,
         "player": {
             "texture": "player_idle.png",
             "feet_x": player_feet_x,
@@ -584,6 +734,8 @@ def main() -> int:
         "area": args.area,
         "screens": room_screens or slots,
         "full_room": bool(args.full_room),
+        "object_list_index": object_list_index,
+        "objects": len(objects),
         "source": f"{args.prefix} ({args.dump})",
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "tool": "dc_extract 0.2",
@@ -597,6 +749,7 @@ def main() -> int:
           f"palette={args.player_palette}")
     print(f"collision: {len(attrs)} cells ({col_w}x{col_h}), "
           f"screens {room_screens or slots}, tileset set {set_id}")
+    print(f"objects: {len(objects)} from list index {object_list_index}")
     return 0
 
 

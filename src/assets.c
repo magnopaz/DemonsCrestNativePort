@@ -38,6 +38,18 @@ bool Assets_Load(Assets *assets, const char *dir) {
         Assets_Unload(assets);
         return false;
     }
+    if (!LoadOne(&assets->heart, dir, "heart_00.png")) {
+        fprintf(stderr, "assets: heart_00.png missing; using item sprite\n");
+        assets->heart = assets->item;
+    }
+    if (LoadOne(&assets->enemy[0], dir, "enemy_00.png"))
+        assets->enemy_frames = 1;
+    if (LoadOne(&assets->enemy[1], dir, "enemy_01.png"))
+        assets->enemy_frames = 2;
+    if (!LoadOne(&assets->hud_bar, dir, "hud_bar.png") ||
+        !LoadOne(&assets->hud_slots, dir, "hud_slots.png")) {
+        fprintf(stderr, "assets: HUD elements missing; HUD disabled\n");
+    }
     if (!Anim_Load(&assets->player_anim, dir)) {
         fprintf(stderr,
                 "assets: player_anim.json missing; using the static idle sprite\n");
@@ -63,6 +75,17 @@ void Assets_Unload(Assets *assets) {
         UnloadTexture(assets->player);
     if (IsTextureValid(assets->item))
         UnloadTexture(assets->item);
+    if (IsTextureValid(assets->heart) &&
+        assets->heart.id != assets->item.id)
+        UnloadTexture(assets->heart);
+    for (int i = 0; i < assets->enemy_frames; i++) {
+        if (IsTextureValid(assets->enemy[i]))
+            UnloadTexture(assets->enemy[i]);
+    }
+    if (IsTextureValid(assets->hud_bar))
+        UnloadTexture(assets->hud_bar);
+    if (IsTextureValid(assets->hud_slots))
+        UnloadTexture(assets->hud_slots);
     Anim_Unload(&assets->player_anim);
     ProjectileAnim_Unload(&assets->projectile_anim);
     memset(assets, 0, sizeof(*assets));

@@ -40,12 +40,17 @@ typedef struct Player {
     int jump_sub;     /* $1006: 0 takeoff, 2 launch, 4 flight */
     PlayerState state;
     float anim_time;
-    float hurt_timer;
 
     int special_timer; /* frames left in the A/Talisman animation */
     int shot_timer;    /* frames left in the Y/Fireball animation */
     int land_timer;    /* frames left in the landing animation */
     bool shot_fired;   /* one-frame event consumed by the projectile pool */
+
+    int hp;            /* $1062 */
+    int max_hp;        /* $1E50 */
+    int invuln_timer;  /* contact-damage immunity */
+    int knockback_timer;
+    int knockback_dir;
 
     int anim_clip;    /* current AnimClipId, -1 before the first frame */
     int anim_step;
