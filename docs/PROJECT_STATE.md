@@ -2599,6 +2599,21 @@ overlay.
 
 ---
 
+### Step 43 — Ending backdrop and map zoom (done)
+
+- Ending screens now draw the captured Mode 7 world map as a dimmed backdrop
+  (tinted and veiled) instead of flat black, which reads much closer to the
+  reference ending sequences while the transcribed narration pages show.
+- The overworld camera gained **zoom**: Q/E (or the shoulder buttons) scale
+  `overworld_zoom` between 1.0x and 2.0x, `DC_OVERWORLD_ZOOM` sets it for
+  captures, and the hint bar advertises it. Zoom keeps the ship centred like the
+  rotation does.
+
+Verified: zoomed and rotated overworld captures, ending backdrop capture;
+regression PASS.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

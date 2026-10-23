@@ -718,6 +718,9 @@ static void Game_OverworldHookPosition(Game *game) {
     const char *oa = getenv("DC_OVERWORLD_ANGLE");
     if (oa && *oa)
         game->overworld_angle = (float)atof(oa);
+    const char *oz = getenv("DC_OVERWORLD_ZOOM");
+    if (oz && *oz)
+        game->overworld_zoom = (float)atof(oz);
 }
 
 static void Game_OpenOverworld(Game *game) {
@@ -727,6 +730,8 @@ static void Game_OpenOverworld(Game *game) {
     game->overworld_x = 96.0f;
     game->overworld_y = 176.0f;
     game->overworld_angle = 0.0f;
+    if (game->overworld_zoom <= 0.0f)
+        game->overworld_zoom = 1.0f;
     game->overworld_node = CAMPAIGN_GRAVEYARD;
     Game_OverworldHookPosition(game);
 }
@@ -839,6 +844,14 @@ static void Game_UpdateOverworld(Game *game) {
         game->overworld_angle -= 360.0f;
     while (game->overworld_angle < 0.0f)
         game->overworld_angle += 360.0f;
+    /* Shoulder buttons / Q,E zoom the map like the original's view control. */
+    if (game->overworld_zoom <= 0.0f)
+        game->overworld_zoom = 1.0f;
+    if (game->input.form_next_pressed) {
+        game->overworld_zoom *= 1.12f;
+        if (game->overworld_zoom > 2.0f)
+            game->overworld_zoom = 2.0f;
+    }
 
     /* Landing-point selection by nearest horizontal node. */
     static const struct { int node; float x; float y; } kNodes[] = {
@@ -1377,7 +1390,7 @@ static bool DrawWorldMapView(const Game *game) {
     float wy = (game->overworld_y - 152.0f) / (208.0f - 152.0f) * 1024.0f;
     /* Mode 7 style affine view: the map rotates around the ship, which stays at
      * the screen centre (like the original's rotation). */
-    const float zoom = 1.0f;
+    const float zoom = game->overworld_zoom > 0.0f ? game->overworld_zoom : 1.0f;
     float angle = game->overworld_angle;
     while (angle < 0.0f)
         angle += 360.0f;
@@ -1410,7 +1423,7 @@ static void DrawOverworld(const Game *game) {
         DrawText("OVERWORLD", 8, 6, 10, (Color){240, 232, 200, 255});
         DrawText(TextFormat("GOLD %d", game->player.gold), 190, 6, 10,
                  (Color){255, 224, 120, 255});
-        DrawText("X STAGE SELECT   ENTER LAND", 8, 208, 8,
+        DrawText("X STAGE SELECT   ENTER LAND   Q/E ZOOM", 8, 208, 8,
                  (Color){200, 220, 255, 255});
         return;
     }
@@ -1707,7 +1720,15 @@ static void DrawOverlay(const Game *game) {
             DrawCentered("PRESS ENTER", 196, 10,
                          (Color){200, 200, 200, 255});
     } else if (game->state == GAME_ENDING) {
-        DrawRectangle(0, 0, 256, 224, (Color){4, 6, 12, 245});
+        /* The reference endings play over the world; use the captured Mode 7
+         * map as a dimmed backdrop instead of flat black. */
+        if (IsTextureValid(game->assets.world_map)) {
+            Rectangle src = {0, 0, 1024.0f, 1024.0f};
+            Rectangle dst = {0, 0, 256.0f, 224.0f};
+            DrawTexturePro(game->assets.world_map, src, dst, (Vector2){0, 0},
+                           0.0f, (Color){110, 110, 150, 255});
+        }
+        DrawRectangle(0, 0, 256, 224, (Color){4, 6, 12, 205});
         const EndingData *ed = &game->assets.endings;
         int variant = game->ending_variant;
         if (!ed->loaded) {
