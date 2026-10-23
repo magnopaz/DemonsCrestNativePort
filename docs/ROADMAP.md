@@ -182,11 +182,22 @@ Pad mapping at `$80:DB00..DB40` (via WRAM masks `$1E3A..$1E4C`) and `save0`:
   restores progress. `DC_PASSWORD` applies a code at boot,
   `DC_PASSWORD_SELFTEST=1` runs 2000 round-trips, and the regression suite
   cross-checks a Python-generated code against the C decoder.
+- **Per-species sprites from injected objects.** `capture_species.py` writes a
+  minimal object record (`$00 = 1`, species, position) into the first slot so
+  the guest runs that species' init and draws it in the current room; no area
+  travel is needed. `extract_species.py` isolates the object's OAM cluster
+  (world→screen offset derived from the player's feet anchor), composes it with
+  the captured CGRAM and emits `enemy_<species>_<n>.png` + `species_anim.json`,
+  which `src/assets.c`/`src/render.c` now use per species. Urn `$57`, pickup
+  `$49`, `$2D` and the ghoul `$67` bake correctly; species whose init expects
+  spawner-supplied fields still draw the player sheet and are rejected
+  automatically.
 - **`$81:AE11` ruled out as the species sprite map.** Cross-area constraint
   testing (666 area pairs) shows 55% contradictions, so that table is the
-  room's ambient animation list. Object sprite frames are addressed through
-  object fields `$28/$2A/$2E`, which point into the metasprite data at the end
-  of bank `$8B` — the next thread for per-species sprites.
+  room's ambient animation list. The object fields `$28/$2A/$2E` are also not
+  sprite pointers: `$2A` is a map/offset table base used by the collision probe
+  at `$80:91C7`. Per-species art therefore comes from the injected-object
+  capture above, not from a single ROM table found so far.
 
 ## Next (ordered by dependency)
 

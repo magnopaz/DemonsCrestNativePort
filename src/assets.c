@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "cJSON.h"
+
 static bool LoadOne(Texture2D *out, const char *dir, const char *name) {
     char path[1024];
     snprintf(path, sizeof(path), "%s/%s", dir, name);
@@ -13,6 +15,75 @@ static bool LoadOne(Texture2D *out, const char *dir, const char *name) {
     }
     SetTextureFilter(*out, TEXTURE_FILTER_POINT);
     return true;
+}
+
+static int JsonNum(const cJSON *obj, const char *key, int fallback) {
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(obj, key);
+    return cJSON_IsNumber(item) ? item->valueint : fallback;
+}
+
+static double JsonDouble(const cJSON *obj, const char *key, double fallback) {
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(obj, key);
+    return cJSON_IsNumber(item) ? item->valuedouble : fallback;
+}
+
+/* `species_anim.json` is produced by tools/dc_extract/extract_species.py from
+ * injected-object oracle captures: one entry per species with per-pose texture
+ * and anchor. Missing file simply means "fall back to the shared enemy sheet". */
+static void LoadSpeciesSheets(Assets *assets, const char *dir) {
+    char path[1200];
+    snprintf(path, sizeof(path), "%s/species_anim.json", dir);
+    if (!FileExists(path))
+        return;
+    char *text = LoadFileText(path);
+    if (!text)
+        return;
+    cJSON *root = cJSON_Parse(text);
+    UnloadFileText(text);
+    if (!root)
+        return;
+    const cJSON *species = cJSON_GetObjectItemCaseSensitive(root, "species");
+    const cJSON *entry = NULL;
+    cJSON_ArrayForEach(entry, species) {
+        if (assets->species_count >= DC_SPECIES_MAX)
+            break;
+        const cJSON *frames = cJSON_GetObjectItemCaseSensitive(entry, "frames");
+        if (!cJSON_IsArray(frames))
+            continue;
+        SpeciesSheet *sheet = &assets->species[assets->species_count];
+        memset(sheet, 0, sizeof(*sheet));
+        sheet->species = JsonNum(entry, "species", -1);
+        sheet->duration = 6;
+        const cJSON *frame = NULL;
+        cJSON_ArrayForEach(frame, frames) {
+            if (sheet->frame_count >= DC_SPECIES_FRAMES)
+                break;
+            const cJSON *tex =
+                cJSON_GetObjectItemCaseSensitive(frame, "texture");
+            if (!cJSON_IsString(tex))
+                continue;
+            SpeciesFrame *slot = &sheet->frames[sheet->frame_count];
+            if (!LoadOne(&slot->texture, dir, tex->valuestring))
+                continue;
+            slot->anchor_x = (float)JsonDouble(frame, "anchor_x", 0.0);
+            slot->anchor_y = (float)JsonDouble(frame, "anchor_y", 0.0);
+            sheet->duration = JsonNum(frame, "duration", sheet->duration);
+            sheet->frame_count++;
+        }
+        if (sheet->frame_count > 0)
+            assets->species_count++;
+        else
+            memset(sheet, 0, sizeof(*sheet));
+    }
+    cJSON_Delete(root);
+}
+
+const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species) {
+    for (int i = 0; i < assets->species_count; i++) {
+        if (assets->species[i].species == species)
+            return &assets->species[i];
+    }
+    return NULL;
 }
 
 bool Assets_Load(Assets *assets, const char *dir) {
@@ -69,6 +140,9 @@ bool Assets_Load(Assets *assets, const char *dir) {
         fprintf(stderr,
                 "assets: fireball_anim.json missing; projectiles render invisible\n");
     }
+    LoadSpeciesSheets(assets, dir);
+    if (assets->species_count > 0)
+        printf("assets: %d per-species sprite sheet(s)\n", assets->species_count);
     assets->ready = true;
     return true;
 }
@@ -100,6 +174,12 @@ void Assets_Unload(Assets *assets) {
     for (int i = 0; i < assets->enemy_frames; i++) {
         if (IsTextureValid(assets->enemy[i]))
             UnloadTexture(assets->enemy[i]);
+    }
+    for (int i = 0; i < assets->species_count; i++) {
+        for (int f = 0; f < assets->species[i].frame_count; f++) {
+            if (IsTextureValid(assets->species[i].frames[f].texture))
+                UnloadTexture(assets->species[i].frames[f].texture);
+        }
     }
     if (IsTextureValid(assets->hud_bar))
         UnloadTexture(assets->hud_bar);

@@ -102,10 +102,15 @@ without requiring recomp dumps.
   tilemap at runtime (`$84:A057` DMAs from WRAM `$7F`), so there is no raw ROM
   table; the remaining areas each need one oracle frame until the generator is
   decoded.
-- [ ] Extract OAM metasprite layouts and animation frame/timing tables directly
-  from the ROM for all player forms, projectiles, pickups, enemies and bosses
-  (the `$8B:8000` decoder and the real heart/Crest + ghoul sprites are done;
-  other species still share the ghoul sheet).
+- [ ] Extract OAM metasprite layouts and animation frame/timing tables for all
+  player forms, projectiles, pickups, enemies and bosses. **Partial:** a new
+  injected-object oracle capture (`tools/oracle/capture_species.py` +
+  `tools/dc_extract/extract_species.py`) bakes per-species enemy PNGs and
+  `species_anim.json` from live OAM, and the engine now draws per-species
+  sheets for the species whose init is self-contained (urn `$57`, pickup `$49`,
+  `$2D`, ghoul `$67`). Species whose init depends on spawner-supplied fields
+  still fall back to the shared sheet; reproducing the `$82:8BDB` spawner writes
+  is the next step.
 - [ ] Handle mid-stage graphics streaming (`$80:BFB5` / `$80:C11B`, including
   `$98:E000` chunks) and tile animation (`$81:C125`).
 - [ ] Extract HDMA tables for every area (channel 1 `$210F` `BG2HOFS` is done

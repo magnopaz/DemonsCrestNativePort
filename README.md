@@ -111,6 +111,12 @@ frame-accurate oracle for movement and timing.
   (up/down letter, left/right move, Enter applies, invalid codes rejected).
   `DC_PASSWORD=<code>` applies a code at boot and `DC_PASSWORD_SELFTEST=1`
   runs 2000 round-trips for CI. The retail algorithm is still unknown.
+- Per-species enemy sprites: `tools/oracle/capture_species.py` injects a minimal
+  object record so the guest initialises and draws a chosen species in the
+  current room (no area travel), and `tools/dc_extract/extract_species.py` bakes
+  the object's OAM cluster into `enemy_<species>_<n>.png` + `species_anim.json`.
+  The engine draws those sheets per species, falling back to the shared sheet
+  for species whose init expects spawner-supplied fields.
 - Windows build on the raylib Windows installer (`tools/build_windows.ps1`,
   `-DDC_RAYLIB_ROOT`), verified with raylib 6.2 + MinGW GCC 16.2.
 - Campaign-specific debug hooks: `DC_AREA`, `DC_CAMPAIGN`, `DC_BOSS_DEFEATED`,
@@ -453,6 +459,9 @@ src/object.c          26-slot urn/enemy/pickup pool
 src/audio.c           procedural music/SFX
 tools/dc_extract/     extraction from ROM + dump (room and animation frames)
 tools/dc_extract/bg2_captures.json  area -> oracle frame map for BG2 backdrops
+tools/dc_extract/extract_species.py per-species sprite baking from injected
+                                    object captures
+tools/oracle/capture_species.py     injected-object species capture
 tools/audit_campaign.py             per-room structural audit
 tools/build_windows.ps1             offline MinGW build against local raylib
 tools/capture_graveyard.sh  recomp dump helper

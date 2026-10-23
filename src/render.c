@@ -206,32 +206,43 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             int py = (int)lroundf(y);
             DrawRectangle(px, py, 32, 6, (Color){128, 120, 108, 255});
             DrawRectangleLines(px, py, 32, 6, (Color){200, 192, 168, 255});
-        } else if (o->type == OBJECT_ENEMY && assets->enemy_frames > 0) {
-            int frame = (o->timer / 8) % assets->enemy_frames;
-            Texture2D tex = assets->enemy[frame];
-            Color tint = WHITE;
-            if (o->species == 0x2C)
-                tint = (Color){210, 230, 255, 255};
-            else if (o->species == 0x07)
-                tint = (Color){255, 180, 200, 255};
-            DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
-                        (int)lroundf(y - tex.height * 0.5f), tint);
-        } else if (o->type == OBJECT_BOSS && assets->enemy_frames > 0) {
-            int frame = (o->timer / 6) % assets->enemy_frames;
-            Texture2D tex = assets->enemy[frame];
-            Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
-            Rectangle dst = {
-                x - (float)tex.width * 0.75f,
-                y - (float)tex.height * 0.75f,
-                (float)tex.width * 1.5f,
-                (float)tex.height * 1.5f
-            };
-            Color tint = (o->species == 0x33)
-                         ? (Color){255, 190, 140, 255}
-                         : (Color){210, 170, 255, 255};
-            DrawTexturePro(tex, src, dst, (Vector2){0, 0}, 0.0f, tint);
-            /* Boss health bar at top-right */
-            if (o->max_hp > 0 && o->hp > 0) {
+        } else if ((o->type == OBJECT_ENEMY || o->type == OBJECT_BOSS)) {
+            const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, o->species);
+            if (sheet && sheet->frame_count > 0) {
+                int frame = (o->timer / sheet->duration) % sheet->frame_count;
+                const SpeciesFrame *sf = &sheet->frames[frame];
+                float dx = x - sf->anchor_x;
+                float dy = y - sf->anchor_y;
+                float scale = (o->type == OBJECT_BOSS) ? 1.5f : 1.0f;
+                if (o->type == OBJECT_BOSS) {
+                    /* Boss anchors are measured at 1x; scale around the anchor. */
+                    dx = x - sf->anchor_x * scale;
+                    dy = y - sf->anchor_y * scale;
+                }
+                Rectangle src = {0, 0, (float)sf->texture.width,
+                                 (float)sf->texture.height};
+                Rectangle dst = {dx, dy,
+                                 (float)sf->texture.width * scale,
+                                 (float)sf->texture.height * scale};
+                DrawTexturePro(sf->texture, src, dst, (Vector2){0, 0}, 0.0f,
+                               WHITE);
+            } else if (assets->enemy_frames > 0) {
+                int frame = (o->timer / 8) % assets->enemy_frames;
+                Texture2D tex = assets->enemy[frame];
+                Color tint = WHITE;
+                if (o->species == 0x2C)
+                    tint = (Color){210, 230, 255, 255};
+                else if (o->species == 0x07)
+                    tint = (Color){255, 180, 200, 255};
+                float scale = (o->type == OBJECT_BOSS) ? 1.5f : 1.0f;
+                Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+                Rectangle dst = {x - (float)tex.width * 0.5f * scale,
+                                 y - (float)tex.height * 0.5f * scale,
+                                 (float)tex.width * scale,
+                                 (float)tex.height * scale};
+                DrawTexturePro(tex, src, dst, (Vector2){0, 0}, 0.0f, tint);
+            }
+            if (o->type == OBJECT_BOSS && o->max_hp > 0 && o->hp > 0) {
                 int bw = 48;
                 int filled = (o->hp * bw) / o->max_hp;
                 DrawRectangle(196, 26, bw + 2, 6, (Color){20, 10, 20, 200});

@@ -9,6 +9,21 @@
 #define DC_BG_PALETTES 8
 #define DC_OBJ_PALETTES 8
 #define DC_CAMPAIGN_AREAS 128
+#define DC_SPECIES_MAX 16
+#define DC_SPECIES_FRAMES 4
+
+typedef struct SpeciesFrame {
+    Texture2D texture;
+    float anchor_x;
+    float anchor_y;
+} SpeciesFrame;
+
+typedef struct SpeciesSheet {
+    int species;
+    int frame_count;
+    int duration;
+    SpeciesFrame frames[DC_SPECIES_FRAMES];
+} SpeciesSheet;
 
 typedef struct Assets {
     Texture2D bg_pal[DC_BG_PALETTES];
@@ -23,6 +38,8 @@ typedef struct Assets {
     Texture2D heart;
     Texture2D enemy[2];
     int enemy_frames;
+    SpeciesSheet species[DC_SPECIES_MAX];
+    int species_count;
     Texture2D hud_bar;
     Texture2D hud_slots;
     PlayerAnim player_anim;
@@ -34,5 +51,6 @@ bool Assets_Load(Assets *assets, const char *dir);
 void Assets_Unload(Assets *assets);
 void Assets_LoadAreaBg(Assets *assets, int area);
 Texture2D Assets_AreaBg(const Assets *assets, int area, int pal);
+const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species);
 
 #endif

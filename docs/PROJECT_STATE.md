@@ -165,6 +165,18 @@ Working today:
   `DC_PASSWORD=<code>` to apply a code at boot and
   `DC_PASSWORD_SELFTEST=1` for a 2000-round-trip CI check. The retail
   encode/decode algorithm is still unknown; this is a stable native format.
+- Per-species enemy sprites from injected-object captures (this session):
+  `tools/oracle/capture_species.py` writes a minimal object record with `$00`
+  bit 0 set into the first object slot, so the guest runs that species' init
+  handler and draws it in the current room — no area travel or live-enemy save
+  needed. `tools/dc_extract/extract_species.py` finds the object's OAM cluster
+  (the world->screen offset is derived from the player's feet anchor because the
+  guest restores the BG scroll registers after rendering), composes it with the
+  captured CGRAM, deduplicates poses and emits `enemy_<species>_<n>.png` +
+  `species_anim.json`. `src/assets.c`/`src/render.c` load and draw those sheets
+  per species (with the shared sheet as fallback), replacing the one-size
+  enemy sprite for the species whose init is self-contained (urn `$57`,
+  pickup `$49`, `$2D`, ghoul `$67`, ...).
 - Collision debug overlay (`F1`), FPS (`F3`).
 - Per-frame CSV trace output plus `DC_TRACE_PROJECTILES`/`DC_TRACE_OBJECTS`.
 - Deterministic demo input modes for screenshots and comparison.
@@ -1361,7 +1373,18 @@ These were already discovered the hard way; do not rediscover them.
     Enemy sprite capture therefore needs either a different save/route or the
     ROM-side animation data, not the current save0.
 
-26. **`$81:AE11` is the per-area *ambient* sprite list, not the object species list.**
+26. **Injecting an object record runs the species init, but not every species
+    draws its own art.**
+    The object loop starts with `$00` bit 0 set as "init pending": it clears the
+    bit, sets `$00 = 6` and calls `JSR ($8300,X)` with `X = species*2`. Writing a
+    record with `$00=1` therefore initialises any species in place. However the
+    real spawner (`$82:8BDB`) also fills fields the init expects, so species
+    whose sprite setup depends on them render Firebrand's sheet. In one 11-way
+    capture pass `$57/$49/$2D/$67` baked correctly while `$26/$2E/$81/$24/$33`
+    came out identical to the player and were rejected. Reproduce the spawner's
+    remaining writes before trusting a species' capture.
+
+27. **`$81:AE11` is the per-area *ambient* sprite list, not the object species list.**
     The table holds 16-bit little-endian pointers per area (`$AEF9` area 0,
     `$AF15` area 1, `$AF22` area 2, `$AF2F` area 3, ...). Each list is a run of
     2-byte pairs terminated by `0x00`; the first byte is a `$8B:8000` metasprite
@@ -1810,6 +1833,39 @@ Done:
 Still pending: the retail password/SRAM algorithm and the exact retail screen
 layout.
 
+### Step 13 — Per-species OAM via injected objects (started)
+
+Done:
+
+1. `tools/oracle/capture_species.py`: the guest object loop treats bit 0 of an
+   object's `$00` word as "run the species init", so writing a minimal record
+   (`$00=1`, `$02=species`, `$0A=0x30`, `$26=0x40`, world position) into the
+   first slot makes the game initialise and draw that species in the current
+   room. The tool starts the trace build paused on a fresh save copy, derives
+   the world->screen offset from the player's palette-7 OAM cluster (feet
+   anchor, since the guest restores the BG scroll registers after rendering),
+   injects the record, and dumps OAM/CGRAM/VRAM/PPU at `--frames` offsets.
+   Eleven species were captured in one pass; the technique needs no area travel.
+2. `tools/dc_extract/extract_species.py`: selects the object's OAM cluster
+   (window around its screen position, player cluster excluded), composes it
+   with the captured CGRAM and per-sprite palettes, crops, records the anchor
+   relative to the object position, deduplicates poses and writes
+   `enemy_<species>_<n>.png` + `species_anim.json`. Species whose capture came
+   out identical to the player sheet are rejected automatically.
+3. `src/assets.c` loads `species_anim.json` (up to 16 species × 4 poses with
+   anchors and a frame duration); `src/render.c` draws the per-species sheet for
+   enemy and boss objects, falling back to the shared `enemy_*.png` sheet.
+4. Verified in Area 1 (`DC_DEMO=10 DC_START_X=900`): the species `$67` enemy now
+   draws its own captured creature instead of the shared sheet; the urn and
+   pickup species bake correctly.
+
+Known limitation: species whose init depends on spawner-supplied fields (the
+real spawner `$82:8BDB` copies a 6-byte record and sets further fields) still
+render the player sheet, because the injection only provides the record fields.
+Captured-and-rejected species: `$26`, `$2E`, `$81`, `$24`, `$33`. Reproducing
+the spawner's remaining field writes (or invoking the spawner itself) is the
+next step to cover every species.
+
 ---
 
 ## 11. Long-term roadmap
@@ -1884,9 +1940,11 @@ Resolved questions (formerly open):
   oracle frame per area instead.
 - **Per-area sprite list**: `$81:AE11` is a 16-bit pointer table to
   (metasprite group, frame count) pairs, one list per area, `0x00`-terminated
-  (see trap #26). A cross-area consistency test proved it is the room's ambient
-  animation list, not a species→group map; per-species frames are addressed via
-  object fields `$28/$2A/$2E` pointing into bank `$8B`.
+  (see trap #27). A cross-area consistency test proved it is the room's ambient
+  animation list, not a species→group map. Object fields `$28/$2A/$2E` are not
+  sprite pointers either: `$2A` is a map/offset table base used by the
+  collision probe at `$80:91C7`. Per-species art is captured from live OAM via
+  injected objects (Step 13).
 
 - **How the loader remaps block tile indices to VRAM**: Resolved — there is no
   tile remap. `stage_600` is ROM Area 1 (`screens 8, 9` = `slots 9, 10`), not
