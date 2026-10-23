@@ -263,6 +263,13 @@ bool Game_SaveProgress(const Game *game) {
     cJSON_AddNumberToObject(root, "version", DC_SAVE_VERSION);
     cJSON_AddNumberToObject(root, "area", game->level.area_id);
     cJSON_AddNumberToObject(root, "stages_cleared", game->stages_cleared);
+    {
+        /* Per-area clear flags, packed as hex (113 bytes -> 226 chars). */
+        char hex[DC_CAMPAIGN_AREAS * 2 + 1];
+        for (int i = 0; i < DC_CAMPAIGN_AREAS; i++)
+            snprintf(hex + i * 2, 3, "%02x", game->area_cleared[i]);
+        cJSON_AddStringToObject(root, "area_cleared", hex);
+    }
     cJSON_AddNumberToObject(root, "max_hp", p->max_hp);
     cJSON_AddNumberToObject(root, "hp", p->hp);
     cJSON_AddNumberToObject(root, "crests", p->crests_mask);
@@ -354,6 +361,16 @@ bool Game_LoadProgress(Game *game) {
     p->gold = Game_JsonInt(root, "gold", p->gold);
     game->stages_cleared = (uint8_t)Game_JsonInt(root, "stages_cleared",
                                                  game->stages_cleared);
+    const cJSON *cleared = cJSON_GetObjectItemCaseSensitive(root, "area_cleared");
+    if (cJSON_IsString(cleared) && cleared->valuestring) {
+        const char *s = cleared->valuestring;
+        for (int i = 0; i < DC_CAMPAIGN_AREAS; i++) {
+            char byte[3] = {s[i * 2], s[i * 2] ? s[i * 2 + 1] : 0, 0};
+            if (!byte[0] || !byte[1])
+                break;
+            game->area_cleared[i] = (uint8_t)strtoul(byte, NULL, 16);
+        }
+    }
 
     const cJSON *vol = cJSON_GetObjectItemCaseSensitive(root, "volume");
     if (cJSON_IsNumber(vol))
@@ -702,6 +719,8 @@ static void Game_CompleteArea(Game *game) {
     int area = game->level.area_id;
     if (area >= 0 && area < 8)
         game->stages_cleared |= (uint8_t)(1u << area);
+    if (area >= 0 && area < DC_CAMPAIGN_AREAS)
+        game->area_cleared[area] = 1;
     /* Story progression: each cleared area grants the next Gargoyle Crest. */
     int granted = -1;
     switch (area) {
@@ -1185,7 +1204,10 @@ static void DrawStageSelect(const Game *game) {
     int count = game->assets.stage_count;
     DrawRectangle(0, 0, 256, 224, (Color){6, 8, 14, 255});
     DrawCentered("STAGE SELECT", 14, 14, (Color){240, 220, 150, 255});
-    DrawCentered(TextFormat("%d stage entries - every area reachable", count), 32, 9,
+    int cleared = 0;
+    for (int i = 0; i < count; i++)
+        cleared += game->area_cleared[game->assets.stage_entries[i]] ? 1 : 0;
+    DrawCentered(TextFormat("%d stages   %d cleared", count, cleared), 32, 9,
                  (Color){150, 200, 240, 255});
     int first = (game->stage_sel / 6) * 6;
     for (int i = 0; i < 6 && first + i < count; i++) {
@@ -1193,9 +1215,12 @@ static void DrawStageSelect(const Game *game) {
         int area = game->assets.stage_entries[idx];
         bool sel = idx == game->stage_sel;
         int kind = Assets_RoomKind(&game->assets, area);
-        const char *tag = kind == 1 ? "STAGE" : kind == 2 ? "BOSS " : "---- ";
+        bool done = game->area_cleared[area] != 0;
+        const char *tag = done ? "DONE " : kind == 1 ? "STAGE"
+                               : kind == 2 ? "BOSS " : "---- ";
         Color col = sel ? (Color){255, 255, 210, 255}
-                        : (Color){200, 200, 210, 255};
+                        : done ? (Color){150, 230, 170, 255}
+                               : (Color){200, 200, 210, 255};
         if (sel)
             DrawRectangle(20, 46 + i * 20, 216, 18,
                           (Color){50, 44, 70, 255});

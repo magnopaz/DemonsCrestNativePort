@@ -359,6 +359,13 @@ def main() -> int:
         # when it leaps, but kills need a ground target, checked below.
         shots = [r for r in csv_rows(d10["objects"]) if r["type"] == "7"]
         check(bool(shots), "demo10: the ghoul never fired a projectile")
+        # The $B2E8 decision must let a perched ghoul leave its ledge and drop
+        # to the player's floor (its y grows by more than a tile).
+        perch: dict[str, list[float]] = {}
+        for r in enemies10:
+            perch.setdefault(r["slot"], []).append(float(r["y"]))
+        check(any(max(v) - v[0] > 40.0 for v in perch.values()),
+              "demo10: no ghoul descended from its perch")
 
         # ---- Ground enemy kill: area 2 skeletons die to fireballs ----
         d10b = run_demo(base, out, 10, 260,

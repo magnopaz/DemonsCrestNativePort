@@ -2163,6 +2163,26 @@ playable.
 
 ---
 
+### Step 23 — Ghoul descent and stage-clear tracking (done)
+
+- The `$B2E8` decision routine is ported as a native predicate: the ghoul only
+  commits to a leap when the player is below/beside its ledge or well outside
+  firing range, otherwise it keeps firing. The leap's landing check now requires
+  a few airborne frames and a real drop, so it can leave the perch instead of
+  landing back on it — verified on the Area 1 perch: **y 96 → 160 → 176** while
+  advancing on the player (regression asserts the descent).
+- The stage select tracks clears: `Game.area_cleared[113]` is set in
+  `Game_CompleteArea`, saved as a hex string (`area_cleared`) in the save format
+  (backward compatible: absent → zeros), and drawn as `DONE` rows plus a
+  `N stages  N cleared` progress line.
+- Verified: regression PASS (including save round-trip), stage select screenshot
+  shows the progress line.
+
+Next: boss-intro text for the seven boss entries, and the `$DEA2` secondary
+behaviour table (random idle/attack choices) for the ghoul.
+
+---
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

@@ -466,28 +466,50 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                     /* $B065 state 1: face the player, 32-frame windup, then a
                      * big leap ($20 = 0x0120, $22 = 0x0540, collision $DE7F);
                      * on landing ($B0AF) hold 16 frames and go back to firing
-                     * ($B0DD sets $05 = 4). */
+                     * ($B0DD sets $05 = 4).
+                     * $B2E8 decides when to commit: only when the player is
+                     * above/beside the perch and $47 is set. Here the same
+                     * decision is expressed as "player is lower or close, and
+                     * outside firing range" so the ghoul leaves its ledge. */
                     if (o->substate == 0) {
-                        o->facing = player->x_fx >= o->x_fx ? 1 : -1;
-                        o->substate = 2;
-                        o->phase = 0x20; /* $3B = 0x20 */
+                        int32_t dx = player->x_fx - o->x_fx;
+                        bool wants = (player->y_fx > o->y_fx + 6 * FX_ONE &&
+                                      labs((long)dx) < 200 * FX_ONE) ||
+                                     labs((long)dx) > 60 * FX_ONE;
+                        if (!wants) {
+                            o->state = 2; /* stay and fire */
+                            o->substate = 0;
+                            o->burst = 0;
+                            o->phase = 0;
+                        } else {
+                            o->facing = dx >= 0 ? 1 : -1;
+                            o->substate = 2;
+                            o->phase = 0x20; /* $3B = 0x20 */
+                        }
                     } else if (o->substate == 2) {
                         if (--o->phase <= 0) {
                             o->vx_fx = o->facing * 0x0120; /* $20 */
                             o->vy_fx = 0x0540; /* $22: 5.25 px/frame, y-down dive */
                             o->substate = 4;
                             o->phase = 120;
+                            o->timer = 0;   /* airborne frames */
+                            o->hops = 0;    /* reuse as launch Y (px*256) bucket */
                         }
                     } else if (o->substate == 4) {
+                        o->timer++;
                         o->x_fx += o->vx_fx;
                         o->y_fx += o->vy_fx;
                         o->vy_fx += 0x0040; /* $26 gravity */
                         float fx = (float)o->x_fx / FX_ONE;
                         float fy = (float)o->y_fx / FX_ONE;
                         float surf;
-                        bool landed =
-                            Level_FloorAt(level, fx, fy + 2.0f, &surf) &&
-                            surf <= fy + 6.0f;
+                        /* Ignore the ledge the dive started from: require a few
+                         * airborne frames and a real drop before landing. */
+                        bool fell = o->timer > 5;
+                        bool landed = fell && o->vy_fx > 0 &&
+                                      Level_FloorAt(level, fx, fy + 2.0f,
+                                                    &surf) &&
+                                      surf <= fy + 6.0f;
                         if (landed || --o->phase <= 0) {
                             if (landed)
                                 o->y_fx = (int32_t)lroundf(surf * FX_ONE);

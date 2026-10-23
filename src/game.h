@@ -43,6 +43,7 @@ typedef struct Game {
     float overworld_y;
     float overworld_angle;
     uint8_t stages_cleared;
+    uint8_t area_cleared[DC_CAMPAIGN_AREAS]; /* per-area clear flags */
     char password_code[20];
     char password_entry[DC_PASSWORD_LEN + 1];
     int password_pos;
