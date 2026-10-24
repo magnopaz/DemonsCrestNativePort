@@ -174,6 +174,12 @@ static void LoadEndings(Assets *assets, const char *dir) {
     cJSON_Delete(root);
 }
 
+const PlayerAnim *Assets_PlayerAnimForForm(const Assets *assets, int form) {
+    if (form >= 0 && form < 6 && assets->player_forms[form].ready)
+        return &assets->player_forms[form];
+    return &assets->player_anim;
+}
+
 const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species) {
     for (int i = 0; i < assets->species_count; i++) {
         if (assets->species[i].species == species)
@@ -293,6 +299,11 @@ bool Assets_Load(Assets *assets, const char *dir) {
         fprintf(stderr, "assets: font.png missing; dialogue text disabled\n");
         memset(&assets->font, 0, sizeof(assets->font));
     }
+    assets->player_form_count =
+        Anim_LoadForms(assets->player_forms, 6, dir);
+    if (assets->player_form_count > 0)
+        printf("assets: %d crest-form player sheet(s)\n",
+               assets->player_form_count);
     if (!Anim_Load(&assets->player_anim, dir)) {
         fprintf(stderr,
                 "assets: player_anim.json missing; using the static idle sprite\n");
@@ -394,6 +405,7 @@ void Assets_Unload(Assets *assets) {
         UnloadTexture(assets->boss_fireball[i]);
     for (int i = 0; i < assets->boss_flame_count; i++)
         UnloadTexture(assets->boss_flame[i]);
+    Anim_UnloadForms(assets->player_forms, 6);
     Anim_Unload(&assets->player_anim);
     ProjectileAnim_Unload(&assets->projectile_anim);
     memset(assets, 0, sizeof(*assets));

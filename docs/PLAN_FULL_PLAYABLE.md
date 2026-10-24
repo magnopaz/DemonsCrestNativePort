@@ -46,12 +46,15 @@ answers two questions: **what can be done with the material at hand**, and
 
 Ordered by player-visible value per unit of work.
 
-### A1. Firebrand form sprites (real animations for all five forms)
-`docs/sprites/` holds `Firebrand.gif` plus Aerial / Ground / Tidal / Legendary /
-Ultimate sheets. The port draws one static idle sheet today. Bake per-form frame
-sets (idle/walk/fly/attack) and drive them from `crest_form` and player state.
-**Outcome:** the player looks like the game in every form.
-**Size:** ~2 sessions · **Risk:** low.
+### A1. Firebrand form sprites — **DONE (first pass)**
+All six sheets are baked and wired: `bake_player_forms.py` cuts the sprites out
+of the opaque sheets (dominant-colour key, transparent background) into
+`fb_<form>_<clip>_<i>.png`, and `player_forms.json` holds one animation per form
+(idle/walk/attack/jump/fall/land/hover/flying). `Assets_PlayerAnimForForm` picks
+the sheet from `crest_form`, so every form now animates with the ripped art.
+**Remaining polish:** the band split merges a few touching frames, so idle has
+3–5 frames instead of 5–6, and some clips carry a stray sliver; a per-sheet band
+table would fix it. **Outcome:** the player looks like the game in every form.
 
 ### A2. Enemy sprite coverage from the two enemy sheets
 `Enemies 1.gif` / `Enemies 2.gif` cover most regular enemies. Match their entries

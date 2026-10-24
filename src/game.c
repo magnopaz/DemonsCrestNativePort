@@ -659,7 +659,9 @@ static void Game_UpdateSimulation(Game *game) {
     if (game->objects.events & OBJECT_EVENT_CREST_PICKUP)
         Audio_Play(SFX_PICKUP);
 
-    Player_Animate(&game->player, &game->assets.player_anim);
+    Player_Animate(&game->player,
+                       Assets_PlayerAnimForForm(&game->assets,
+                                                game->player.crest_form));
     Camera_Update(&game->camera, &game->level, &game->player);
 
     for (int i = 0; i < game->level.object_count; i++) {

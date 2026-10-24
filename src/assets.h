@@ -72,6 +72,8 @@ typedef struct Assets {
     int map_marker_count;
     float map_markers[64][2]; /* BG3 ASCII font mask (font.png + font.json) */
     PlayerAnim player_anim;
+    PlayerAnim player_forms[6];
+    int player_form_count;
     ProjectileAnim projectile_anim;
     bool ready;
 } Assets;
@@ -83,6 +85,8 @@ Texture2D Assets_AreaBg(const Assets *assets, int area, int pal);
 Texture2D Assets_AreaBg2(const Assets *assets, int pal);
 bool Assets_HasAreaBg2(const Assets *assets);
 const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species);
+/* Per-crest-form player animation; falls back to player_anim. */
+const PlayerAnim *Assets_PlayerAnimForForm(const Assets *assets, int form);
 int Assets_RoomKind(const Assets *assets, int area);
 
 #endif

@@ -50,6 +50,9 @@ typedef struct ProjectileAnim {
 } ProjectileAnim;
 
 bool Anim_Load(PlayerAnim *anim, const char *dir);
+/* player_forms.json: one PlayerAnim per crest form (index = form id). */
+int Anim_LoadForms(PlayerAnim *anims, int max_forms, const char *dir);
+void Anim_UnloadForms(PlayerAnim *anims, int count);
 void Anim_Unload(PlayerAnim *anim);
 const AnimStep *Anim_Step(const PlayerAnim *anim, int clip, int index);
 

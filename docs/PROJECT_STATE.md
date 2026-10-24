@@ -3092,6 +3092,22 @@ loop is playable while the game is not yet.
   reference; the gameplay captures are timing references.
 - Regression PASS.
 
+### Step 71 — A1: Firebrand's six form sheets baked and wired (done)
+
+- `tools/dc_extract/bake_player_forms.py` cuts the six Firebrand sheets (Normal,
+  Ground, Aerial, Tidal, Legendary, Ultimate) into `fb_<form>_<clip>_<i>.png`,
+  keying the sheet's dominant colour out to transparency. Clip bands were
+  measured on the normal sheet with a coordinate grid and reused for the sheets
+  that share the layout (the ground sheet is compressed and has its own bands).
+- `player_forms.json` holds one animation per form; `Anim_LoadForms`/`ParseClips`
+  load them (the single-sheet loader now shares the parser), and
+  `Assets_PlayerAnimForForm` selects the sheet from `crest_form` in both the
+  animation update and the draw path.
+- Known rough edges: the band split merges some touching frames (idle 3–5 steps
+  instead of 5–6) and a few clips keep a stray sliver; a per-sheet band table
+  would fix it.
+- Regression PASS; the player now renders the ripped sprites in game.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

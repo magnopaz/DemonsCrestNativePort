@@ -137,9 +137,10 @@ static Color CrestTint(int crest_form, int invuln_timer) {
 static void DrawPlayer(const Assets *assets, const Level *level,
                        const GameCamera *camera, const Player *player) {
     const AnimStep *step = NULL;
-    if (assets->player_anim.ready && player->anim_clip >= 0)
-        step = Anim_Step(&assets->player_anim, player->anim_clip,
-                         player->anim_step);
+    const PlayerAnim *anim =
+        Assets_PlayerAnimForForm(assets, player->crest_form);
+    if (anim->ready && player->anim_clip >= 0)
+        step = Anim_Step(anim, player->anim_clip, player->anim_step);
 
     bool left = player->facing < 0;
     Texture2D texture;

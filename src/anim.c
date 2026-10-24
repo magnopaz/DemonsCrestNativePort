@@ -77,24 +77,12 @@ void Anim_Unload(PlayerAnim *anim) {
     memset(anim, 0, sizeof(*anim));
 }
 
-bool Anim_Load(PlayerAnim *anim, const char *dir) {
+/* Parse a "clips" object into an animation. Shared by the single player sheet
+ * and the per-form player_forms.json. */
+static bool ParseClips(PlayerAnim *anim, const cJSON *clips, const char *dir) {
     memset(anim, 0, sizeof(*anim));
-    char path[1024];
-    snprintf(path, sizeof(path), "%s/player_anim.json", dir);
-    char *text = ReadText(path);
-    if (!text)
+    if (!cJSON_IsObject(clips))
         return false;
-
-    cJSON *root = cJSON_Parse(text);
-    free(text);
-    if (!root)
-        return false;
-
-    cJSON *clips = cJSON_GetObjectItemCaseSensitive(root, "clips");
-    if (!cJSON_IsObject(clips)) {
-        cJSON_Delete(root);
-        return false;
-    }
 
     bool ok = true;
     for (int clip_id = 0; clip_id < ANIM_CLIP_COUNT && ok; clip_id++) {
@@ -142,13 +130,63 @@ bool Anim_Load(PlayerAnim *anim, const char *dir) {
         dst->step_count = count;
     }
 
-    cJSON_Delete(root);
     if (!ok) {
         Anim_Unload(anim);
         return false;
     }
     anim->ready = anim->step_count > 0;
     return anim->ready;
+}
+
+bool Anim_Load(PlayerAnim *anim, const char *dir) {
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/player_anim.json", dir);
+    char *text = ReadText(path);
+    if (!text)
+        return false;
+    cJSON *root = cJSON_Parse(text);
+    free(text);
+    if (!root)
+        return false;
+    bool ok = ParseClips(anim, cJSON_GetObjectItemCaseSensitive(root, "clips"),
+                         dir);
+    cJSON_Delete(root);
+    return ok;
+}
+
+int Anim_LoadForms(PlayerAnim *anims, int max_forms, const char *dir) {
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/player_forms.json", dir);
+    char *text = ReadText(path);
+    if (!text)
+        return 0;
+    cJSON *root = cJSON_Parse(text);
+    free(text);
+    if (!root)
+        return 0;
+    const cJSON *forms = cJSON_GetObjectItemCaseSensitive(root, "forms");
+    int count = 0;
+    const cJSON *entry = NULL;
+    cJSON_ArrayForEach(entry, forms) {
+        if (count >= max_forms)
+            break;
+        const cJSON *form = cJSON_GetObjectItemCaseSensitive(entry, "form");
+        if (!cJSON_IsNumber(form))
+            continue;
+        int index = form->valueint;
+        if (index < 0 || index >= max_forms)
+            continue;
+        if (ParseClips(&anims[index],
+                       cJSON_GetObjectItemCaseSensitive(entry, "clips"), dir))
+            count++;
+    }
+    cJSON_Delete(root);
+    return count;
+}
+
+void Anim_UnloadForms(PlayerAnim *anims, int count) {
+    for (int i = 0; i < count; i++)
+        Anim_Unload(&anims[i]);
 }
 
 const AnimStep *Anim_Step(const PlayerAnim *anim, int clip, int index) {
