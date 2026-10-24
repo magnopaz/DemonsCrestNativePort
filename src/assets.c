@@ -210,6 +210,39 @@ static void LoadRoomNames(Assets *assets, const char *dir) {
     cJSON_Delete(root);
 }
 
+/* map_markers.json: {"all_positions": [[x, y], ...]} in map-space units;
+ * the map texture is 1024x1024, so a marker sits at (x*4, y*4). */
+static void LoadMapMarkers(Assets *assets, const char *dir) {
+    char path[1200];
+    snprintf(path, sizeof(path), "%s/map_markers.json", dir);
+    char *text = LoadFileText(path);
+    if (!text)
+        return;
+    cJSON *root = cJSON_Parse(text);
+    UnloadFileText(text);
+    if (!cJSON_IsObject(root))
+        return;
+    const cJSON *positions = cJSON_GetObjectItemCaseSensitive(root,
+                                                             "all_positions");
+    if (cJSON_IsArray(positions)) {
+        const cJSON *item = NULL;
+        cJSON_ArrayForEach(item, positions) {
+            if (assets->map_marker_count >= 64)
+                break;
+            const cJSON *mx = cJSON_GetArrayItem(item, 0);
+            const cJSON *my = cJSON_GetArrayItem(item, 1);
+            if (!cJSON_IsNumber(mx) || !cJSON_IsNumber(my))
+                continue;
+            assets->map_markers[assets->map_marker_count][0] =
+                (float)mx->valueint * 4.0f;
+            assets->map_markers[assets->map_marker_count][1] =
+                (float)my->valueint * 4.0f;
+            assets->map_marker_count++;
+        }
+    }
+    cJSON_Delete(root);
+}
+
 bool Assets_Load(Assets *assets, const char *dir) {
     memset(assets, 0, sizeof(*assets));
     for (int i = 0; i < DC_BG_PALETTES; i++) {
@@ -273,6 +306,7 @@ bool Assets_Load(Assets *assets, const char *dir) {
     LoadEndings(assets, dir);
 
     LoadRoomNames(assets, dir);
+    LoadMapMarkers(assets, dir);
 
     {
         char wm_path[1200];

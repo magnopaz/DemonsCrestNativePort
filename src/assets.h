@@ -63,7 +63,10 @@ typedef struct Assets {
     /* Map names resolved from the level saves (room_names.json), by area id;
      * empty when unknown. */
     char room_names[113][40];
-    char room_levels[113][8]; /* BG3 ASCII font mask (font.png + font.json) */
+    char room_levels[113][8];
+    /* Overworld stage markers (map_markers.json), in map-space * 4 pixels. */
+    int map_marker_count;
+    float map_markers[64][2]; /* BG3 ASCII font mask (font.png + font.json) */
     PlayerAnim player_anim;
     ProjectileAnim projectile_anim;
     bool ready;

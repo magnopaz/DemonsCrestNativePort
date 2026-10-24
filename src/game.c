@@ -1643,6 +1643,17 @@ static bool DrawWorldMapView(const Game *game) {
     BeginMode2D(cam);
     DrawTexturePro(game->assets.world_map, src, dst, (Vector2){0, 0}, 0.0f,
                    WHITE);
+    /* Stage markers extracted from the map saves (species $94). */
+    for (int i = 0; i < game->assets.map_marker_count; i++) {
+        float mx = game->assets.map_markers[i][0];
+        float my = game->assets.map_markers[i][1];
+        float d = hypotf(mx - wx, my - wy);
+        Color col = d < 40.0f ? (Color){255, 236, 140, 255}
+                              : (Color){235, 235, 245, 255};
+        DrawRectangle((int)(mx - 3), (int)(my - 3), 7, 7, col);
+        DrawRectangleLines((int)(mx - 4), (int)(my - 4), 9, 9,
+                           (Color){40, 40, 60, 255});
+    }
     EndMode2D();
     /* Ship cursor at the centre: a small Firebrand marker with a glow. */
     DrawCircleV((Vector2){128.0f, 112.0f}, 7.0f,
