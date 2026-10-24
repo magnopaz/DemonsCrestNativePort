@@ -3160,6 +3160,20 @@ loop is playable while the game is not yet.
   start from clean output.
 - Regression PASS.
 
+### Step 76 — Recomp recording support for fights and animations (done)
+
+- The recomp's debug server now records and replays input **frame-exactly**
+  (`record_input_start/stop`, `replay_input/stop`): the pad is sampled where the
+  runner reads it, so file frame N is the input frame N ran with.
+- Frame capture: `record_frames <dir> <count> [every_n]`, and a **rolling buffer**
+  (`record_ring_start`, `record_last`) that keeps the last N frames in RAM. With
+  `SNESREC_RING_DIR` set, quitting the window writes the last ~5 s plus
+  `input_log.jsonl` — a boss fight is saved without arming anything.
+- `record_status` reports every recorder. `tools/bmp_sequence.py` converts a
+  frame folder to GIF/MP4; `docs/RECORDING.md` documents the workflow.
+- Known limit: strict bit-exact replay of two full sessions is not yet proven by
+  an automated test; the file round-trip and per-frame application are verified.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
