@@ -72,6 +72,14 @@ silhouettes.
 **Outcome:** far fewer placeholder enemies. **Size:** ~3 sessions · **Risk:**
 medium (species↔sprite matching).
 
+### Captured gameplay is now the sprite source
+
+The recording feature paid off immediately: Somulo's species frames are now cut
+from a **real recorded fight** (`captures/rec_somulo`) instead of a sprite sheet,
+and the take settled two fights facts the sheets could not: **six hits** and a
+**32-frame hurt flash with invulnerability**. Boss animation for every remaining
+boss can be produced the same way — record, replay, extract.
+
 ### A3. Next bosses: Arma, then Phalanx — **Arma first pass done**
 Arma is species `$A5` (the saves place him in areas 3, 23, 36 and 67). His sheet
 is labelled, so the port now has real poses (idle / breath / dive / hurt) and a

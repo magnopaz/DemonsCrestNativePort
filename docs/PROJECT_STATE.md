@@ -3174,6 +3174,29 @@ loop is playable while the game is not yet.
 - Known limit: strict bit-exact replay of two full sessions is not yet proven by
   an automated test; the file round-trip and per-frame application are verified.
 
+### Step 77 — Somulo frames rebuilt from a recorded fight (done)
+
+The first real take (`captures/rec_somulo`, 1485 frames ≈ 25 s + input log) was
+analysed:
+
+- **Six hit flashes** at frames 530, 684, 834, 985, 1138, 1299 — exactly the six
+  hits you described, and each flash lasts **~33 frames**. The port now keeps
+  Somulo white for 32 frames and makes him invulnerable during it, so a fight
+  cannot be machine-gunned past the rhythm.
+- **Species `$33` frames are now cut from the game**, not from the sprite sheet:
+  idle, attack, hurt (white flash) and a lowered-head pose at 164×159, keyed
+  against the colosseum and anchored on the head. The composed body+head guess is
+  gone.
+- The golden floor is keyed out by clearing rows that are warm across most of the
+  crop, so the frames have no ground strip.
+- Attack cadence is still measured badly: the mouth-fire and fireball detectors
+  pick up the wall torch and the hurt flash. A cleaner approach is to replay the
+  take with RAM reads (HP of both fighters) rather than colour heuristics.
+
+Note: the in-game screenshot for this step could not be taken — GLFW failed to
+create a context while another game window was open ("Failed to create
+interface"), so the frames are verified as extracted assets only.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

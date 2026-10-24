@@ -1001,9 +1001,14 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                 }
             } else if (o->type == OBJECT_BOSS) {
                 if (fabsf(px - ox) <= 20.0f && fabsf(py - oy) <= 24.0f) {
+                    /* Somulo flashes white for ~33 frames after a hit in the
+                     * recording and cannot be hit again until it ends, so the
+                     * six-hit rhythm is the player's, not a machine gun. */
+                    if (o->species == 0x33 && o->hit_flash > 0)
+                        continue;
                     p->active = false;
                     o->hp -= dmg;
-                    o->hit_flash = 8;
+                    o->hit_flash = (o->species == 0x33) ? 32 : 8;
                     pool->events |= OBJECT_EVENT_ENEMY_HIT;
                     if (o->hp <= 0) {
                         o->active = false;
