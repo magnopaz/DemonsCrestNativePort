@@ -521,6 +521,41 @@ Result: **103/113 (91%) reachable through real doors**, 113/113 with gates,
 chunks with no outgoing edge (14, 3, 30, 9 — note 30 is now named, its exit is
 the up-door to the riverbank, whose save is still missing).
 
+## 3q. Somulo ported (M3's first boss)
+
+The user supplied fight screenshots plus the pattern, which made this possible
+without any drivable save:
+
+**Fight, as implemented from the reference**
+
+- Idle → windup → **fire** → recover loop; the fireball is aimed at Firebrand and
+  alternates **low and high** (tracking his feet or his head at fire time).
+- The fireball **spawns a firewall on impact** (three standing flames that burn
+  for 90 frames and hurt on contact).
+- **Six head hits** kill him (the object is the head, which is the weak point);
+  a hit interrupts his cycle into a stagger.
+- His sprite comes from the reference screenshots: a colour-key cut (the
+  colosseum is purple, the dragon gold/bone), trimmed to the dragon and anchored
+  at the head.
+
+**Engine fixes this surfaced**
+
+1. `DC_SPECIES_MAX` was **16** while `species_anim.json` now has 30 entries — half
+   the captured sheets were silently never loaded. Raised to 64: this alone
+   explains most of the remaining "silhouette" enemies.
+2. `species_anim.json` is loaded once; the boss's 1.5x draw scale is gone (the
+   cut sprites are already 1:1), so bosses no longer balloon.
+3. The player's fireball now leaves from the **mouth** (x+10, y-18) as in the
+   reference frames, instead of the feet; urn hit tolerance was widened so
+   ground urns still break.
+4. Rooms can hold **several boss objects** for the same species (extractor plus
+   probe placements). They are deduplicated, preferring the observed fight
+   position.
+
+Remaining for Somulo: an animation frame (the sheet is a single pose), the
+mouth-flame idle, and tying his defeat to the phase-2 room (area 34) beyond the
+existing gate.
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

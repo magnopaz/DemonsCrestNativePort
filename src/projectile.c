@@ -5,8 +5,8 @@
 
 #define FX_ONE 256
 #define PLAYER_FIREBALL_VX_FX 0x0300 /* $80:F222 object: 3.0 px/frame */
-#define PLAYER_FIREBALL_X_OFFSET 3   /* object X = floor(player X) + 3 */
-#define PLAYER_FIREBALL_Y_OFFSET 8   /* object Y = floor(player Y) - 8 */
+#define PLAYER_FIREBALL_X_OFFSET 10  /* spawn at the mouth, not the feet */
+#define PLAYER_FIREBALL_Y_OFFSET 18  /* mouth/chest height above the feet */
 
 void Projectiles_Init(ProjectilePool *pool) {
     memset(pool, 0, sizeof(*pool));

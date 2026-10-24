@@ -203,20 +203,42 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
         float y = (float)o->y_fx / 256.0f - camera->y;
 
         if (o->type == OBJECT_ENEMY_SHOT) {
-            const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, o->species);
-            if (sheet && sheet->frame_count > 0) {
-                const SpeciesFrame *sf = &sheet->frames[0];
-                float dx = x - sf->anchor_x;
-                float dy = y - sf->anchor_y;
-                Rectangle src = {0, 0, (float)sf->texture.width,
-                                 (float)sf->texture.height};
-                Rectangle dst = {dx, dy, (float)sf->texture.width,
-                                 (float)sf->texture.height};
-                DrawTexturePro(sf->texture, src, dst, (Vector2){0, 0}, 0.0f,
-                               (Color){255, 220, 255, 255});
+            /* Somulo's fireballs and its firewall flames reuse the player's
+             * fireball art, tinted: $34 is the boss projectile, state 1 marks a
+             * standing flame. */
+            const AnimStep *fire_step =
+                assets->projectile_anim.ready
+                    ? ProjectileAnim_Step(&assets->projectile_anim,
+                                          (o->timer / 5) % 8)
+                    : NULL;
+            Texture2D fire = fire_step ? fire_step->texture : (Texture2D){0};
+            if (o->species == 0x34 && IsTextureValid(fire)) {
+                Color tint = o->state == 1 ? (Color){255, 150, 70, 255}
+                                           : (Color){255, 200, 120, 255};
+                float scale = o->state == 1 ? 1.15f : 1.0f;
+                Rectangle src = {0, 0, (float)fire.width, (float)fire.height};
+                Rectangle dst = {x - fire.width * scale * 0.5f,
+                                 y - fire.height * scale * 0.5f,
+                                 fire.width * scale, fire.height * scale};
+                DrawTexturePro(fire, src, dst, (Vector2){0, 0}, 0.0f, tint);
             } else {
-                DrawCircleV((Vector2){x, y}, 5.0f, (Color){240, 160, 220, 255});
-                DrawCircleV((Vector2){x, y}, 2.0f, WHITE);
+                const SpeciesSheet *sheet =
+                    Assets_SpeciesSheet(assets, o->species);
+                if (sheet && sheet->frame_count > 0) {
+                    const SpeciesFrame *sf = &sheet->frames[0];
+                    float dx = x - sf->anchor_x;
+                    float dy = y - sf->anchor_y;
+                    Rectangle src = {0, 0, (float)sf->texture.width,
+                                     (float)sf->texture.height};
+                    Rectangle dst = {dx, dy, (float)sf->texture.width,
+                                     (float)sf->texture.height};
+                    DrawTexturePro(sf->texture, src, dst, (Vector2){0, 0}, 0.0f,
+                                   (Color){255, 220, 255, 255});
+                } else {
+                    DrawCircleV((Vector2){x, y}, 5.0f,
+                                (Color){240, 160, 220, 255});
+                    DrawCircleV((Vector2){x, y}, 2.0f, WHITE);
+                }
             }
         } else if (o->type == OBJECT_URN) {
             Texture2D tex = assets->item;
@@ -246,7 +268,7 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                 const SpeciesFrame *sf = &sheet->frames[frame];
                 float dx = x - sf->anchor_x;
                 float dy = y - sf->anchor_y;
-                float scale = (o->type == OBJECT_BOSS) ? 1.5f : 1.0f;
+                float scale = 1.0f;
                 if (o->type == OBJECT_BOSS) {
                     /* Boss anchors are measured at 1x; scale around the anchor. */
                     dx = x - sf->anchor_x * scale;
@@ -267,7 +289,7 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                 /* No trustworthy sheet for this species yet (the capture was
                  * ambiguous): draw a small silhouette so rooms are not filled
                  * with player clones. */
-                float scale = (o->type == OBJECT_BOSS) ? 1.35f : 1.0f;
+                float scale = 1.0f;
                 int shade = 60 + (o->species * 41) % 70;
                 Color body = {(unsigned char)(shade / 2 + 20),
                               (unsigned char)(shade / 3 + 16),

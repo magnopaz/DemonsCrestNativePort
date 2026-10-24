@@ -3042,6 +3042,25 @@ loop is playable while the game is not yet.
   areas** (1, 35, 43, 46, 57, 63, 77, 83, 99, 109), 4 chunks without outgoing
   edges. Regression PASS.
 
+### Step 68 — Somulo fight ported; species-capacity bug fixed (done)
+
+- Somulo (species `$33`, area 0) now runs the real pattern: idle → windup → fire
+  (aimed low/high at Firebrand) → recover, a **firewall** of three flames where
+  the fireball lands, a stagger when hit, and **six head hits** to kill him. The
+  gate to the second colosseum room (area 34) already existed.
+- His sprite is cut from the user's fight screenshots (colour key against the
+  purple colosseum, trimmed to the dragon, anchored at the head); boss draw
+  scale is now 1:1.
+- **Found a major asset bug:** `DC_SPECIES_MAX` was 16 while `species_anim.json`
+  holds 30 sheets, so 14 captured sheets never loaded (silently falling back to
+  silhouettes). Raised to 64 — the port now loads all 30.
+- Player fireball now originates at the **mouth** (x+10, y-18) instead of the
+  feet, with the urn hit tolerance widened so ground urns still break.
+- Duplicate boss objects (extractor entry + probe placements) are deduplicated,
+  preferring the observed fight position; `DC_BOSS_X/Y` lets a test place a boss
+  where a grounded demo can reach it.
+- Regression updated (fireball offsets, grounded boss test) and **PASS**.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

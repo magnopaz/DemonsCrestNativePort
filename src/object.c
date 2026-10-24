@@ -94,6 +94,44 @@ static void SpawnEnemyShot(ObjectPool *pool, float x, float y, int32_t vx,
     o->hp = 1;
 }
 
+/* Somulo's fireball: a normal hostile shot, but marked so that hitting the
+ * ground spawns a firewall (its `substate` is used as a flag). */
+static void SpawnBossFireball(ObjectPool *pool, float x, float y, int32_t vx,
+                              int32_t vy) {
+    SpawnEnemyShot(pool, x, y, vx, vy);
+    for (int i = 0; i < OBJECT_POOL_SIZE; i++) {
+        Object *o = &pool->slots[i];
+        if (o->active && o->type == OBJECT_ENEMY_SHOT &&
+            o->x_fx == (int32_t)lroundf(x * FX_ONE) &&
+            o->y_fx == (int32_t)lroundf(y * FX_ONE)) {
+            o->substate = 1;
+            o->species = 0x34; /* the fireball object in Area 0 */
+            break;
+        }
+    }
+}
+
+/* Firewall: three short-lived flames standing on the ground where a fireball
+ * landed. They are enemy shots flagged with state 1 so the update path keeps
+ * them in place. */
+static void SpawnFirewall(ObjectPool *pool, float x, float y) {
+    for (int k = -1; k <= 1; k++) {
+        Object *o = Alloc(pool);
+        if (!o)
+            return;
+        memset(o, 0, sizeof(*o));
+        o->active = true;
+        o->type = OBJECT_ENEMY_SHOT;
+        o->species = 0x34;
+        o->state = 1;
+        o->x_fx = (int32_t)lroundf((x + (float)k * 9.0f) * FX_ONE);
+        o->y_fx = (int32_t)lroundf(y * FX_ONE);
+        o->origin_x_fx = o->x_fx;
+        o->origin_y_fx = o->y_fx;
+        o->hp = 1;
+    }
+}
+
 static void SpawnPlatform(ObjectPool *pool, const LevelObject *src) {
     Object *o = Alloc(pool);
     if (!o)
@@ -143,6 +181,13 @@ static void SpawnBoss(ObjectPool *pool, const LevelObject *src) {
     } else if (src->species == 0xA5 && by < 64.0f) {
         by = 140.0f;
     }
+    /* Test hook: place the boss where a grounded demo can reach it. */
+    const char *bx_env = getenv("DC_BOSS_X");
+    const char *by_env = getenv("DC_BOSS_Y");
+    if (bx_env && *bx_env)
+        bx = (float)atof(bx_env);
+    if (by_env && *by_env)
+        by = (float)atof(by_env);
     o->x_fx = (int32_t)lroundf(bx * FX_ONE);
     o->y_fx = (int32_t)lroundf(by * FX_ONE);
     o->origin_x_fx = o->x_fx;
@@ -306,20 +351,64 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
             int32_t dx = player->x_fx - o->x_fx;
             int32_t dy = (player->y_fx - 16 * FX_ONE) - o->y_fx;
             if (o->species == 0x33) {
-                /* Somulo (Area 0 colosseum dragon): lunge and leap cycles. */
-                int phase = o->timer % 120;
-                if (phase < 60) {
-                    o->x_fx += (dx > 0) ? 0x0120 : -0x0120;
-                } else if (phase < 90) {
-                    o->y_fx -= 0x0100;
-                } else {
-                    float surf;
-                    float ox = (float)o->x_fx / FX_ONE;
-                    float oy = (float)o->y_fx / FX_ONE;
-                    o->y_fx += 0x0180;
-                    if (Level_FloorAt(level, ox, oy, &surf) && oy >= surf)
-                        o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+                /* Somulo, the colosseum dragon. The head is the weak point and
+                 * the fight is a fireball duel: idle -> windup -> fire (low or
+                 * high, aimed at Firebrand) -> recover, with a stagger when the
+                 * head is hit. Six head hits kill him. */
+                if (o->hit_flash > 0 && o->state != 4) {
+                    o->state = 4;   /* stagger */
+                    o->phase = 36;
                 }
+                o->phase--;
+                if (o->phase <= 0) {
+                    switch (o->state) {
+                    case 0: /* idle, breathing */
+                        o->state = 1;
+                        o->phase = 70;
+                        break;
+                    case 1: /* windup: jaw opens */
+                        o->state = 2;
+                        o->phase = 1;
+                        break;
+                    case 2: { /* fire */
+                        float ox = (float)o->x_fx / FX_ONE;
+                        float oy = (float)o->y_fx / FX_ONE;
+                        float mouth_x = ox + ((dx > 0) ? 26.0f : -26.0f);
+                        float mouth_y = oy + 10.0f;
+                        bool low = (o->hops++ & 1) == 0;
+                        float target_y = low ? (player->y - 4.0f)
+                                             : (player->y - 26.0f);
+                        float tx = player->x - mouth_x;
+                        float ty = target_y - mouth_y;
+                        float len = sqrtf(tx * tx + ty * ty);
+                        if (len < 0.001f)
+                            len = 1.0f;
+                        SpawnBossFireball(pool, mouth_x, mouth_y,
+                                          (int32_t)(tx / len * 1.6f * FX_ONE),
+                                          (int32_t)(ty / len * 1.6f * FX_ONE));
+                        o->state = 3;
+                        o->phase = 46;
+                        break;
+                    }
+                    case 3: /* recover */
+                        o->state = 0;
+                        o->phase = 40;
+                        break;
+                    case 4: /* stagger over: back to idle */
+                        o->state = 0;
+                        o->phase = 30;
+                        break;
+                    default:
+                        o->state = 0;
+                        o->phase = 30;
+                        break;
+                    }
+                }
+                float surf;
+                float ox = (float)o->x_fx / FX_ONE;
+                float oy = (float)o->y_fx / FX_ONE;
+                if (Level_FloorAt(level, ox, oy, &surf) && oy >= surf)
+                    o->y_fx = (int32_t)lroundf(surf * FX_ONE);
             } else {
                 /* Hippogriff / Stage Boss: swoop and hover above Firebrand,
                  * and punish with a three-shot spread every 110 frames. */
@@ -721,21 +810,38 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
 
         if (o->type == OBJECT_ENEMY_SHOT) {
             o->timer++;
-            o->x_fx += o->vx_fx;
-            o->y_fx += o->vy_fx;
             float sx = (float)o->x_fx / FX_ONE;
             float sy = (float)o->y_fx / FX_ONE;
-            if (o->timer > 240 ||
-                Level_IsSolidAt(level, sx, sy) ||
+            if (o->state == 1) {
+                /* Firewall flame: stays put, burns for a while. */
+                if (o->timer > 90)
+                    o->active = false;
+                else if (fabsf(sx - player->x) < 9.0f &&
+                         fabsf(sy - (player->y - 6.0f)) < 16.0f)
+                    DamagePlayer(player, sx, 1);
+                continue;
+            }
+            o->x_fx += o->vx_fx;
+            o->y_fx += o->vy_fx;
+            sx = (float)o->x_fx / FX_ONE;
+            sy = (float)o->y_fx / FX_ONE;
+            bool hit_ground = Level_IsSolidAt(level, sx, sy) ||
+                              (Level_FloorAt(level, sx, sy, NULL) && sy >=
+                               (float)(level->world_h - 24));
+            if (o->timer > 240 || hit_ground ||
                 sx < level->play_min_x - 16.0f ||
                 sx > level->play_max_x + 16.0f ||
                 sy < 0.0f || sy > (float)level->world_h) {
+                if (o->substate == 1 && hit_ground)
+                    SpawnFirewall(pool, sx, sy - 4.0f);
                 o->active = false;
                 continue;
             }
             if (fabsf(sx - player->x) < 10.0f &&
                 fabsf(sy - (player->y - 10.0f)) < 12.0f) {
                 DamagePlayer(player, sx, 1);
+                if (o->substate == 1)
+                    SpawnFirewall(pool, sx, sy);
                 o->active = false;
             }
             continue;
@@ -794,7 +900,7 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
 
             if (o->type == OBJECT_URN) {
                 if (fabsf(px - ox) <= URN_HALF + 4.0f &&
-                    fabsf(py - oy) <= URN_HALF + 4.0f) {
+                    fabsf(py - oy) <= URN_HALF + 14.0f) {
                     o->active = false;
                     p->active = false;
                     pool->events |= OBJECT_EVENT_BREAK;

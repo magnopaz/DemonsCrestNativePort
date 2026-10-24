@@ -172,7 +172,7 @@ def main() -> int:
         check(bool(first_shot), "demo7: expected a shot at frame 49")
         if first_shot:
             p = first_shot[0]
-            check(close(float(p["x"]), 369.0) and close(float(p["y"]), 152.0),
+            check(close(float(p["x"]), 376.0) and close(float(p["y"]), 142.0),
                   "demo7: fireball spawn offset changed")
             check(close(float(p["vx"]), 3.0), "demo7: fireball velocity changed")
         check(not any(float(r["x"]) > 384.0 for r in proj
@@ -405,9 +405,11 @@ def main() -> int:
               f"password: form not restored from {code}")
 
         # ---- Campaign: Somulo defeat ends the area ----
-        d14 = run_demo(base, out, 12, 300,
+        d14 = run_demo(base, out, 7, 300,
                        {"DC_AREA": "0", "DC_CAMPAIGN": "1",
-                        "DC_BOSS_HP": "1"})
+                        "DC_BOSS_HP": "1", "DC_START_X": "560",
+                        "DC_START_Y": "172", "DC_BOSS_X": "600",
+                        "DC_BOSS_Y": "150"})
         rows14 = csv_rows(d14["player"])
         modes14 = [int(r["mode"]) for r in rows14]
         check(bool(rows14) and any(m != 1 for m in modes14),
