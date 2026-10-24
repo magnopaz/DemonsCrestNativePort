@@ -3108,6 +3108,25 @@ loop is playable while the game is not yet.
   would fix it.
 - Regression PASS; the player now renders the ripped sprites in game.
 
+### Step 72 — A3 first pass: Arma (species `$A5`) (done)
+
+- The saves place `$A5` in areas 3, 23, 36 and 67, and his sheet is labelled.
+  Baked four poses (idle / breath / dive / hurt) as `enemy_a5_0..3.png` and
+  selected them by state.
+- Behaviour: slow hover bob, then either a two-shot breath aimed at Firebrand or
+  a divebomb along his line, a stagger when hit and a climb back to his post.
+  Breath uses a plain shot (only Somulo's fireball spawns a firewall).
+- Remaining: authentic cadence, the second fight's green palette and hurricane,
+  Phalanx's two phases.
+- Regression PASS.
+
+### Step 73 — A2 status: blocked on species identity
+
+- `Enemies 1.gif` / `Enemies 2.gif` carry no species labels, and the probe OAM is
+  fragmented, so the remaining silhouettes cannot be matched by name. The planned
+  route is to compose each species from OAM + VRAM + palette and match the result
+  against the sheets automatically.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

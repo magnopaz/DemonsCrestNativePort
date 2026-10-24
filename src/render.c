@@ -279,6 +279,16 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, o->species);
             if (sheet && sheet->frame_count > 0) {
                 int frame = (o->timer / sheet->duration) % sheet->frame_count;
+                if (o->species == 0xA5 && sheet->frame_count >= 4) {
+                    if (o->hit_flash > 0)
+                        frame = 3;
+                    else if (o->state == 2 || o->state == 3)
+                        frame = 2;
+                    else if (o->state == 1)
+                        frame = 1;
+                    else
+                        frame = 0;
+                }
                 if (o->species == 0x33 && sheet->frame_count >= 5) {
                     /* Poses: 0 idle, 1 attack high, 2 attack low, 3 hurt,
                      * 4 defeated. */

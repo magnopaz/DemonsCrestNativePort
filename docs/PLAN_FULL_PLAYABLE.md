@@ -63,12 +63,22 @@ silhouettes.
 **Outcome:** far fewer placeholder enemies. **Size:** ~3 sessions · **Risk:**
 medium (species↔sprite matching).
 
-### A3. Next bosses: Arma, then Phalanx
-Both have sheets, and the saves give their arena positions (`$A5`, `$86`…). Port
-them with the pipeline built for Somulo (state machine + sheet poses +
-projectiles), falling back to the generic boss framework where timing is unknown.
-**Outcome:** boss #2 and the two-phase finale become real fights.
-**Size:** ~2 sessions each · **Risk:** medium (authentic timing needs B3).
+### A3. Next bosses: Arma, then Phalanx — **Arma first pass done**
+Arma is species `$A5` (the saves place him in areas 3, 23, 36 and 67). His sheet
+is labelled, so the port now has real poses (idle / breath / dive / hurt) and a
+state machine: hover with a slow bob, then either a two-shot **breath attack**
+aimed at Firebrand or a **divebomb** along his line, with a stagger when hit and
+a climb back to his post. His breath is a plain shot — only Somulo's fireball
+leaves a firewall.
+**Remaining:** authentic cadence and the second fight's palette/hurricane (his
+sheet has both), Phalanx's two phases, and the remaining bosses.
+**Size:** ~1 session per boss · **Risk:** medium (timing needs B3).
+
+### A2. Enemy sprite coverage — still blocked
+The two enemy sheets have no species labels, and the probe OAM is fragmented, so
+species↔sprite identity is the blocker. The tractable route is to compose each
+species from its OAM + VRAM with the right palette and match that against the
+sheets automatically; that is a tooling task, not a data request.
 
 ### A4. Boss arena wiring (gates and phases)
 Area 0 already gates to 34. Wire 84 → demon realm after phase 2, 86/90 as the two

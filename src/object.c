@@ -410,6 +410,78 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 float oy = (float)o->y_fx / FX_ONE;
                 if (Level_FloorAt(level, ox, oy, &surf) && oy >= surf)
                     o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+            } else if (o->species == 0xA5) {
+                /* Arma: hovers in place, then either breathes a pair of shots
+                 * or divebombs along the player's line, with a stagger when
+                 * hit. */
+                if (o->hit_flash > 0 && o->state != 4) {
+                    o->state = 4;
+                    o->phase = 30;
+                }
+                o->phase--;
+                if (o->phase <= 0) {
+                    switch (o->state) {
+                    case 0: /* hover -> choose an attack */
+                        if (o->hops++ & 1) {
+                            o->state = 2;   /* dive */
+                            o->phase = 60;
+                        } else {
+                            o->state = 1;   /* breath */
+                            o->phase = 24;
+                        }
+                        break;
+                    case 1: { /* breath attack */
+                        float ox = (float)o->x_fx / FX_ONE;
+                        float oy = (float)o->y_fx / FX_ONE;
+                        for (int k = 0; k < 2; k++) {
+                            float ty = (player->y - 18.0f - (float)k * 10.0f)
+                                       - oy;
+                            float tx = player->x - ox;
+                            float len = sqrtf(tx * tx + ty * ty);
+                            if (len < 0.001f)
+                                len = 1.0f;
+                            /* Arma's breath is a plain shot: only Somulo's
+                             * fireball leaves a firewall. */
+                            SpawnEnemyShot(
+                                pool, ox + ((tx > 0) ? 16.0f : -16.0f), oy,
+                                (int32_t)(tx / len * 1.5f * FX_ONE),
+                                (int32_t)(ty / len * 1.5f * FX_ONE));
+                        }
+                        o->state = 0;
+                        o->phase = 60;
+                        break;
+                    }
+                    case 2: /* dive: rush toward the player */
+                        if (abs(dx) > 8 * FX_ONE)
+                            o->x_fx += (dx > 0) ? 0x0280 : -0x0280;
+                        if (dy > 6 * FX_ONE)
+                            o->y_fx += 0x0200;
+                        else if (dy < -6 * FX_ONE)
+                            o->y_fx -= 0x0200;
+                        o->state = 3;
+                        o->phase = 30;
+                        break;
+                    case 3: /* climb back to the post */
+                        o->x_fx += (o->origin_x_fx - o->x_fx) / 8;
+                        o->y_fx += (o->origin_y_fx - o->y_fx) / 8;
+                        o->state = 0;
+                        o->phase = 50;
+                        break;
+                    case 4:
+                        o->state = 0;
+                        o->phase = 30;
+                        break;
+                    default:
+                        o->state = 0;
+                        o->phase = 40;
+                        break;
+                    }
+                }
+                /* Slow bob while hovering. */
+                if (o->state == 0)
+                    o->y_fx = o->origin_y_fx +
+                              (int32_t)(sinf(o->timer * 0.05f) * 10.0f *
+                                        FX_ONE);
             } else {
                 /* Hippogriff / Stage Boss: swoop and hover above Firebrand,
                  * and punish with a three-shot spread every 110 frames. */
