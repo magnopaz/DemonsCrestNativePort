@@ -96,7 +96,12 @@ def main() -> int:
 
     args.out.mkdir(parents=True, exist_ok=True)
     tmp = args.out / "resume.sav"
-    shutil.copyfile(SAVES / f"save{args.save}.sav", tmp)
+    candidates = [args.save, f"save{args.save}", f"save_{args.save}"]
+    src = next((SAVES / f"{c}.sav" for c in candidates
+                if (SAVES / f"{c}.sav").is_file()), None)
+    if src is None:
+        raise SystemExit(f"save not found: {args.save}")
+    shutil.copyfile(src, tmp)
     port = free_port()
     env = dict(os.environ, SNESRECOMP_DEBUG_PORT=str(port),
                SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
@@ -106,6 +111,14 @@ def main() -> int:
                             cwd=str(RECOMP), env=env, stdout=log, stderr=log)
     try:
         c = connect(port)
+
+        def freeze_at(target: int) -> int:
+            """Poll until the sim reaches `target`, then freeze on that frame."""
+            while c.frame() < target:
+                pass
+            c.cmd("freeze_now")
+            return c.frame()
+
         c.run_to(c.frame() + args.warmup)
         if args.hold:
             r = c.cmd(f"set_controller p1={args.hold}")
@@ -122,6 +135,7 @@ def main() -> int:
             if (disp & 0x0F) >= 0x0C:
                 break
             c.run_to(c.frame() + 1)
+        frozen_frame = freeze_at(c.frame() + 1)
         pool = c.read(OBJ_BASE, OBJ_STRIDE * OBJ_SLOTS)
         area = c.read(0x008D, 2)[0]
         pos = c.read(0x1030, 6)
@@ -136,6 +150,7 @@ def main() -> int:
                             "y": round(fx24(rec, 0x33), 1)})
         c.cmd("set_controller p1=none")
         info = {"save": args.save, "hold": args.hold,
+                "frozen_frame": frozen_frame,
                 "frames": args.frames, "area": area,
                 "player": [round(fx24(pos, 0), 1), round(fx24(pos, 3), 1)],
                 "species": species}
@@ -151,6 +166,7 @@ def main() -> int:
         if args.shot:
             shot = (args.out / args.shot).resolve().as_posix()
             print("screenshot:", c.cmd(f"screenshot {shot}"))
+            c.cmd("unfreeze")
         sp = ", ".join(f"{s['species']:02X}@{s['x']:.0f},{s['y']:.0f}"
                        for s in species)
         print(f"save{args.save} +{args.frames}f hold='{args.hold}': "

@@ -182,6 +182,34 @@ const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species) {
     return NULL;
 }
 
+/* room_names.json: { "<area>": { "map": "...", "level": "III" } } */
+static void LoadRoomNames(Assets *assets, const char *dir) {
+    char path[1200];
+    snprintf(path, sizeof(path), "%s/room_names.json", dir);
+    char *text = LoadFileText(path);
+    if (!text)
+        return;
+    cJSON *root = cJSON_Parse(text);
+    UnloadFileText(text);
+    if (!cJSON_IsObject(root))
+        return;
+    for (cJSON *item = root->child; item; item = item->next) {
+        int area = atoi(item->string);
+        if (area < 0 || area >= 113)
+            continue;
+        const cJSON *map = cJSON_GetObjectItemCaseSensitive(item, "map");
+        const cJSON *level = cJSON_GetObjectItemCaseSensitive(item, "level");
+        if (cJSON_IsString(map))
+            snprintf(assets->room_names[area], sizeof(assets->room_names[area]),
+                     "%s", map->valuestring);
+        if (cJSON_IsString(level))
+            snprintf(assets->room_levels[area],
+                     sizeof(assets->room_levels[area]), "%s",
+                     level->valuestring);
+    }
+    cJSON_Delete(root);
+}
+
 bool Assets_Load(Assets *assets, const char *dir) {
     memset(assets, 0, sizeof(*assets));
     for (int i = 0; i < DC_BG_PALETTES; i++) {
@@ -243,6 +271,8 @@ bool Assets_Load(Assets *assets, const char *dir) {
     LoadSpeciesSheets(assets, dir);
     LoadRoomKinds(assets, dir);
     LoadEndings(assets, dir);
+
+    LoadRoomNames(assets, dir);
 
     {
         char wm_path[1200];

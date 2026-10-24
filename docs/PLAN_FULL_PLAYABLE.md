@@ -336,6 +336,23 @@ Graph after the round: **99/113 (87%) reachable through real doors**, 113/113
 with gates, **14 gate-dependent areas** left (1, 35, 43, 46, 52, 57, 63, 76, 77,
 83, 88, 94, ...) and 4 chunks with no outgoing edge (14, 3, 30, 9).
 
+## 3i. Level 0 named; room names in the UI; note edges walkable
+
+- Level 0 resolved: **murkland-colosseum = area 0**, and walking right lands in
+  **area 34** (not the extracted target 17). The notes now carry that edge
+  (`murkland-colosseum -> area:34`), and the notes table is **21 edges**.
+- `merge_observed_doors.py` now also merges note edges into the room JSONs and,
+  with `--trust-notes`, **drops extracted transitions that contradict the
+  notes** (2->3, 4->5, 8->7, 10->12, 20->21, 22->23, 38->39, 48->4 were dropped;
+  2->4, 4->6, 8->10, 10->18, 20->22, 22->26, 36->38, 48->54, 58->64 added). This
+  makes the named chains walkable in the port instead of the old gate shortcuts.
+- `asset.c` loads `room_names.json`; the **area banner** now shows the map name
+  (e.g. "MURKLAND CEMETERY") and the **stage-select list** shows names for the
+  named areas instead of bare numbers.
+- Room-mapping validation attempt: comparing live BG1 tilemaps against our room
+  JSONs was inconclusive (many rooms draw on BG2, and probes can catch a
+  transition), so the mapping rests on the user's observations.
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

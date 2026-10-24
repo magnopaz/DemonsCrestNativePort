@@ -2920,6 +2920,20 @@ loop is playable while the game is not yet.
 - Note: area 8's before-door save sits at x=988 while the chunk is 256 px wide —
   another instance of the map-composite/chunk model.
 
+### Step 60 — Level 0, note edges merged into rooms, room names in the UI (done)
+
+- Level 0: **colosseum = area 0**; walking right lands in **area 34** (the
+  extracted target 17 was wrong for that door). Notes table 21 edges.
+- `merge_observed_doors.py --trust-notes` merges note doors into room JSONs and
+  drops contradicting extracted transitions: chains 2->4->6, 8->10->18,
+  20->22->26, 36->38, 48->54, 58->64 are now walkable data.
+- `assets.c` loads `room_names.json`; the area banner shows the map name and the
+  stage-select list shows names where known (banner verified: "MURKLAND
+  CEMETERY"; list: "STAGE RUINED CITY RESERVOIR", "STAGE RUINED CITY BONEYARD").
+- Room-mapping validation via live BG1 tilemaps was inconclusive (rooms often
+  draw on BG2 / probes can catch transitions); noted in the plan.
+- Regression PASS.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

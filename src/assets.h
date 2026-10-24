@@ -59,7 +59,11 @@ typedef struct Assets {
     Texture2D hud_bar;
     Texture2D hud_slots;
     Texture2D font;
-    Texture2D world_map; /* 1024x1024 Mode 7 map (optional) */ /* BG3 ASCII font mask (font.png + font.json) */
+    Texture2D world_map; /* 1024x1024 Mode 7 map (optional) */
+    /* Map names resolved from the level saves (room_names.json), by area id;
+     * empty when unknown. */
+    char room_names[113][40];
+    char room_levels[113][8]; /* BG3 ASCII font mask (font.png + font.json) */
     PlayerAnim player_anim;
     ProjectileAnim projectile_anim;
     bool ready;

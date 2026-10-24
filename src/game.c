@@ -1,5 +1,6 @@
 #include "game.h"
 
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1563,9 +1564,23 @@ static void DrawStageSelect(const Game *game) {
         if (sel)
             DrawRectangle(20, 46 + i * 20, 216, 18,
                           (Color){50, 44, 70, 255});
-        DrawTextEx(GetFontDefault(),
-                   TextFormat("%s AREA %02d", tag, area), (Vector2){26, 49 + i * 20},
-                   14, 1.0f, col);
+        const char *nm = game->assets.room_names[area];
+        if (nm[0]) {
+            char pretty[40] = {0};
+            int out = 0;
+            for (int k = 0; nm[k] && out < (int)sizeof(pretty) - 1; k++) {
+                char ch = nm[k];
+                pretty[out++] =
+                    ch == '-' ? ' ' : (char)toupper((unsigned char)ch);
+            }
+            DrawTextEx(GetFontDefault(),
+                       TextFormat("%s %s", tag, pretty),
+                       (Vector2){26, 49 + i * 20}, 12, 1.0f, col);
+        } else {
+            DrawTextEx(GetFontDefault(),
+                       TextFormat("%s AREA %02d", tag, area),
+                       (Vector2){26, 49 + i * 20}, 14, 1.0f, col);
+        }
     }
     DrawCentered(TextFormat("PAGE %d / %d", game->stage_sel / 6 + 1,
                             (count + 5) / 6), 170, 9,
@@ -1768,13 +1783,28 @@ static void DrawAreaBanner(const Game *game) {
     unsigned char a = (unsigned char)(alpha * 235.0f);
     int kind = Assets_RoomKind(&game->assets, game->level.area_id);
     const char *tag = kind == 1 ? "STAGE" : kind == 2 ? "BOSS STAGE" : "AREA";
-    DrawRectangle(48, 34, 160, 30,
+    const char *name = game->assets.room_names[game->level.area_id];
+    char pretty[48] = {0};
+    if (name[0]) {
+        /* "dark-forest-thorn-grove" -> "DARK FOREST THORN GROVE" */
+        int out = 0;
+        for (int i = 0; name[i] && out < (int)sizeof(pretty) - 1; i++) {
+            char ch = name[i];
+            pretty[out++] = ch == '-' ? ' ' : (char)toupper((unsigned char)ch);
+        }
+        pretty[out] = 0;
+    }
+    DrawRectangle(40, 30, 176, 36,
                   (Color){8, 8, 16, (unsigned char)(a * 0.85f)});
-    DrawRectangleLines(48, 34, 160, 30, (Color){200, 176, 110, a});
-    DrawCentered(TextFormat("%s %02d", tag, game->level.area_id), 38, 12,
-                 (Color){240, 232, 200, a});
-    DrawCentered(TextFormat("WORLD %dx%d", game->level.world_w,
-                            game->level.world_h), 52, 10,
+    DrawRectangleLines(40, 30, 176, 36, (Color){200, 176, 110, a});
+    if (pretty[0])
+        DrawCentered(pretty, 34, 11, (Color){240, 232, 200, a});
+    else
+        DrawCentered(TextFormat("%s %02d", tag, game->level.area_id), 34, 12,
+                     (Color){240, 232, 200, a});
+    DrawCentered(TextFormat("%s %02d   WORLD %dx%d", tag,
+                            game->level.area_id, game->level.world_w,
+                            game->level.world_h), 52, 9,
                  (Color){170, 180, 200, a});
 }
 

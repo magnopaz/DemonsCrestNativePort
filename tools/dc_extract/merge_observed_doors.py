@@ -22,12 +22,23 @@ def main() -> int:
     ap.add_argument("--graph", type=Path,
                     default=Path("assets/generated/area_graph.json"))
     ap.add_argument("--rooms", type=Path, default=Path("assets/generated"))
+    ap.add_argument("--sources", default="save_observed,notes",
+                    help="comma separated edge sources to merge")
+    ap.add_argument("--trust-notes", action="store_true",
+                    help="drop extracted transitions that contradict a note "
+                         "edge from the same room")
     args = ap.parse_args()
 
     graph = json.loads(args.graph.read_text())
+    sources = {s.strip() for s in args.sources.split(",") if s.strip()}
     added = 0
     for edge in graph["edges"]:
-        if edge.get("source") != "save_observed":
+        if edge.get("source") not in sources:
+            continue
+        if edge.get("to") is None or int(edge["to"]) < 0:
+            continue
+        if edge.get("x") is None or edge.get("y") is None:
+            print(f"skip {edge.get('from')}->{edge['to']}: no door position")
             continue
         src, dst = int(edge["from"]), int(edge["to"])
         path = args.rooms / f"room_area{src}.json"
@@ -36,6 +47,20 @@ def main() -> int:
             continue
         data = json.loads(path.read_text())
         transitions = data.setdefault("transitions", [])
+        if args.trust_notes:
+            note_targets = {int(e["to"]) for e in graph["edges"]
+                            if e.get("source") == "notes"
+                            and int(e.get("from", -1)) == src
+                            and e.get("to") is not None}
+            kept = []
+            for tr in transitions:
+                target = int(tr.get("next_area", -1))
+                if target in note_targets or target < 0:
+                    kept.append(tr)
+                else:
+                    print(f"{src}: dropping extracted {src}->{target} "
+                          f"(notes say {sorted(note_targets)})")
+            transitions[:] = kept
         if any(int(t.get("next_area", -1)) == dst for t in transitions):
             print(f"{src}->{dst}: already present")
             continue
@@ -53,7 +78,7 @@ def main() -> int:
         path.write_text(json.dumps(data))
         added += 1
         print(f"{src}->{dst}: door added at ({edge['x']},{edge['y']})")
-    print(f"doors added: {added}")
+    print(f"doors added: {added} (sources: {sorted(sources)})")
     return 0
 
 
