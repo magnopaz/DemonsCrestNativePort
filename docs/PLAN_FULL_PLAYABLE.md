@@ -18,7 +18,7 @@ answers two questions: **what can be done with the material at hand**, and
 | Regression | **PASS** — demos, boss clears, 6 doors, endings, save/password | `run_regression.py` |
 | Navigation (graph) | **103/113 (91%) reachable via real doors**; 113/113 with gates | `check_navigation.py` |
 | Doors known | 139 edges (107 extracted/observed + 32 from the level notes) | `area_graph.json` |
-| Named rooms | **35** (32 with a community map) | `room_names.json` |
+| Named rooms | **36** (33 with a community map) | `room_names.json` |
 | Backdrops (BG2) | **22 areas** | `bg2_area*_pal*.png` |
 | Species sheets | **30** loaded (silently capped at 16 until this week) | `species_anim.json` |
 | Object placements | 294 (14 boss objects) | room JSONs |

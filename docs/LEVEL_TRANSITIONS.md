@@ -16,7 +16,8 @@ the trigger position from the `<from>_before_door` save when one exists.
 | towers-of-doom-misty-skies | boss defeated | map | boss leaves the Claw piece |
 | poseidonia-aquatica | right door | poseidonia-temple-and-hidden-chamber | |
 | poseidonia-temple-and-hidden-chamber | boss defeated | map | boss leaves the Water Crest |
-| mountains-valley-of-the-grewon | right door | mountains-ice-spire | |
+| mountains-ice-crevasse | right (grewon door) | mountains-valley-of-the-grewon | confirmed by save |
+| mountains-valley-of-the-grewon | right (boss door) | boss | Grewon drops the Demon Fire (last Fire Crest piece) |
 | mountains-ice-spire | up door 1 | area:64 | side room with a life up; only way back |
 | mountains-ice-spire | up door 2 | mountains-ice-palace-corridor | |
 | mountains-ice-palace-corridor | right | mountains-ice-palace-corridor | the map's extreme right; continues to the inside door |

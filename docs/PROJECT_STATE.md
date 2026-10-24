@@ -3127,6 +3127,26 @@ loop is playable while the game is not yet.
   route is to compose each species from OAM + VRAM + palette and match the result
   against the sheets automatically.
 
+### Step 74 — Level VI region correction (ice crevasse vs Grewon valley) (done)
+
+- The earlier `lvl_VI_mountains-valley-of-the-grewon*` probes were a **different
+  region**: the corrected saves show the valley is **area 60**, while area 58 is
+  the **ice crevasse**. The two stale probe folders (which would have kept
+  mis-naming 58) are parked under `stale_*` so the name tool ignores them.
+- Names fixed: 58 = `mountains-ice-crevasse`, 60 =
+  `mountains-valley-of-the-grewon` (roles: entrance, spell, before_door_boss,
+  boss, boss_dead).
+- Door added from the notes: ice crevasse → valley (right). The wrong
+  "valley → ice spire" row is gone.
+- The boss save shows **Grewon (species `$13`)** in area 60; the boss_dead save
+  leaves species `$48` at the arena, i.e. the **Demon Fire** (last Fire Crest
+  piece) drop.
+- Self-loops are now never merged: the "right door → boss" note inside area 60
+  produced a `60→60` transition that would have reloaded the room. Regression
+  proves the new door (`58→60`).
+- Overworld state captured in `assets/generated/map_states.json`
+  (`normal_ending_available`: 17 markers + cursor) for the stage-unlock model.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

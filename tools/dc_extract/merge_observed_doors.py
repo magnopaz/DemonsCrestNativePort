@@ -48,6 +48,8 @@ def main() -> int:
         if dst < 0:
             continue
         src = int(edge["from"])
+        if dst == src:
+            continue  # a door that leads to the same room is not a transition
         path = args.rooms / f"room_area{src}.json"
         if not path.is_file():
             continue
