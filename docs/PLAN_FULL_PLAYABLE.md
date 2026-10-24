@@ -144,6 +144,32 @@ Severity: **S1** = blocks a normal playthrough · **S2** = blocks fidelity ·
   `$28/$29/$2A` (currently multi-part clusters), M5 stage-state variants
   (burning/burned).
 
+## 3b-2. Full-stage maps (docs/FullMaps)
+
+The community full-stage maps in `docs/FullMaps/images` are 1:1 stitches of the
+original rooms, so each one gives the room's **true screen grid** and the door
+layout. `tools/dc_extract/index_full_maps.py` indexes them into
+`docs/FullMaps/index.json` (43 maps, grouped by level).
+
+How they help M1/M2:
+
+1. **Room width ground truth.** Our extracted rooms are sometimes narrower than
+   the real level (area 4 is 1024 px against a save at x=2025; the city is 256 px
+   against x=604). The maps give the intended grid, e.g. **Murkland Colosseum is
+   4 screens wide (1024x197 px)** while our area 0 is 3 screens — one missing.
+2. **Name -> area identification.** Visual matching already confirms
+   **area 0 = Murkland Colosseum** (the arched purple walls and torches match our
+   screenshots). A `match_maps.py` (render each room's BG1 from its tilemap +
+   atlas, correlate against the maps at reduced scale) would identify the rest
+   automatically.
+3. **Door positions.** Exits and door mouths are visible in the maps, so
+   observed save doors can be cross-checked and the missing bboxes filled in.
+
+**Next sub-tasks:** (a) write `match_maps.py` and produce a name<->area table;
+(b) re-extract the mismatched rooms with the map-derived screen grids;
+(c) feed map door positions into the area graph as candidate edges to verify with
+saves.
+
 ## 3c. M1 progress — area graph and the first real doors
 
 **Built:** `tools/dc_extract/build_area_graph.py` (nodes = areas with world size,

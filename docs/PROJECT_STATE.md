@@ -2823,6 +2823,21 @@ loop is playable while the game is not yet.
 - `next_area = -1` in area 4 marks the return-to-map door; the runtime should
   treat -1 as "back to the overworld".
 
+### Step 54 — Full-stage maps indexed (done)
+
+- `docs/FullMaps/images` holds 43 community maps (1:1 stitches of the original
+  rooms). `tools/dc_extract/index_full_maps.py` writes `docs/FullMaps/index.json`
+  with each map's pixel size and screen grid, grouped by level (Murkland,
+  Ruined City, Dark Forest, Towers of Doom, Mountains, Poseidonia, Phalanx's
+  Fortress, Demon's Hideout, minigame shop).
+- Visual check: the Murkland Colosseum map matches our **area 0** screenshots
+  (arched purple walls, torches) — a confirmed name<->area identification. The
+  map is 4 screens wide while area 0 extracted as 3, which is exactly the kind
+  of width gap M1 needs fixed.
+- Planned use: a `match_maps.py` correlating rendered room BG1 against the maps
+  to build the full name<->area table, then re-extract mismatched rooms with the
+  map-derived screen grids and fill door bboxes from the maps.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
