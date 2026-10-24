@@ -492,6 +492,35 @@ Result: **102/113 (90%) reachable through real doors**, 113/113 with gates,
 chunks with no outgoing edge (14, 3, 30, 9). Regression proves six doors:
 `0→34`, `2→4`, `8→10`, `10→18`, `20→22`, `76→78`.
 
+## 3p. Poseidonia side paths, limestone, and a real area-id limit
+
+New rooms resolved from the latest saves:
+
+| area | level | room |
+|---|---|---|
+| 50 | V | poseidonia-underwater-grotto |
+| 52 | V | poseidonia-lair-of-holothurion (boss leaves a life up) |
+| 30 | III | dark-forest-limestone-cave |
+
+Links added: aquatica → grotto, grotto → temple (up), grotto → holothurion lair
+(right), lair → boss, scula cave → limestone cave (up).
+
+**Area ids above 112 are not real.** The `temple-and-hidden-chamber_from_grotto`
+save reports `$008D = 118`, but `area_info` for 113..127 returns garbage (invalid
+tilesets, grids like `241x2`), so the game's room id is not the extraction index
+for that one save; it is the temple (54) reached from the grotto. The name tool
+now ignores areas above 112.
+
+**Merge policy settled after three regressions:** extracted transitions are never
+modified or deleted; note/save doors are inserted **first** (they win overlapping
+trigger checks) and clamped into the chunk when their save-space position is
+outside it. That restored the branches lost earlier (21/23/41/42).
+
+Result: **103/113 (91%) reachable through real doors**, 113/113 with gates,
+**10 gate-dependent areas** left (1, 35, 43, 46, 57, 63, 77, 83, 99, 109) and 4
+chunks with no outgoing edge (14, 3, 30, 9 — note 30 is now named, its exit is
+the up-door to the riverbank, whose save is still missing).
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

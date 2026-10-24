@@ -36,4 +36,8 @@ the trigger position from the `<from>_before_door` save when one exists.
 | phalanxs-fortress-phalanxs-chamber | after boss 2 cutscene | phalanxs-fortress-demon-realm | Phalanx phase 1 and 2, good ending path |
 | phalanxs-fortress-demon-realm | final boss defeated | map | good ending boss |
 | demons-hideout-tunnel | up | demons-hideout-the-dark | press up at the door |
-| demons-hideout-the-dark | true final boss defeated | map | special stage VIII; two forms |
+| demons-hideout-the-dark | true final boss defeated | map | special stage VIII; two forms || poseidonia-aquatica | right (grotto door) | poseidonia-underwater-grotto |  |
+| poseidonia-underwater-grotto | up (temple door) | poseidonia-temple-and-hidden-chamber | the from_grotto save reads $008D=118, which is not a valid area id; treated as the temple (54) |
+| poseidonia-underwater-grotto | right (holothurion door) | poseidonia-lair-of-holothurion |  |
+| poseidonia-lair-of-holothurion | right (boss door) | boss | boss leaves a life up |
+| dark-forest-scula-cave | up (limestone door) | dark-forest-limestone-cave |  |

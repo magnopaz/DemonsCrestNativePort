@@ -3026,6 +3026,22 @@ loop is playable while the game is not yet.
 - Graph: **102/113 (90%) via real doors**, 113/113 with gates, 11 gate-dependent
   areas, 4 chunks without outgoing edges. Regression proves six doors; PASS.
 
+### Step 67 — Poseidonia side paths, limestone, area-id limit (done)
+
+- New rooms: **underwater grotto = 50**, **lair of holothurion = 52** (boss drops
+  a life up), **limestone cave = 30** (level III).
+- Links: aquatica → grotto, grotto → temple (up), grotto → holothurion (right),
+  lair → boss, scula cave → limestone (up).
+- Found that **areas 113..127 are not real**: `$008D = 118` on the
+  `temple_from_grotto` save decodes to garbage tables, so it is the temple (54)
+  reached from the grotto. The name tool ignores areas above 112.
+- Third and final merge policy: never modify/delete ROM transitions; insert
+  note/save doors **first** (they win overlaps) and clamp them into the chunk.
+  Branches lost earlier (21/23/41/42) are back.
+- Graph: **103/113 (91%) via real doors**, 113/113 with gates, **10 gate-dependent
+  areas** (1, 35, 43, 46, 57, 63, 77, 83, 99, 109), 4 chunks without outgoing
+  edges. Regression PASS.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

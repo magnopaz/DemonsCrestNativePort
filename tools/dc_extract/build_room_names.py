@@ -81,6 +81,9 @@ def main() -> int:
             in_maps = False
         data = json.loads(info.read_text())
         area = int(data["area"])
+        if area > 112:
+            print(f"skip {stem}: area {area} is outside the extracted set")
+            continue
         entry = table.setdefault(str(area), {
             "area": area, "level": level, "map": map_name,
             "in_maps": in_maps, "roles": {}, "saves": [],
