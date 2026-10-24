@@ -453,6 +453,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->shop_welcome = Text_Find(&game->script, "BLACK LOTUS");
         game->shop_full_urn = Text_Find(&game->script, "NEED AN URN");
         game->shop_full_vellum = Text_Find(&game->script, "VELLUM IS");
+        game->shop_no_money = Text_Find(&game->script, "CHEAPSKATE");
         game->ending_text = Text_Find(&game->script, "PHALANX WOULD");
         game->town_greet = Text_Find(&game->script, "HAVEN'T SEEN YOU");
         game->town_question = Text_Find(&game->script, "ARE YOU A STRANGER");
@@ -540,6 +541,10 @@ bool Game_Init(Game *game, const char *asset_dir) {
     }
     /* Dev hook: start the city-NPC conversation at page N (0 greeting,
      * 1 question + YES/NO, 2+ story pages after answering YES). */
+    const char *gold = getenv("DC_GOLD");
+    if (gold && *gold)
+        game->player.gold = atoi(gold);
+
     const char *talk = getenv("DC_TALK");
     if (talk && *talk && game->script_ready) {
         Game_StartTownTalk(game);
@@ -1035,39 +1040,71 @@ static void Game_UpdateTitle(Game *game, bool up_pressed, bool down_pressed) {
     }
 }
 
-static void Game_UpdateShop(Game *game, bool left_pressed,
-                            bool right_pressed, bool up_pressed) {
+/* Real stock and prices, read from the store's own menu ($85:88A0):
+ * MERCURY 6, SULFUR 10, HERB 25, ELIXIR 100, GINSENG 140. */
+static const struct {
+    const char *name;
+    int price;
+    int kind; /* 0 escape, 1 heal some, 2 extra life, 3 full heal */
+} kShopStock[] = {
+    {"MERCURY", 6, 0},  {"SULFUR", 10, 0}, {"HERB", 25, 1},
+    {"ELIXIR", 100, 2}, {"GINSENG", 140, 3},
+};
+#define SHOP_STOCK_COUNT ((int)(sizeof(kShopStock) / sizeof(kShopStock[0])))
+#define SHOP_EXIT_INDEX SHOP_STOCK_COUNT
+
+static void Game_ShopBuy(Game *game) {
+    if (game->shop_sel >= SHOP_EXIT_INDEX) {
+        game->campaign_mode = true;
+        Game_OpenOverworld(game);
+        return;
+    }
+    const int price = kShopStock[game->shop_sel].price;
+    if (game->player.gold < price) {
+        /* "CHEAPSKATE! YOU DON'T HAVE ENOUGH MONEY" ($85:8B17) */
+        game->shop_message = game->shop_no_money;
+        game->shop_timer = 120;
+        return;
+    }
+    if (kShopStock[game->shop_sel].kind == 0 && game->player.potions >= 5) {
+        game->shop_message = game->shop_full_urn;
+        game->shop_timer = 120;
+        return;
+    }
+    game->player.gold -= price;
+    switch (kShopStock[game->shop_sel].kind) {
+    case 0: /* escape potions live in the urn */
+        game->player.potions++;
+        break;
+    case 1: /* HERB: some vitality */
+        game->player.hp += 4;
+        if (game->player.hp > game->player.max_hp)
+            game->player.hp = game->player.max_hp;
+        break;
+    case 2: /* ELIXIR: an extra life */
+        if (game->player.max_hp < 10)
+            game->player.max_hp++;
+        game->player.hp = game->player.max_hp;
+        break;
+    case 3: /* GINSENG: all vitality */
+        game->player.hp = game->player.max_hp;
+        break;
+    }
+    Audio_Play(SFX_PICKUP);
+}
+
+static void Game_UpdateShop(Game *game, bool up_pressed,
+                            bool down_pressed) {
     if (game->shop_timer > 0)
         game->shop_timer--;
-    if (left_pressed) {
-        if (game->player.potions >= 5) {
-            /* "YOUR URN IS ALREADY FULL OF" ($85:87AC) */
-            game->shop_message = game->shop_full_urn;
-            game->shop_timer = 120;
-        } else if (game->player.gold >= 30) {
-            game->player.gold -= 30;
-            game->player.potions++;
-            Audio_Play(SFX_PICKUP);
-        }
-    }
-    if (right_pressed) {
-        if (game->player.scrolls >= 5) {
-            /* "YOUR VELLUM IS ALREADY FULL OF" ($85:875B) */
-            game->shop_message = game->shop_full_vellum;
-            game->shop_timer = 120;
-        } else if (game->player.gold >= 50) {
-            game->player.gold -= 50;
-            game->player.scrolls++;
-            Audio_Play(SFX_PICKUP);
-        }
-    }
-    if (up_pressed && game->player.gold >= 80 && game->player.max_hp < 10) {
-        game->player.gold -= 80;
-        game->player.max_hp++;
-        game->player.hp = game->player.max_hp;
-        Audio_Play(SFX_PICKUP);
-    }
-    if (game->input.start_pressed || game->input.pause_pressed) {
+    if (up_pressed)
+        game->shop_sel = (game->shop_sel + SHOP_STOCK_COUNT) %
+                         (SHOP_STOCK_COUNT + 1);
+    if (down_pressed)
+        game->shop_sel = (game->shop_sel + 1) % (SHOP_STOCK_COUNT + 1);
+    if (game->input.start_pressed)
+        Game_ShopBuy(game);
+    if (game->input.pause_pressed) {
         game->campaign_mode = true;
         Game_OpenOverworld(game);
     }
@@ -1364,7 +1401,7 @@ void Game_Update(Game *game) {
         }
         break;
     case GAME_SHOP:
-        Game_UpdateShop(game, left_pressed, right_pressed, up_pressed);
+        Game_UpdateShop(game, up_pressed, down_pressed);
         break;
     case GAME_PASSWORD:
         Game_UpdatePassword(game, up_pressed, down_pressed, left_pressed,
@@ -1793,33 +1830,32 @@ static void DrawOverlay(const Game *game) {
         DrawSubscreen(game);
     } else if (game->state == GAME_SHOP) {
         DrawRectangle(0, 0, 256, 224, (Color){10, 8, 14, 240});
-        int shop_gold_y = 52;
-        if (game->shop_welcome >= 0) {
-            int h = Text_DrawPage(&game->assets, &game->script,
-                                  game->shop_welcome, 0, 16, 16, 220,
-                                  (Color){240, 236, 220, 255});
-            shop_gold_y = 16 + h + 10;
-        } else {
-            DrawCentered("POTION & SPELL SHOP", 24, 14,
-                         (Color){238, 220, 160, 255});
+        int y = 10;
+        if (game->shop_welcome >= 0)
+            y += Text_DrawPage(&game->assets, &game->script,
+                               game->shop_welcome, 0, 16, y, 220,
+                               (Color){240, 236, 220, 255});
+        y += 6;
+        for (int i = 0; i <= SHOP_STOCK_COUNT; i++) {
+            bool sel = game->shop_sel == i;
+            Color col = sel ? (Color){255, 236, 140, 255}
+                            : (Color){190, 190, 200, 255};
+            const char *label = i < SHOP_STOCK_COUNT ? kShopStock[i].name
+                                                     : "EXIT";
+            DrawText(TextFormat("%s %s", sel ? ">" : " ", label), 44,
+                     y + i * 12, 10, col);
+            if (i < SHOP_STOCK_COUNT)
+                DrawText(TextFormat("%4d GP", kShopStock[i].price), 152,
+                         y + i * 12, 10, col);
         }
-        DrawCentered(TextFormat("GOLD %d", game->player.gold), shop_gold_y, 10,
-                     (Color){255, 224, 120, 255});
-        DrawCentered("LEFT  - BUY URN (30G)", 88, 10,
-                     (Color){200, 220, 255, 255});
-        DrawCentered("RIGHT - BUY SPELL (50G)", 104, 10,
-                     (Color){200, 220, 255, 255});
-        DrawCentered("UP    - LIFE STONE (80G)", 120, 10,
-                     (Color){200, 220, 255, 255});
-        DrawCentered(TextFormat("URNS %d/5  SPELLS %d/5  MAX HP %d",
-                                game->player.potions, game->player.scrolls,
-                                game->player.max_hp), 152, 10,
-                     (Color){240, 220, 140, 255});
-        if (game->shop_timer > 0 && game->shop_message >= 0) {
+        DrawText(TextFormat("GOLD %d", game->player.gold), 152, 190, 10,
+                 (Color){255, 224, 120, 255});
+        DrawText(TextFormat("URNS %d/5", game->player.potions), 44, 190, 10,
+                 (Color){200, 220, 255, 255});
+        if (game->shop_timer > 0 && game->shop_message >= 0)
             Text_DrawPage(&game->assets, &game->script, game->shop_message, 0,
-                          16, 150, 220, (Color){255, 210, 160, 255});
-        }
-        DrawCentered("ENTER / ESC RETURN", 208, 10,
+                          16, 170, 220, (Color){255, 210, 160, 255});
+        DrawCentered("UP/DOWN  ENTER BUY  ESC LEAVE", 212, 8,
                      (Color){170, 170, 170, 255});
     } else if (game->state == GAME_PASSWORD) {
         DrawRectangle(0, 0, 256, 224, (Color){6, 10, 16, 240});

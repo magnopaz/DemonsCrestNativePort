@@ -2757,6 +2757,26 @@ but only **4 rooms with real exits** (95 auto-advance via gates), **148 enemy
 placements across 7 species**, and **14 boss objects in three species** — so the
 loop is playable while the game is not yet.
 
+### Step 50 — Save batches c/d: eight new areas, real shop stock (done)
+
+- Areas **18, 20, 24, 28 (burning forest), 32 (hidden room), 96 (potion store),
+  100 (burned state), 102 (boss)** captured from saves c*/d*; the capture list
+  now holds 22 areas.
+- Species sheets grew to 16 (adds `$23 $25 $2E $28 $29 $2A $48 $63 $65 $79 $97`
+  and refines others); multi-part boss clusters are recorded with their source.
+- **The potion store's own text** came out of the BG3 layer: greeting
+  `$85:87D5`, stock menu `$85:88A0` and descriptions — Mercury 6, Sulfur 10,
+  Herb 25, Elixir 100 (extra life), Ginseng 140 (full heal), plus the
+  "CHEAPSKATE" line `$85:8B17`. `GAME_SHOP` now uses that stock, those prices
+  and the real messages, with an EXIT row and a gold/urns footer.
+- `merge_npc_objects.py` gained `--x/--ground-y/--clamp`; NPC placement is part
+  of the asset regeneration, and regression keeps the city conversation green.
+- `tools/oracle/drive_save.py` added: replay a savestate with synthetic input
+  (`set_controller`) and capture a BMP (`screenshot`) — used to probe later
+  moments from a single save.
+- Notes: `save11d` was listed but not on disk; the burning/burned variants are
+  captured but not modelled as stage states yet.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

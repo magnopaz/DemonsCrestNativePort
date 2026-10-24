@@ -131,6 +131,11 @@ void Input_Read(Input *in, InputState *st) {
         shot = demo_frame == 50 || demo_frame == 68 || demo_frame == 86;
         left = demo_frame >= 110 && demo_frame < 140;
         shot = shot || demo_frame == 150 || demo_frame == 168;
+    } else if (demo_mode == 35) {
+        /* Shop purchase: select ELIXIR (three downs) and buy it. */
+        demo_frame++;
+        down = demo_frame == 10 || demo_frame == 14 || demo_frame == 18;
+        start = demo_frame == 30;
     } else if (demo_mode == 34) {
         /* City NPC conversation: A opens it, Enter pages through it. */
         demo_frame++;

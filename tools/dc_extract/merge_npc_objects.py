@@ -24,6 +24,12 @@ def main() -> int:
     ap.add_argument("--probe-root", type=Path, required=True)
     ap.add_argument("--saves", required=True)
     ap.add_argument("--rooms", type=Path, required=True)
+    ap.add_argument("--ground-y", type=float, default=None,
+                    help="force the NPC's Y (the extracted room may be shorter)")
+    ap.add_argument("--x", type=float, default=None,
+                    help="force the NPC's X (for demo placement)")
+    ap.add_argument("--clamp", action="store_true",
+                    help="clamp X into the room and optionally snap Y")
     args = ap.parse_args()
 
     for tag in [s.strip() for s in args.saves.split(",") if s.strip()]:
@@ -47,8 +53,17 @@ def main() -> int:
             if any(o.get("type") == "npc" and
                    int(o.get("species", 0)) == species for o in objects):
                 continue
+            x = round(ent["x"])
+            y = round(ent["y"])
+            if args.clamp:
+                width = data.get("world", {}).get("width", 256)
+                x = max(24, min(int(width) - 24, x))
+            if args.x is not None:
+                x = round(args.x)
+            if args.ground_y is not None:
+                y = round(args.ground_y)
             objects.append({"type": "npc", "species": species, "flags": 0,
-                            "x": round(ent["x"]), "y": round(ent["y"])})
+                            "x": x, "y": y})
             added += 1
         if added:
             room.write_text(json.dumps(data))

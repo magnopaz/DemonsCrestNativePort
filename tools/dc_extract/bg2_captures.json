@@ -77,6 +77,46 @@
    "dir": "captures/save9b",
    "frame": 90000,
    "note": "area 16 boss (save 9b)"
+  },
+  "18": {
+   "dir": "captures/save5c",
+   "frame": 90000,
+   "note": "area 18 skull piles (save 5c)"
+  },
+  "20": {
+   "dir": "captures/save0d",
+   "frame": 90000,
+   "note": "area 20 (save 0d)"
+  },
+  "24": {
+   "dir": "captures/save1d",
+   "frame": 90000,
+   "note": "area 24 (save 1d)"
+  },
+  "28": {
+   "dir": "captures/save2d",
+   "frame": 90000,
+   "note": "area 28 burning forest (save 2d)"
+  },
+  "32": {
+   "dir": "captures/save5d",
+   "frame": 90000,
+   "note": "area 32 hidden room (save 5d)"
+  },
+  "96": {
+   "dir": "captures/save1c",
+   "frame": 90000,
+   "note": "area 96 potion store (save 1c)"
+  },
+  "100": {
+   "dir": "captures/save7d",
+   "frame": 90000,
+   "note": "area 100 burned state (save 7d)"
+  },
+  "102": {
+   "dir": "captures/save6d",
+   "frame": 90000,
+   "note": "area 102 boss (save 6d)"
   }
  }
 }

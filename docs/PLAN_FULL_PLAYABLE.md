@@ -94,6 +94,30 @@ Severity: **S1** = blocks a normal playthrough · **S2** = blocks fidelity ·
 
 ---
 
+## 3b. Progress log
+
+- **2026-10-23 — save batches b/c/d.** Captures now cover **22 areas**
+  (0,2,3,4,6,8,10,12,14,16,18,20,24,28,32,34,48,58,74,96,100,102). The probe
+  pipeline harvested areas 18 (skull piles/hands), 20, 24, 28 (burning forest),
+  32 (hidden room), 96 (potion store), 100 (burned state) and 102 (boss).
+- **Species sheets** grew to 16 species: `$23 $24 $25 $26 $28 $29 $2A $2D $2E
+  $48 $49 $57 $63 $65 $67 $6C $79 $96 $97` (some sheets are multi-part boss
+  clusters and are marked in the JSON's `source`).
+- **Shop decoded from the game itself**: the potion-store saves' BG3 layer gave
+  the real greeting (`$85:87D5` "WELCOME TO "THE BLACK LOTUS" WE CARRY ONLY THE
+  FINEST POTIONS"), the stock menu (`$85:88A0`) and the item descriptions:
+  Mercury 6 GP (escape an enemy), Sulfur 10 GP (flee a battle), Herb 25 GP
+  (restore some vitality), Elixir 100 GP (extra life), Ginseng 140 GP (restore
+  all vitality), plus "CHEAPSKATE! YOU DON'T HAVE ENOUGH MONEY" (`$85:8B17`).
+  The shop UI now uses this stock and these prices.
+- **NPC merging is part of extraction** (`merge_npc_objects.py`, with
+  `--x/--ground-y/--clamp` placement options) and regression covers the city
+  conversation end to end.
+- **Savestate driving** (`tools/oracle/drive_save.py`): `set_controller` +
+  `screenshot` let a single savestate be replayed forward with synthetic input.
+- Pending from this batch: `save11d` was listed but not present; the burning /
+  burned stage variants are captured but the stage-state switch is not modelled.
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

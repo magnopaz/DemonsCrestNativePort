@@ -78,6 +78,8 @@ typedef struct Game {
     int talk_choice_sel; /* 0 YES, 1 NO */
     int fire_text[5];    /* cached "YOU GOT THE PIECE OF THE FIRE CREST ..." */
     int shop_timer;
+    int shop_sel; /* 0..4 items, 5 = EXIT */
+    int shop_no_money; /* "CHEAPSKATE! ..." */
     bool dialogue_demo; /* DC_DIALOGUE overlay */
     bool script_ready;
     bool has_save;
