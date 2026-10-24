@@ -124,6 +124,21 @@ Severity: **S1** = blocks a normal playthrough · **S2** = blocks fidelity ·
   crest-count approximation. The item guide lists every crest/Fire shot (with
   the boss that grants it), the 16 life extensions, and the urn/vellum/talisman
   locations — the checklist for M7/M8.
+- **2026-10-24 — save batch e / ee.** Captures now cover **32 areas** (adds 36,
+  38 wind room, 40 mid-boss, 42, 46 lake, **84 final-boss stage**, 92 library,
+  98 spell shop, 104 minigame parlour, 110 second Black Lotus). Species sheets
+  reach **29** (adds `$06 $09 $12 $15 $41 $87` and an `$A5` Arma cluster).
+  Text read from the shops/NPCs:
+  - second Black Lotus (`$85:...` menu without Ginseng): Mercury 6, Sulfur 10,
+    Herb 25, Elixir 100, EXIT — implemented as a per-area stock;
+  - spell shop: "I CANNOT HELP YOU UNLESS YOU BRING ME A VELLUM FIRST"
+    (`$85:8370`) — shown when the player has no vellum;
+  - minigame parlour: "IT HAS BEEN A LONG TIME SINCE A CUSTOMER HAS VISITED MY
+    SHOP";
+  - library talisman descriptions `$85:8C51` Crown, `$85:8CB3` Skull,
+    `$85:8D17` Armor, `$85:8D79` Fang, `$85:8DD0` Hand — to wire in M7.
+  - The final boss stage (area 84) shows the Dark Demon's face backdrop; the
+    bad-ending cutscene lives in area 192 (mode 7).
 - Remaining for the plan: M1 area graph, M2 placements for the new areas, M3
   boss AI (the area 18/102 bosses are captured but not ported), M4 sheets for
   `$28/$29/$2A` (currently multi-part clusters), M5 stage-state variants

@@ -454,6 +454,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->shop_full_urn = Text_Find(&game->script, "NEED AN URN");
         game->shop_full_vellum = Text_Find(&game->script, "VELLUM IS");
         game->shop_no_money = Text_Find(&game->script, "CHEAPSKATE");
+        game->shop_need_vellum = Text_Find(&game->script, "VELLUM FIRST");
         game->ending_text = Text_Find(&game->script, "PHALANX WOULD");
         game->town_greet = Text_Find(&game->script, "HAVEN'T SEEN YOU");
         game->town_question = Text_Find(&game->script, "ARE YOU A STRANGER");
@@ -1053,8 +1054,16 @@ static const struct {
 #define SHOP_STOCK_COUNT ((int)(sizeof(kShopStock) / sizeof(kShopStock[0])))
 #define SHOP_EXIT_INDEX SHOP_STOCK_COUNT
 
+/* Area 96 (town) sells all five; area 110 has no Ginseng. */
+static int ShopStockForArea(const Game *game) {
+    if (game->level.area_id == 110)
+        return 4;
+    return SHOP_STOCK_COUNT;
+}
+
 static void Game_ShopBuy(Game *game) {
-    if (game->shop_sel >= SHOP_EXIT_INDEX) {
+    const int stock = ShopStockForArea(game);
+    if (game->shop_sel >= stock) {
         game->campaign_mode = true;
         Game_OpenOverworld(game);
         return;
@@ -1097,11 +1106,11 @@ static void Game_UpdateShop(Game *game, bool up_pressed,
                             bool down_pressed) {
     if (game->shop_timer > 0)
         game->shop_timer--;
+    const int stock = ShopStockForArea(game);
     if (up_pressed)
-        game->shop_sel = (game->shop_sel + SHOP_STOCK_COUNT) %
-                         (SHOP_STOCK_COUNT + 1);
+        game->shop_sel = (game->shop_sel + stock) % (stock + 1);
     if (down_pressed)
-        game->shop_sel = (game->shop_sel + 1) % (SHOP_STOCK_COUNT + 1);
+        game->shop_sel = (game->shop_sel + 1) % (stock + 1);
     if (game->input.start_pressed)
         Game_ShopBuy(game);
     if (game->input.pause_pressed) {
@@ -1854,21 +1863,29 @@ static void DrawOverlay(const Game *game) {
         DrawSubscreen(game);
     } else if (game->state == GAME_SHOP) {
         DrawRectangle(0, 0, 256, 224, (Color){10, 8, 14, 240});
+        if (game->level.area_id == 98 && game->player.scrolls <= 0) {
+            if (game->shop_need_vellum >= 0)
+                Text_DrawPage(&game->assets, &game->script,
+                              game->shop_need_vellum, 0, 16, 40, 220,
+                              (Color){240, 236, 220, 255});
+            DrawCentered("ESC LEAVE", 208, 10, (Color){170, 170, 170, 255});
+            return;
+        }
         int y = 10;
         if (game->shop_welcome >= 0)
             y += Text_DrawPage(&game->assets, &game->script,
                                game->shop_welcome, 0, 16, y, 220,
                                (Color){240, 236, 220, 255});
         y += 6;
-        for (int i = 0; i <= SHOP_STOCK_COUNT; i++) {
+        const int stock = ShopStockForArea(game);
+        for (int i = 0; i <= stock; i++) {
             bool sel = game->shop_sel == i;
             Color col = sel ? (Color){255, 236, 140, 255}
                             : (Color){190, 190, 200, 255};
-            const char *label = i < SHOP_STOCK_COUNT ? kShopStock[i].name
-                                                     : "EXIT";
+            const char *label = i < stock ? kShopStock[i].name : "EXIT";
             DrawText(TextFormat("%s %s", sel ? ">" : " ", label), 44,
                      y + i * 12, 10, col);
-            if (i < SHOP_STOCK_COUNT)
+            if (i < stock)
                 DrawText(TextFormat("%4d GP", kShopStock[i].price), 152,
                          y + i * 12, 10, col);
         }

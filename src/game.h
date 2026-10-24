@@ -80,6 +80,7 @@ typedef struct Game {
     int shop_timer;
     int shop_sel; /* 0..4 items, 5 = EXIT */
     int shop_no_money; /* "CHEAPSKATE! ..." */
+    int shop_need_vellum; /* "...BRING ME A VELLUM FIRST" */
     bool dialogue_demo; /* DC_DIALOGUE overlay */
     bool script_ready;
     bool has_save;

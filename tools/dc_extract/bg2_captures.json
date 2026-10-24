@@ -117,6 +117,56 @@
    "dir": "captures/save6d",
    "frame": 90000,
    "note": "area 102 boss (save 6d)"
+  },
+  "36": {
+   "dir": "captures/nb/save1e",
+   "frame": 90000,
+   "note": "area 36 (save 1e)"
+  },
+  "38": {
+   "dir": "captures/nb/save3e",
+   "frame": 90000,
+   "note": "area 38 wind room (save 3e)"
+  },
+  "40": {
+   "dir": "captures/nb/save7e",
+   "frame": 90000,
+   "note": "area 40 mid boss (save 7e)"
+  },
+  "42": {
+   "dir": "captures/nb/save8e",
+   "frame": 90000,
+   "note": "area 42 (save 8e)"
+  },
+  "46": {
+   "dir": "captures/nb/save11e",
+   "frame": 90000,
+   "note": "area 46 lake (save 11e)"
+  },
+  "84": {
+   "dir": "captures/nb/save7ee",
+   "frame": 90000,
+   "note": "area 84 final boss (save 7ee)"
+  },
+  "92": {
+   "dir": "captures/nb/save6d",
+   "frame": 90000,
+   "note": "area 92 library (save 6d)"
+  },
+  "98": {
+   "dir": "captures/nb/save5d",
+   "frame": 90000,
+   "note": "area 98 spell shop (save 5d)"
+  },
+  "104": {
+   "dir": "captures/nb/save2d",
+   "frame": 90000,
+   "note": "area 104 minigame (save 2d)"
+  },
+  "110": {
+   "dir": "captures/nb/save1d",
+   "frame": 90000,
+   "note": "area 110 Black Lotus 2 (save 1d)"
   }
  }
 }

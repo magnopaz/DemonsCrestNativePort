@@ -2790,6 +2790,21 @@ loop is playable while the game is not yet.
   until the Dark Demon exists.
 - Regression PASS after the change (all four variants still render).
 
+### Step 52 — Save batch e/ee: 10 more areas, shop variants, talisman texts (done)
+
+- Captured areas 36, 38 (wind), 40, 42, 46 (lake), **84 (final boss stage)**,
+  92 (library), 98 (spell shop), 104 (minigame parlour) and 110 (second Black
+  Lotus): **32 areas** with backdrops.
+- Species sheets reach 29 (`$06 $09 $12 $15 $41 $87`, `$A5` cluster).
+- Shops now vary by area: the town Black Lotus sells all five potions, the
+  second one (area 110) stops at Elixir; the spell shop (area 98) shows
+  "I CANNOT HELP YOU UNLESS YOU BRING ME A VELLUM FIRST" (`$85:8370`) when the
+  player has no vellum.
+- Library talisman description strings located (`$85:8C51/8CB3/8D17/8D79/8DD0`)
+  ready to wire to the NPC; the minigame parlour greeting was also read.
+- The final-boss stage backdrop (the Dark Demon's face) is captured; the bad
+  ending cutscene is the mode-7 area 192.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
