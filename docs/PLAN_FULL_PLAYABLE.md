@@ -433,6 +433,24 @@ their geometry was right. It now composes each sprite with its **own palette**
 fragmented for Somulo/Arma because the OAM part-to-object attribution is still
 unsolved; that is recorded as the top M4 task.
 
+## 3m. Doors are chunk-local; notes correct destinations
+
+The save coordinates are **level-space** (a whole map spans several chunk-areas),
+so most note doors fall outside their chunk's extracted world. Adding such a door
+produced an unreachable trigger. The merge now does the right thing:
+
+- if the note door's position fits the chunk → add/merge it there;
+- otherwise **re-point the chunk's ROM transition** (which is already in
+  chunk-local coordinates) to the destination the notes give.
+
+Nine doors were re-pointed this way (`20→22`, `22→26`, `38→boss`, `48→54`,
+`66→boss`, `4→6`, `8→10`, `10→18`, plus area 0 earlier), keeping the real trigger
+positions while fixing the destinations.
+
+Regression now walks five doors with only synthetic input:
+`0→34`, `2→4`, `8→10`, `10→18`, `20→22` (`DC_AREA` + `DC_START_X/Y` +
+`DC_CAMPAIGN` + `DC_BOSS_CLEAR`, then the walk demo).
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

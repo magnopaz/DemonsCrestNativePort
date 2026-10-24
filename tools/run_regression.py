@@ -265,7 +265,10 @@ def main() -> int:
         # (1024 wide) -- see the "needs wider extraction" report in
         # check_navigation.py; it is skipped until the room is re-extracted.
         for src_area, sx, sy, dst_area in ((2, 1706, 300, 4),
-                                           (0, 740, 190, 34)):
+                                           (0, 740, 190, 34),
+                                           (8, 32, 664, 10),
+                                           (10, 1264, 104, 18),
+                                           (20, 440, 144, 22)):
             hop = run_demo(base, out, 36, 12, {
                 "DC_AREA": str(src_area),
                 "DC_START_X": str(sx),

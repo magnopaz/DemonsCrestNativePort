@@ -38,7 +38,17 @@ def main() -> int:
         if edge.get("to") is None or int(edge["to"]) < 0:
             continue
         src, dst = int(edge["from"]), int(edge["to"])
-        if edge.get("x") is None or edge.get("y") is None:
+        outside = False
+        if edge.get("x") is not None and edge.get("y") is not None:
+            room_path = args.rooms / f"room_area{src}.json"
+            if room_path.is_file():
+                room = json.loads(room_path.read_text())
+                world = room.get("world", {})
+                w = int(world.get("width") or 0)
+                h = int(world.get("height") or 0)
+                outside = bool(w and (edge["x"] < 0 or edge["x"] >= w or
+                                      edge["y"] < 0 or edge["y"] >= h))
+        if edge.get("x") is None or edge.get("y") is None or outside:
             if edge.get("source") == "notes":
                 path = args.rooms / f"room_area{src}.json"
                 if path.is_file():

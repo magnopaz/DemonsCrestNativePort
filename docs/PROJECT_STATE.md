@@ -2988,6 +2988,20 @@ loop is playable while the game is not yet.
 - `extract_boss_sprite.py` kept as a documented dead end (needs resumable
   states).
 
+### Step 64 — Chunk-local doors: re-point instead of adding (done)
+
+- Diagnosis: save coordinates are level-space, so a note door usually lies
+  outside its chunk's extracted world; adding it there made an unreachable
+  trigger (only 3 of 16 note doors fit their world).
+- Fix: when a note door does not fit, **re-point the chunk's extracted ROM
+  transition** (already chunk-local) to the notes' destination. Nine doors
+  re-pointed: 20→22, 22→26, 38→boss, 48→54, 66→boss, 4→6, 8→10, 10→18 (plus
+  area 0 earlier).
+- Regression now proves five doors in-game with synthetic input only:
+  **0→34, 2→4, 8→10, 10→18, 20→22** — all PASS.
+- Overworld stage markers (`$94` positions) are drawn on the map; alignment with
+  the art still needs the Mode 7 affine, noted in the plan.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
