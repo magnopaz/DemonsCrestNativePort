@@ -402,6 +402,37 @@ Result: **101/113 (89%) reachable through real doors**, 113/113 with gates,
 **12 gate-dependent areas** left (1, 35, 43, 46, 52, 57, 63, 77, 83, 94, 99,
 109) and 4 chunks without outgoing edges (14, 3, 30, 9).
 
+## 3l. What the recomp savestates actually are (important)
+
+While trying to capture boss frames it became clear that the user's `.sav`
+save states **restore WRAM/VRAM/CGRAM/OAM but boot the CPU from reset**:
+
+- the probe reads coherent game data (area `$008D`, player `$1030`, object pool,
+  live OAM) for the first ~100 frames after resume;
+- but every exact-frame screenshot shows the **Capcom copyright screen**, i.e.
+  the game's boot path, not the saved scene;
+- `run_to_frame`/`dump_frame_raw`/`screenshot` therefore cannot reproduce or
+  drive the saved gameplay.
+
+Consequences for the project:
+
+1. The saves remain excellent **data snapshots** (placements, tilemaps, CGRAM,
+   OAM, text, map markers) — everything extracted so far is valid.
+2. They cannot be used to **drive** gameplay or capture composited frames, so
+   boss sprites cannot be cut out of a frame.
+3. Navigation truth must come from the user's descriptions + the ROM tables,
+   which is how `LEVEL_TRANSITIONS.md` and the area graph work.
+
+This is why `tools/oracle/extract_boss_sprite.py` is kept only as a documented
+dead end: it needs a resumable state to produce frames.
+
+**Also fixed:** `bake_object_sprites.py` painted the merged OAM index image with
+a single palette (palette 0), so multi-palette bosses were mis-coloured even when
+their geometry was right. It now composes each sprite with its **own palette**
+(and masks the low tile bit for 16x16 sprites). Boss composition remains
+fragmented for Somulo/Arma because the OAM part-to-object attribution is still
+unsolved; that is recorded as the top M4 task.
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

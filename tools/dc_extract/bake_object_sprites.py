@@ -29,7 +29,7 @@ from pathlib import Path
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from extract import OamSprite, compose_oam_indices, parse_oam, colorize  # noqa: E402
+from extract import OamSprite, parse_oam, tile_pixels  # noqa: E402
 
 
 def cgram_colors(raw: bytes) -> list[tuple[int, int, int]]:
@@ -135,24 +135,34 @@ def main() -> int:
                 print(f"save{tag}: species {species:02X} no cluster near "
                       f"({bx:.0f},{by:.0f}) d={best_d:.0f}")
                 continue
-            index_img, min_x, min_y = compose_oam_indices(obj_vram, best)
-            colors: list[tuple[int, int, int]] = []
-            for s in best:
-                for k in range(16):
-                    colors.append(cgram[0x80 + s.palette * 16 + k]
-                                  if 0x80 + s.palette * 16 + k < len(cgram)
-                                  else (0, 0, 0))
-            # colorize expects per-sprite palettes; here palettes differ, so
-            # paint sprite by sprite instead.
-            img = Image.new("RGBA", (index_img.width, index_img.height),
+            # Compose with each sprite's OWN palette: painting the merged
+            # index image with a single palette was a real bug (every part was
+            # coloured as palette 0), which is why multi-palette bosses looked
+            # wrong even when the geometry was right.
+            min_x = min(s.x for s in best)
+            min_y = min(s.y for s in best)
+            max_x = max(s.x + s.size for s in best)
+            max_y = max(s.y + s.size for s in best)
+            img = Image.new("RGBA", (max_x - min_x, max_y - min_y),
                             (0, 0, 0, 0))
-            src_px = index_img.load()
             dst = img.load()
-            for y in range(index_img.height):
-                for x in range(index_img.width):
-                    idx = src_px[x, y][0]
-                    if idx:
-                        dst[x, y] = (*cgram[idx % 256], 255)
+            for s in sorted(best, key=lambda s: s.index, reverse=True):
+                base = 0x80 + s.palette * 16
+                for row in range(s.size):
+                    for col in range(s.size):
+                        used_col = s.size - 1 - col if s.hflip else col
+                        used_row = s.size - 1 - row if s.vflip else row
+                        tile = s.tile
+                        if s.size == 16:
+                            tile &= ~1
+                        used_tile = (((tile >> 4) + (used_row >> 3)) << 4) | \
+                                    (((tile & 0x0F) + (used_col >> 3)) & 0x0F)
+                        p_idx = tile_pixels(obj_vram, used_tile * 16)[
+                            used_row & 7][used_col & 7]
+                        if p_idx:
+                            color = cgram[(base + p_idx) % len(cgram)]
+                            dst[s.x - min_x + col, s.y - min_y + row] = (
+                                color[0], color[1], color[2], 255)
             bbox = img.getbbox()
             if bbox is None:
                 continue

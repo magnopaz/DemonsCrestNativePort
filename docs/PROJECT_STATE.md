@@ -2969,6 +2969,25 @@ loop is playable while the game is not yet.
   gates, 12 gate-dependent areas, 4 chunks without outgoing edges.
 - Regression PASS.
 
+### Step 63 — Savestate reality check; OAM palette bug fixed (done)
+
+- Established (with exact-frame captures) that the user's `.sav` states restore
+  **WRAM/VRAM but not the CPU**: probes read coherent game data, while every
+  screenshot shows the Capcom copyright screen. The saves are data snapshots,
+  not resumable gameplay — so they cannot drive or be screenshotted, and boss
+  sprites cannot be cut from frames. Recorded in the plan (3l).
+- Fixed `bake_object_sprites.py`: it painted the merged OAM index image with
+  palette 0 only; it now composes each sprite with its own palette and masks the
+  low tile bit for 16x16 sprites. Re-rendering the Somulo scene from OAM shows
+  the dragon and the player in plausible colours, but the boss parts are still
+  scattered — the part-to-object attribution is the remaining M4 problem.
+- Added `merge_probe_placements.py` (M2): merges probe object placements into
+  room JSONs, but only where coordinates fit the extracted chunk world (32
+  placements today); most probes sit outside it, which is the chunk-coordinate
+  issue documented earlier.
+- `extract_boss_sprite.py` kept as a documented dead end (needs resumable
+  states).
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
