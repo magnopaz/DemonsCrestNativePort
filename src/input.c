@@ -131,6 +131,10 @@ void Input_Read(Input *in, InputState *st) {
         shot = demo_frame == 50 || demo_frame == 68 || demo_frame == 86;
         left = demo_frame >= 110 && demo_frame < 140;
         shot = shot || demo_frame == 150 || demo_frame == 168;
+    } else if (demo_mode == 36) {
+        /* Navigation: walk right through a door merged from the level saves. */
+        demo_frame++;
+        right = demo_frame >= 5;
     } else if (demo_mode == 35) {
         /* Shop purchase: select ELIXIR (three downs) and buy it. */
         demo_frame++;

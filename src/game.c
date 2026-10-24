@@ -72,6 +72,11 @@ bool Game_TransitionToArea(Game *game, int area_id, int spawn_id) {
     Assets_LoadAreaBg(&game->assets, game->level.area_id);
     Player_Init(&game->player, &game->level);
     game->intro_timer = 110;
+    if (getenv("DC_BOSS_CLEAR")) {
+        game->objects.boss_alive = false;
+        game->objects.boss_defeated = true;
+        game->objects.boss_present = false;
+    }
     game->player.max_hp = saved.max_hp > 0 ? saved.max_hp : 6;
     game->player.hp = saved.hp > 0 ? saved.hp : game->player.max_hp;
     game->player.crests_mask = saved.crests_mask;

@@ -2805,6 +2805,24 @@ loop is playable while the game is not yet.
 - The final-boss stage backdrop (the Dark Demon's face) is captured; the bad
   ending cutscene is the mode-7 area 192.
 
+### Step 53 — M1 starts: area graph, navigation report, first observed doors (done)
+
+- New tools: `build_area_graph.py` (area nodes + door/gate/stage-entry edges +
+  save-observed doors), `check_navigation.py` (reachability tiers, missing-door
+  and out-of-world reports), `merge_observed_doors.py` (writes observed doors
+  into room JSONs).
+- Current graph: 113 areas, 53 extracted doors, 94 gates, 66 stage entries;
+  **only 2 areas reachable from area 0 through real doors** (11 with gates) —
+  the measured size of the M1 gap.
+- Level I's saves gave the first ground-truth doors: `2 -> 4` at (1706,300) and
+  `4 -> 6` at (2025,140). The runtime walks `2 -> 4` (regression asserts it) via
+  `DC_BOSS_CLEAR=1` + campaign mode; `4 -> 6` is reported as out-of-world.
+- **Room extraction gap confirmed:** area 4 is 1024 px wide in our data but the
+  save puts the player at x=2025; area 8's city is 256 px against x=604. Rooms
+  must be re-extracted with their full multi-screen width before M1 can finish.
+- `next_area = -1` in area 4 marks the return-to-map door; the runtime should
+  treat -1 as "back to the overworld".
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

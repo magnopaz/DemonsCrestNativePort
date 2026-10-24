@@ -260,6 +260,24 @@ def main() -> int:
         check(at2_modes and at2_modes[-1] == 0,
               f"title: Start did not cancel the attract demo ({sorted(set(at2_modes))})")
 
+        # ---- Observed doors from the level saves (M1 navigation) ----
+        # Area 4's observed door (x=2025) lies outside the extracted world
+        # (1024 wide) -- see the "needs wider extraction" report in
+        # check_navigation.py; it is skipped until the room is re-extracted.
+        for src_area, sx, sy, dst_area in ((2, 1706, 300, 4),):
+            hop = run_demo(base, out, 36, 12, {
+                "DC_AREA": str(src_area),
+                "DC_START_X": str(sx),
+                "DC_START_Y": str(sy),
+                "DC_CAMPAIGN": "1",
+                "DC_BOSS_CLEAR": "1",
+            })
+            hop_rows = csv_rows(hop["player"])
+            hop_areas = {int(r["area"]) for r in hop_rows}
+            check(dst_area in hop_areas,
+                  f"door: area {src_area} door did not reach area {dst_area} "
+                  f"(saw {sorted(hop_areas)})")
+
         # ---- City NPC conversation (A near the NPC opens the dialogue) ----
         npc = run_demo(base, out, 0, 100,
                        {"DC_AREA": "8", "DC_DEMO": "34"})

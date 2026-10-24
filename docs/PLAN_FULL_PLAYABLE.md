@@ -144,6 +144,45 @@ Severity: **S1** = blocks a normal playthrough · **S2** = blocks fidelity ·
   `$28/$29/$2A` (currently multi-part clusters), M5 stage-state variants
   (burning/burned).
 
+## 3c. M1 progress — area graph and the first real doors
+
+**Built:** `tools/dc_extract/build_area_graph.py` (nodes = areas with world size,
+spawns and boss gate; edges = extracted doors, post-boss gates, overworld stage
+entries, plus **doors observed in the level saves**) and
+`tools/check_navigation.py` (reachability tiers + data-quality reports).
+`merge_observed_doors.py` writes observed doors into the room JSONs so the port
+can walk them.
+
+**Numbers today:**
+
+| Metric | Value |
+|---|---|
+| Areas | 113 |
+| Extracted doors | 53 (36 areas have at least one) |
+| Post-boss gates | 94 (94 areas have one) |
+| Stage entries | 66 |
+| Reachable from area 0 **with real doors only** | **2 areas (1%)** |
+| … plus gates | 11 (9%) |
+| … plus stage entries | 11 (9%) |
+| No outgoing edge at all | 6 areas (14, 26, 3, 30, 36, 9) |
+| Level-I doors derived from the saves | 2 (`2 -> 4`, `4 -> 6`) |
+
+**Runtime:** the port already handles area doors and boss gates
+(`Game_CheckTransitions`), so an observed door is walkable as soon as it is in the
+room JSON. Regression now starts on the area-2 door and asserts the arrival in
+area 4, and `DC_BOSS_CLEAR=1` marks a room cleared for revisits/tests.
+
+**Blocker found:** the extracted rooms are sometimes **narrower than the real
+level** — area 4 is 1024 px wide but the save shows the player at x=2025, and the
+city (area 8) is 256 px against a save at x=604. Observed doors beyond the
+extracted width are reported by `check_navigation.py` and skipped by the tests
+until the rooms are re-extracted with their full multi-screen width. This is now
+the top M1 task, ahead of collecting more save pairs.
+
+**Also found:** area 4 has a transition with `next_area = -1` at its left edge,
+which is almost certainly the "leave the level / back to the map" door; the
+runtime should treat `-1` as a return to the overworld.
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a
