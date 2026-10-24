@@ -2951,6 +2951,24 @@ loop is playable while the game is not yet.
   `mountains-ice-spire` = 62/64, `mountains-ice-palace-corridor` = 66/68; the
   name lookup prefers the `entrance` save.
 
+### Step 62 — Endgame (VII/VIII) mapped; trust-notes merge fixed (done)
+
+- Final stage VII: **front hall = 74, western bell tower = 76, eastern bell
+  tower = 80, hall of agonized souls = 82, Phalanx's chamber = 84, demon realm =
+  86**. Special stage VIII: **tunnel = 88, the dark demon = 90**.
+- Notes table now 37 rows, including the full fortress chain, the two-phase
+  Phalanx chamber (talk/boss/cutscene for both phases), the demon realm boss and
+  the true final boss room. Spiny balcony (no save) is inferred as area 39 from
+  the map grid match and flagged.
+- Boss parts recorded for the sprite/AI work: `$09 $11 $13` mid bosses, `$86 $88
+  $8B $8C $8D` Phalanx phases, `$58 $5C $5D $5E $5F` demon realm, `$89 $8A $BD`
+  and `$BC` true final boss forms.
+- Fixed a real bug in the merge: `--trust-notes` dropped real side doors; it is
+  now position-aware, and `restore_transitions.py` restored the 18 transitions
+  that had been dropped. Graph: **101/113 (89%) via real doors**, 113/113 with
+  gates, 12 gate-dependent areas, 4 chunks without outgoing edges.
+- Regression PASS.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

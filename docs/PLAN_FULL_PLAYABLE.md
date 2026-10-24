@@ -370,6 +370,38 @@ are reported (`map 'murkland-colosseum' spans areas [0, 34]; using 0`).
 The same happens for `mountains-ice-spire` (62 + 64) and
 `mountains-ice-palace-corridor` (66 + 68), which is the expected chunk pattern.
 
+## 3k. Endgame mapped (VII and VIII); merge policy fixed
+
+The final-stage saves resolved the whole endgame:
+
+| area | level | map | roles |
+|---|---|---|---|
+| 74 | VII | phalanxs-fortress-front-hall | entrance, e1, before/after_door, boss |
+| 76 | VII | phalanxs-fortress-western-bell-tower | entrance, before_door |
+| 80 | VII | phalanxs-fortress-eastern-bell-tower | entrance, before_door |
+| 82 | VII | phalanxs-fortress-hall-of-agonized-souls | entrance, e1, boss |
+| 84 | VII | phalanxs-fortress-phalanxs-chamber | boss talk / boss / cutscene / boss2 / boss2_talk / boss2_cutscene |
+| 86 | VII | phalanxs-fortress-demon-realm | entrance, boss_talk, boss |
+| 88 | VIII | demons-hideout-tunnel | entrance, before_door |
+| 90 | VIII | demons-hideout-the-dark-demon | entrance, final_boss_second |
+
+Spiny balcony has no save yet; its area is inferred as **39** from the map grid
+match and is marked as such in the notes. Boss part species seen: `$09/$11/$13`
+(mid bosses), `$86/$88/$8B/$8C/$8D` (Phalanx phases), `$58/$5C/$5D/$5E/$5F`
+(demon realm), `$89/$8A/$BD` and `$BC` (true final boss forms).
+
+**Merge policy bug found and fixed.** `--trust-notes` used to drop *every*
+extracted transition whose target differed from a note edge, which removed real
+side doors (reachability fell from 111 to 98 with gates). Now a transition is
+only replaced when it sits at the **same door position** as the note edge, and
+`tools/dc_extract/restore_transitions.py` re-adds any extracted transition that
+had been dropped (18 restored across areas 5, 8, 13, 20, 22, 23, 25, 27, 29, 38,
+39, 48, 59).
+
+Result: **101/113 (89%) reachable through real doors**, 113/113 with gates,
+**12 gate-dependent areas** left (1, 35, 43, 46, 52, 57, 63, 77, 83, 94, 99,
+109) and 4 chunks without outgoing edges (14, 3, 30, 9).
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

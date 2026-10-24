@@ -28,4 +28,12 @@ the trigger position from the `<from>_before_door` save when one exists.
 | ruined-city-dark-avenue | right door | ruined-city-reservoir | |
 | ruined-city-reservoir | right door | ruined-city-boneyard | |
 | ruined-city-boneyard | right door (boss) | map | boss defeated returns to the map |
-| area:0 | after boss | area:34 | second colosseum room, same map; the on_the_righ save lands there |
+| area:0 | after boss | area:34 | second colosseum room, same map; the on_the_righ save lands there || phalanxs-fortress-front-hall | right (after mid boss) | phalanxs-fortress-western-bell-tower | headbutt the statue to wake the mid boss |
+| phalanxs-fortress-western-bell-tower | right | area:39 | spiny balcony; no save yet, area inferred from the map match |
+| area:39 | right | phalanxs-fortress-eastern-bell-tower | spiny balcony -> eastern bell tower |
+| phalanxs-fortress-eastern-bell-tower | right | phalanxs-fortress-hall-of-agonized-souls |  |
+| phalanxs-fortress-hall-of-agonized-souls | right (after mid boss) | phalanxs-fortress-phalanxs-chamber |  |
+| phalanxs-fortress-phalanxs-chamber | after boss 2 cutscene | phalanxs-fortress-demon-realm | Phalanx phase 1 and 2, good ending path |
+| phalanxs-fortress-demon-realm | final boss defeated | map | good ending boss |
+| demons-hideout-tunnel | up | demons-hideout-the-dark | press up at the door |
+| demons-hideout-the-dark | true final boss defeated | map | special stage VIII; two forms |

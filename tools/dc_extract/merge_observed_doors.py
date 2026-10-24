@@ -65,18 +65,20 @@ def main() -> int:
         data = json.loads(path.read_text())
         transitions = data.setdefault("transitions", [])
         if args.trust_notes:
-            note_targets = {int(e["to"]) for e in graph["edges"]
-                            if e.get("source") == "notes"
-                            and int(e.get("from", -1)) == src
-                            and e.get("to") is not None}
+            # Only replace an extracted door that sits at the SAME spot as this
+            # note edge; other extracted doors are real side exits and stay.
             kept = []
             for tr in transitions:
                 target = int(tr.get("next_area", -1))
-                if target in note_targets or target < 0:
+                same_spot = (abs(float(tr.get("x", -999)) -
+                                 float(edge.get("x", 0))) <= 24.0 and
+                             abs(float(tr.get("y", -999)) -
+                                 float(edge.get("y", 0))) <= 44.0)
+                if target in (dst, -1) or not same_spot:
                     kept.append(tr)
                 else:
-                    print(f"{src}: dropping extracted {src}->{target} "
-                          f"(notes say {sorted(note_targets)})")
+                    print(f"{src}: dropping extracted {src}->{target} at the "
+                          f"same door as notes {src}->{dst}")
             transitions[:] = kept
         if any(int(t.get("next_area", -1)) == dst for t in transitions):
             print(f"{src}->{dst}: already present")
