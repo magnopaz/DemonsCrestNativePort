@@ -3147,6 +3147,19 @@ loop is playable while the game is not yet.
 - Overworld state captured in `assets/generated/map_states.json`
   (`normal_ending_available`: 17 markers + cursor) for the stage-unlock model.
 
+### Step 75 — A1 reverted: captured animation is the default again (done)
+
+- The user reported the Firebrand animation was much worse after the form-sheet
+  switch. Verified: the band split gave irregular clips (normal walk 3 frames,
+  attack 2, ground clips including captions and half sprites), so the animation
+  jittered.
+- `Assets_PlayerAnimForForm` now returns the captured `player_anim` unless
+  `DC_PLAYER_FORMS` is set; the ripped sheets stay in the tree for a later, clean
+  pass (the sprites are correct 1:1 — only the cutting is wrong).
+- Added a sliver filter and stale-file cleanup to the baker so future passes
+  start from clean output.
+- Regression PASS.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

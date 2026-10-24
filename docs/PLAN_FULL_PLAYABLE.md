@@ -46,7 +46,16 @@ answers two questions: **what can be done with the material at hand**, and
 
 Ordered by player-visible value per unit of work.
 
-### A1. Firebrand form sprites — **DONE (first pass)**
+### A1. Firebrand form sprites — **reverted (opt-in only)**
+
+The first pass made the animation *worse*, so the captured `player_anim` is the
+default again and the ripped sheets are behind `DC_PLAYER_FORMS=1`. Why it failed:
+the sheets' rows are irregular, the caption detection was unreliable, and the
+band split merged or sliced frames (normal walk 3 steps, attack 2, ground clips
+captured captions and half-sprites). A clean pass needs per-sheet frame boxes
+measured by hand (or a proper caption-based clip detector), then per-frame anchors
+verified against a floor line. The sprites themselves are correct and 1:1 — the
+problem is only the cutting.
 All six sheets are baked and wired: `bake_player_forms.py` cuts the sprites out
 of the opaque sheets (dominant-colour key, transparent background) into
 `fb_<form>_<clip>_<i>.png`, and `player_forms.json` holds one animation per form

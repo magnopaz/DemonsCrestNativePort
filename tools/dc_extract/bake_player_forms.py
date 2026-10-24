@@ -101,6 +101,10 @@ def split_frames(im, box):
                      for x in range(fx0, fx1 + 1))]
         if not ys:
             continue
+        width = fx1 + 1 - fx0
+        height = max(ys) + 1 - min(ys)
+        if width < 12 or height < 24:
+            continue  # a slice of a sprite, not a frame
         crop = im.crop((fx0, min(ys), fx1 + 1, max(ys) + 1)).convert("RGBA")
         cp = crop.load()
         for cy in range(crop.height):
@@ -113,6 +117,8 @@ def split_frames(im, box):
 
 
 def main() -> int:
+    for stale in GEN.glob("fb_*.png"):
+        stale.unlink()
     forms = []
     for form, name, sheet, bands in SHEETS:
         im = Image.open(SPRITES / f"SNES - Demon's Crest - {sheet}").convert(

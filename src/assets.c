@@ -175,7 +175,13 @@ static void LoadEndings(Assets *assets, const char *dir) {
 }
 
 const PlayerAnim *Assets_PlayerAnimForForm(const Assets *assets, int form) {
-    if (form >= 0 && form < 6 && assets->player_forms[form].ready)
+    /* The ripped form sheets are opt-in until their frame split is polished:
+     * the captured player_anim is smoother, so it stays the default. */
+    static int use_forms = -1;
+    if (use_forms < 0)
+        use_forms = getenv("DC_PLAYER_FORMS") != NULL ? 1 : 0;
+    if (use_forms && form >= 0 && form < 6 &&
+        assets->player_forms[form].ready)
         return &assets->player_forms[form];
     return &assets->player_anim;
 }
