@@ -279,6 +279,33 @@ now carries each snapshot and the union of positions, so the port's overworld ca
 draw and land on the real markers instead of the procedural node list (M1's
 landing task and M8's unlock states both consume it).
 
+## 3g. Levels V/VI named; entries instead of guesses
+
+Poseidonia and Mountains saves resolved seven more rooms:
+
+| area | level | map | roles |
+|---|---|---|---|
+| 48 | V | poseidonia-aquatica | entrance, e1, e2, before_door |
+| 54 | V | poseidonia-temple-and-hidden-chamber | entrance, passage, persecution, persecution_trigged, boss, dead |
+| 58 | VI | mountains-valley-of-the-grewon | entrance, e1, before_door |
+| 62 | VI | mountains-ice-spire | entrance, e1, before_door_1, before_door_2 |
+| 64 | VI | (ice spire side room, no map) | inside_door_1 |
+| 66 | VI | mountains-ice-palace-corridor | entrance, e1, before_door |
+| 68 | VI | (boss chamber, no map) | inside_door, inside_door_before_boss, inside_door_boss |
+
+Edges added from the prose, including **`area:N` destinations** for sub-rooms
+without a community map (the ice-spire life-up room `area:64`, the corridor boss
+chamber `area:68`). The notes table is now 14 edges.
+
+Entry inference was refined: a named room is an overworld entry **only if no
+other named room of its level leads into it**, so mid-level rooms (temple,
+corridor, boss chambers) are not treated as map entries. Level entries resolved
+so far: **20 (III), 36 (IV), 48 (V), 58 (VI)**.
+
+Graph: 14 note edges, 59 doors total, **95/113 (84%) reachable through real
+doors**, 113/113 with gates, 18 gate-dependent areas, 4 chunks with no outgoing
+edge (14, 3, 30, 9).
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

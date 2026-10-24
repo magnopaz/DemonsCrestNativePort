@@ -112,8 +112,16 @@ def main() -> int:
     # targets inside their own level).
     if args.names and args.names.is_file():
         names = json.loads(args.names.read_text())
+        # A named room is a level entry only when no other named room of the
+        # same level leads into it (mid-level rooms are reached through doors).
+        targets = {int(e["to"]) for e in edges
+                   if e.get("source") == "notes" and isinstance(e.get("to"), int)
+                   and int(e["to"]) > 0}
         for area_str, entry in names.items():
-            edges.append({"from": -1, "to": int(area_str), "kind": "stage_entry",
+            area = int(area_str)
+            if area in targets:
+                continue
+            edges.append({"from": -1, "to": area, "kind": "stage_entry",
                           "source": "name_entry", "map": entry.get("map"),
                           "level": entry.get("level")})
 

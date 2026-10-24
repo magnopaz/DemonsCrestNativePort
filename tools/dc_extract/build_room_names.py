@@ -23,9 +23,11 @@ import json
 import re
 from pathlib import Path
 
+# The map names never contain underscores, so the first underscore after the
+# level prefix starts the role (before_door, e1, inside_door_before_boss, ...).
 PATTERN = re.compile(
     r"^(?:save_)?lvl_(?P<level>[IVX]+)_(?P<name>[a-z0-9-]+?)"
-    r"(?:_(?P<role>before_door|boss_dead|boss|e\d+))?$")
+    r"(?:_(?P<role>[a-z0-9_]+))?$")
 
 
 def main() -> int:
@@ -87,6 +89,14 @@ def main() -> int:
                 print(f"notes: unknown source map '{src_name}'")
                 continue
             dst = by_map.get(dst_name) if dst_name != "boss" else src
+            direct_area = None
+            if dst_name.startswith("area:"):
+                try:
+                    direct_area = int(dst_name.split(":", 1)[1])
+                except ValueError:
+                    print(f"notes: bad area spec '{dst_name}'")
+                    continue
+                dst = {"area": direct_area}
             if dst is None and dst_name != "map":
                 print(f"notes: unknown destination map '{dst_name}'")
                 continue

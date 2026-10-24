@@ -11,6 +11,13 @@ plus the map it corresponds to.
 | 26 | III | dark-forest-scula-cave | before_door, boss, boss_dead, entrance | (8, 2) | (6, 3) | our grid is smaller/larger — see below |
 | 36 | IV | towers-of-doom-gryphon-spire | before_door, entrance | (2, 2) | (3, 5) | our grid is smaller/larger — see below |
 | 38 | IV | towers-of-doom-misty-skies | before_door, boss, boss_dead, entrance | (1, 7) | (9, 1) | our grid is smaller/larger — see below |
+| 48 | V | poseidonia-aquatica | before_door, e1, e2, entrance | (1, 2) | (7, 3) | our grid is smaller/larger — see below |
+| 54 | V | poseidonia-temple-and-hidden-chamber | boss, dead, entrance, passage, persecution, persecution_trigged | (1, 2) | (4, 5) | our grid is smaller/larger — see below |
+| 58 | VI | mountains-valley-of-the-grewon | before_door, e1, entrance | (1, 2) | (8, 4) | our grid is smaller/larger — see below |
+| 62 | VI | mountains-ice-spire | before_door_1, before_door_2, e1, entrance | (1, 2) | (4, 5) | our grid is smaller/larger — see below |
+| 64 | VI | mountains-ice-spire | inside_door_1 | (8, 3) | (4, 5) | our grid is smaller/larger — see below |
+| 66 | VI | mountains-ice-palace-corridor | before_door, e1, entrance | (8, 2) | (9, 2) | our grid is smaller/larger — see below |
+| 68 | VI | mountains-ice-palace-corridor | inside_door, inside_door_before_boss, inside_door_boss | (8, 3) | (9, 2) | our grid is smaller/larger — see below |
 
 ## What the mismatch means
 

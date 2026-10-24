@@ -2889,6 +2889,22 @@ loop is playable while the game is not yet.
 - `map_markers.json` stores the snapshots; the overworld can use them for landing
   and unlock state.
 
+### Step 58 — Levels V/VI: seven more named rooms, sub-room edges (done)
+
+- Poseidonia (`lvl_V_*`): **aquatica = 48**, **temple-and-hidden-chamber = 54**
+  (roles include passage, persecution, persecution_trigged, boss, dead).
+- Mountains (`lvl_VI_*`): **valley-of-the-grewon = 58**, **ice-spire = 62**,
+  ice-spire side room = **64** (no community map), **ice-palace-corridor = 66**,
+  corridor boss chamber = **68**.
+- Notes parser supports `area:N` destinations so sub-rooms without a map still
+  get edges: 62 -> 64 (life-up room), 62 -> 66, 66 -> 68, plus the level chains
+  for 48 -> 54 and 58 -> 62. Notes table now 14 edges.
+- Entry inference refined (a named room is an overworld entry only when no other
+  named room of its level leads into it): entries are now 20 (III), 36 (IV),
+  48 (V), 58 (VI); mid-level rooms are reached by doors.
+- Graph: 95/113 (84%) reachable via real doors, 113/113 with gates, 18 areas
+  still gate-dependent, 4 chunks with no outgoing edge.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

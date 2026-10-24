@@ -14,3 +14,11 @@ the trigger position from the `<from>_before_door` save when one exists.
 | towers-of-doom-gryphon-spire | right door | towers-of-doom-misty-skies | |
 | towers-of-doom-misty-skies | right door | boss | boss room (the fabled recomp bug; kill fast) |
 | towers-of-doom-misty-skies | boss defeated | map | boss leaves the Claw piece |
+| poseidonia-aquatica | right door | poseidonia-temple-and-hidden-chamber | |
+| poseidonia-temple-and-hidden-chamber | boss defeated | map | boss leaves the Water Crest |
+| mountains-valley-of-the-grewon | right door | mountains-ice-spire | |
+| mountains-ice-spire | up door 1 | area:64 | side room with a life up; only way back |
+| mountains-ice-spire | up door 2 | mountains-ice-palace-corridor | |
+| mountains-ice-palace-corridor | right | mountains-ice-palace-corridor | the map's extreme right; continues to the inside door |
+| mountains-ice-palace-corridor | inside door | area:68 | boss chamber antechamber |
+| area:68 | boss door | boss | palette-swapped bug boss |
