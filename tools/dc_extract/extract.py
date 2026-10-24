@@ -1120,6 +1120,9 @@ def main() -> int:
     ap.add_argument("--area", type=int, default=1,
                     help="ROM area index at $81:A291 (default 1 for graveyard stage_600)")
     ap.add_argument("--screens", help="screen slots, e.g. 9,10 (default: bottom row first two)")
+    ap.add_argument("--full-grid", action="store_true",
+                    help="with --full-room: compose every used row of the area's "
+                         "screen grid, not just the reference row")
     ap.add_argument("--full-room", action="store_true",
                     help="build every screen in the captured screen row from the "
                          "ROM block tables (2048 px wide for Area 1)")
@@ -1191,7 +1194,51 @@ def main() -> int:
 
     room_screens = None
     row_index = 0
-    if args.full_room:
+    grid_rows_used = None
+    if args.full_room and args.full_grid:
+        grid = info["grid"]
+        gw, gh = info["width"], info["height"]
+        used = [y for y in range(gh)
+                if any(1 <= grid[y][x] <= len(info["screens"])
+                       for x in range(gw))]
+        if not used:
+            raise SystemExit(f"area {args.area} has no populated grid rows")
+        grid_rows_used = used
+        map_w = gw * 32
+        map_h = len(used) * 32
+        screen_maps = {}
+        row_tiles = []
+        for y in used:
+            tiles_row = []
+            for x in range(gw):
+                slot = grid[y][x]
+                screen = (info["screens"][slot - 1]
+                          if 1 <= slot <= len(info["screens"]) else None)
+                if screen is None:
+                    tiles_row.append([[0] * 32 for _ in range(32)])
+                    continue
+                if screen not in screen_maps:
+                    screen_maps[screen] = rom.screen_tilemap(set_id, screen)
+                tiles_row.append(screen_maps[screen])
+            row_tiles.append(tiles_row)
+        full_tiles = []
+        for tiles_row in row_tiles:
+            for ty in range(32):
+                for tiles in tiles_row:
+                    full_tiles.extend(tiles[ty])
+        room_screens = [info["screens"][grid[y][x] - 1]
+                        for y in used for x in range(gw)
+                        if 1 <= grid[y][x] <= len(info["screens"])]
+        bg1 = {
+            "name": "bg1",
+            "map_width": map_w,
+            "map_height": map_h,
+            "scroll_x": regs["hscroll"][0],
+            "scroll_y": regs["vscroll"][0],
+            "tilemap": full_tiles,
+        }
+        row_index = 0
+    elif args.full_room:
         # Use every screen in the same grid row as the captured reference
         # slots. Area 1's other grid row is empty padding (all-zero BG1 and
         # collision), so the populated row is the actual room.
@@ -1329,7 +1376,27 @@ def main() -> int:
 
     # --- collision ------------------------------------------------------
     attrs = []
-    if args.full_room:
+    if args.full_room and args.full_grid:
+        grid = info["grid"]
+        gw = info["width"]
+        col_w = gw * 16
+        col_h = len(grid_rows_used) * 16
+        block_cache = {}
+        for y in grid_rows_used:
+            for cby in range(16):
+                for x in range(gw):
+                    slot = grid[y][x]
+                    screen = (info["screens"][slot - 1]
+                              if 1 <= slot <= len(info["screens"]) else None)
+                    if screen is None:
+                        attrs.extend([0] * 16)
+                        continue
+                    if screen not in block_cache:
+                        block_cache[screen] = rom.screen_blocks(set_id, screen)
+                    g = block_cache[screen]
+                    for cbx in range(16):
+                        attrs.append(rom.block_attr(set_id, g[cby][cbx]))
+    elif args.full_room:
         col_w = len(room_screens) * 16
         col_h = 16
         for cby in range(col_h):
@@ -1359,7 +1426,8 @@ def main() -> int:
     if object_list_index is None and args.full_room:
         object_list_index = args.area
     if object_list_index is not None:
-        row_offset = (row_index * 256) if args.full_room else 0
+        row_offset = (0 if args.full_grid
+                      else (row_index * 256) if args.full_room else 0)
         type_by_species = {0x57: "urn", 0x67: "enemy", 0x09: "exit"}
         for rec in rom.object_list(object_list_index):
             x = rec["x"]

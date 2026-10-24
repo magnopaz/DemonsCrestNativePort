@@ -2838,6 +2838,18 @@ loop is playable while the game is not yet.
   to build the full name<->area table, then re-extract mismatched rooms with the
   map-derived screen grids and fill door bboxes from the maps.
 
+### Step 55 — Full-grid extraction and the coordinate-space question (done)
+
+- `extract.py` gained `--full-grid` (guarded; with `--full-room` it composes all
+  used rows of the area's screen grid). Area 0 = 3x1 (768x256), area 4 = 4x2
+  (1024x512) — so **our room sizes are correct** and the earlier "narrow room"
+  theory is wrong.
+- The level-I save has the player at x=2025 in area 4 (grid width 1024), which
+  means the player coordinate is probably **level-wide** (shared across connected
+  rooms, with a per-room origin subtracted on entry) or `$008D` is not the grid
+  id. Next experiment: read the room-origin variable together with `$008D` and
+  `$1030` in the level-I saves.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

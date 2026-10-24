@@ -209,6 +209,30 @@ the top M1 task, ahead of collecting more save pairs.
 which is almost certainly the "leave the level / back to the map" door; the
 runtime should treat `-1` as a return to the overworld.
 
+## 3d. Room sizes: what the ROM grid actually says
+
+`extract.py` gained a guarded **`--full-grid`** mode: with `--full-room` it now
+composes *every used row* of the area's screen grid instead of only the row that
+contains the reference slot.
+
+Result on the two suspect areas:
+
+| area | grid (ROM) | world | note |
+|---|---|---|---|
+| 0 (colosseum) | 3 x 1 | 768 x 256 | the community map's 4th screen belongs to the adjacent room |
+| 4 | 4 x 2 | 1024 x 512 | grid is genuinely 1024 wide |
+
+So the "rooms are extracted too narrow" theory is **wrong**: area 4's ROM grid
+really is 1024 px, yet the level-I save has the player at **x = 2025**. The
+likely explanation is that the player's coordinate (`$1030`) lives in a
+**level-wide space** shared across connected rooms (with a per-room origin
+subtracted on entry), or the `$008D` value in that save is not the grid id.
+Deciding this is the next M1 experiment: read the room-origin variable alongside
+`$008D`/`$1030` in the level-I saves and compare.
+
+Whatever the answer, the graph's door edges stand; only the mapping from door
+positions to world coordinates depends on it.
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a
