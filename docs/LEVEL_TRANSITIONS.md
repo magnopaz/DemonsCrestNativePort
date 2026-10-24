@@ -28,4 +28,4 @@ the trigger position from the `<from>_before_door` save when one exists.
 | ruined-city-dark-avenue | right door | ruined-city-reservoir | |
 | ruined-city-reservoir | right door | ruined-city-boneyard | |
 | ruined-city-boneyard | right door (boss) | map | boss defeated returns to the map |
-| murkland-colosseum | right | area:34 | save lvl_0_murkland-colosseum_on_the_righ lands in area 34 |
+| area:0 | after boss | area:34 | second colosseum room, same map; the on_the_righ save lands there |

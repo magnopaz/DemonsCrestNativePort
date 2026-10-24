@@ -264,7 +264,8 @@ def main() -> int:
         # Area 4's observed door (x=2025) lies outside the extracted world
         # (1024 wide) -- see the "needs wider extraction" report in
         # check_navigation.py; it is skipped until the room is re-extracted.
-        for src_area, sx, sy, dst_area in ((2, 1706, 300, 4),):
+        for src_area, sx, sy, dst_area in ((2, 1706, 300, 4),
+                                           (0, 740, 190, 34)):
             hop = run_demo(base, out, 36, 12, {
                 "DC_AREA": str(src_area),
                 "DC_START_X": str(sx),

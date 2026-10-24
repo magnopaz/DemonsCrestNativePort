@@ -338,9 +338,16 @@ with gates, **14 gate-dependent areas** left (1, 35, 43, 46, 52, 57, 63, 76, 77,
 
 ## 3i. Level 0 named; room names in the UI; note edges walkable
 
-- Level 0 resolved: **murkland-colosseum = area 0**, and walking right lands in
-  **area 34** (not the extracted target 17). The notes now carry that edge
-  (`murkland-colosseum -> area:34`), and the notes table is **21 edges**.
+- Level 0 resolved: **murkland-colosseum = area 0**, and the level advances to
+  **area 34** (the second colosseum room, same map) after the boss — not to the
+  extracted target 17. Both rooms are boss fights; the notes carry the edge
+  (`area:0 -> area:34`), and the notes table is **22 edges**.
+- That advancement is a **post-boss gate**, not a walk-through door. Fixing it
+  surfaced two real bugs: area 0's `gate_next_area` pointed at 1 (wrong target),
+  and the gate's x-threshold (`world_w - 8`) was unreachable because walls keep
+  the player ~32 px inside the edge. Both are fixed; regression now proves
+  area 0 -> 34, and `DC_BOSS_CLEAR` applies after the level load (the boss
+  object spawns after `Game_Reset`, so the old hook was overwritten).
 - `merge_observed_doors.py` now also merges note edges into the room JSONs and,
   with `--trust-notes`, **drops extracted transitions that contradict the
   notes** (2->3, 4->5, 8->7, 10->12, 20->21, 22->23, 38->39, 48->4 were dropped;
@@ -352,6 +359,16 @@ with gates, **14 gate-dependent areas** left (1, 35, 43, 46, 52, 57, 63, 76, 77,
 - Room-mapping validation attempt: comparing live BG1 tilemaps against our room
   JSONs was inconclusive (many rooms draw on BG2, and probes can catch a
   transition), so the mapping rests on the user's observations.
+
+## 3j. Shared map names and the level-0 gate
+
+`murkland-colosseum` is **two areas** (0 = entrance/boss, 34 = second room/boss).
+The notes lookup now keeps a name -> areas list and prefers the area saved with
+the `entrance` role, so a bare name resolves to the level start; ambiguous names
+are reported (`map 'murkland-colosseum' spans areas [0, 34]; using 0`).
+
+The same happens for `mountains-ice-spire` (62 + 64) and
+`mountains-ice-palace-corridor` (66 + 68), which is the expected chunk pattern.
 
 ## 4. Milestones
 

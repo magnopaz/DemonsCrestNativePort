@@ -26,7 +26,7 @@ from pathlib import Path
 # The map names never contain underscores, so the first underscore after the
 # level prefix starts the role (before_door, e1, inside_door_before_boss, ...).
 PATTERN = re.compile(
-    r"^(?:save_)?lvl_(?P<level>[IVX]+)_(?P<name>[a-z0-9-]+?)"
+    r"^(?:save_)?lvl_(?P<level>[0IVX]+)_(?P<name>[a-z0-9-]+?)"
     r"(?:_(?P<role>[a-z0-9_]+))?$")
 
 
@@ -76,7 +76,25 @@ def main() -> int:
     args.out.write_text(json.dumps(table, indent=1))
 
     if args.notes and args.notes.is_file() and args.edges_out:
-        by_map = {e["map"]: e for e in table.values()}
+        # Several areas can share a map name (chunks of the same room): prefer
+        # the one saved as an entrance, else the lowest area id.
+        by_map: dict[str, dict] = {}
+        for entry in sorted(table.values(), key=lambda e: e["area"]):
+            current = by_map.get(entry["map"])
+            if current is None:
+                by_map[entry["map"]] = entry
+                continue
+            if ("entrance" in entry["roles"]
+                    and "entrance" not in current["roles"]):
+                by_map[entry["map"]] = entry
+        if len({e["map"] for e in table.values()}) != len(table):
+            shared = {}
+            for entry in table.values():
+                shared.setdefault(entry["map"], []).append(entry["area"])
+            for name, areas in shared.items():
+                if len(areas) > 1:
+                    print(f"notes: map '{name}' spans areas {sorted(areas)}; "
+                          f"using {by_map[name]['area']} for name lookups")
         edges = []
         for line in args.notes.read_text(encoding="utf-8").splitlines():
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -85,8 +103,14 @@ def main() -> int:
                 continue
             src_name, door, dst_name = cells[0], cells[1], cells[2]
             src = by_map.get(src_name)
+            if src is None and src_name.startswith("area:"):
+                try:
+                    src = {"area": int(src_name.split(":", 1)[1]), "saves": []}
+                except ValueError:
+                    src = None
             if src is None:
-                print(f"notes: unknown source map '{src_name}'")
+                if " " not in src_name:
+                    print(f"notes: unknown source map '{src_name}'")
                 continue
             dst = by_map.get(dst_name) if dst_name != "boss" else src
             direct_area = None

@@ -50,6 +50,12 @@ static void Game_Reset(Game *game) {
     Camera_Init(&game->camera, &game->level);
     game->objects.boss_alive = false;
     game->objects.boss_defeated = false;
+    if (getenv("DC_BOSS_CLEAR")) {
+        /* Cleared room: the boss is gone but the room still "has" one, which is
+         * what the post-boss gate checks. */
+        game->objects.boss_alive = false;
+        game->objects.boss_defeated = true;
+    }
     game->state_timer = 0;
 }
 
@@ -74,9 +80,10 @@ bool Game_TransitionToArea(Game *game, int area_id, int spawn_id) {
     Player_Init(&game->player, &game->level);
     game->intro_timer = 110;
     if (getenv("DC_BOSS_CLEAR")) {
+        /* Cleared room: the boss is gone but the room still "has" one, which is
+         * what the post-boss gate checks. */
         game->objects.boss_alive = false;
         game->objects.boss_defeated = true;
-        game->objects.boss_present = false;
     }
     game->player.max_hp = saved.max_hp > 0 ? saved.max_hp : 6;
     game->player.hp = saved.hp > 0 ? saved.hp : game->player.max_hp;
@@ -720,6 +727,14 @@ static bool PlayerInsideTransition(const Player *player,
 static void Game_CheckTransitions(Game *game) {
     if (!game->campaign_mode)
         return;
+    /* Test/revisit hook: pretend the room's boss is already dead. Applied here
+     * because the boss object is spawned during the level load, after the
+     * Game_Reset hooks run. */
+    if (getenv("DC_BOSS_CLEAR") && game->objects.boss_alive &&
+        game->objects.boss_present) {
+        game->objects.boss_alive = false;
+        game->objects.boss_defeated = true;
+    }
     Player *player = &game->player;
     if (!game->objects.boss_alive) {
         for (int i = 0; i < game->level.transition_count; i++) {
@@ -736,10 +751,18 @@ static void Game_CheckTransitions(Game *game) {
     /* Boss gate $81:97DA: advancing requires the area boss to be defeated.
      * Rooms without a boss never auto-advance: otherwise a small room whose
      * world width is narrower than the spawn point would gate out instantly. */
+    if (getenv("DC_DEBUG_OBJ"))
+        fprintf(stderr,
+                "gate: next=%d present=%d alive=%d defeated=%d x=%.0f w=%d\n",
+                game->level.gate_next_area, game->objects.boss_present,
+                game->objects.boss_alive, game->objects.boss_defeated,
+                player->x, game->level.world_w);
     if (game->level.gate_next_area >= 0 &&
         game->level.gate_next_area < 113 && game->objects.boss_present &&
         !game->objects.boss_alive) {
-        float gate_x = (float)game->level.world_w - 8.0f;
+        /* Walls keep the player a few pixels inside the world edge, so the
+         * gate has to start a little before it. */
+        float gate_x = (float)game->level.world_w - 40.0f;
         if (player->x >= gate_x) {
             Game_TransitionToArea(game, game->level.gate_next_area, 0);
             return;

@@ -2934,6 +2934,23 @@ loop is playable while the game is not yet.
   draw on BG2 / probes can catch transitions); noted in the plan.
 - Regression PASS.
 
+### Step 61 — Level 0 advancement is a gate; two runtime bugs fixed (done)
+
+- User clarification: area 0 and area 34 are **both colosseum rooms** (boss
+  fights); the level advances 0 -> 34 after the boss. Notes table now 22 edges
+  with `area:0 -> area:34`.
+- Bugs found and fixed while wiring it:
+  1. area 0's `gate_next_area` was **1** (wrong target) — now 34;
+  2. the post-boss gate required `player->x >= world_w - 8`, which walls make
+     unreachable (the player stops ~32 px inside) — threshold is now
+     `world_w - 40`;
+  3. `DC_BOSS_CLEAR` was applied in `Game_Reset`, before the level's boss object
+     spawns, so it was overwritten — it is now applied in the transition check.
+- Regression proves area 0 -> 34 (and area 2 -> 4) through real transition data.
+- Shared map names are disambiguated: `murkland-colosseum` = areas 0/34,
+  `mountains-ice-spire` = 62/64, `mountains-ice-palace-corridor` = 66/68; the
+  name lookup prefers the `entrance` save.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

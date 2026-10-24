@@ -37,10 +37,27 @@ def main() -> int:
             continue
         if edge.get("to") is None or int(edge["to"]) < 0:
             continue
+        src, dst = int(edge["from"]), int(edge["to"])
         if edge.get("x") is None or edge.get("y") is None:
+            if edge.get("source") == "notes":
+                path = args.rooms / f"room_area{src}.json"
+                if path.is_file():
+                    data = json.loads(path.read_text())
+                    moved = False
+                    for tr in data.get("transitions", []):
+                        if int(tr.get("next_area", -1)) != dst:
+                            tr["next_area"] = dst
+                            tr["source"] = "notes_repointed"
+                            moved = True
+                            break
+                    if moved:
+                        path.write_text(json.dumps(data))
+                        print(f"{src}->{dst}: re-pointed an extracted door "
+                              f"(no save position for this one)")
+                        added += 1
+                        continue
             print(f"skip {edge.get('from')}->{edge['to']}: no door position")
             continue
-        src, dst = int(edge["from"]), int(edge["to"])
         path = args.rooms / f"room_area{src}.json"
         if not path.is_file():
             print(f"skip {src}->{dst}: no {path.name}")
