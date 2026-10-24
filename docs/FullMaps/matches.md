@@ -5,8 +5,8 @@ full-stage maps, content-mask IoU). **Grid match** means the extracted world
 size has the same screen grid as the map, which is the reliable part; the
 *name* is only a candidate and needs a human eye.
 
-Please correct any wrong names (or add the right one) in the last column —
-fallback for rooms without a named save. Correct rows only if you want to.
+OPTIONAL: named saves now resolve rooms authoritatively. This table is a
+fallback for rooms without a named save; correcting rows is optional.
 
 | area | our screens | candidate map | map screens | grid match | score | correct? |
 |---|---|---|---|---|---|---|
