@@ -3014,6 +3014,18 @@ loop is playable while the game is not yet.
   `wise_man`/`black_lotus` no longer parse as name+role (`wise`+`man`).
 - Still needed for walkability: level-space → chunk-space mapping for level II.
 
+### Step 66 — Spiny balcony = area 78; merge never drops doors (done)
+
+- The spiny-balcony save corrected my inference: it is **area 78**, not 39.
+  Notes now read western bell tower -> spiny balcony (78) -> eastern bell tower.
+- Merge policy finalised: **never delete** extracted transitions; a note/clamped
+  door is inserted **first** so it wins when triggers overlap; a room with a
+  single extracted door still has its destination re-pointed.
+- This restored the branch lost when a 15 px-apart door was treated as an overlap
+  (areas 21/23/41/42 are real-door reachable again).
+- Graph: **102/113 (90%) via real doors**, 113/113 with gates, 11 gate-dependent
+  areas, 4 chunks without outgoing edges. Regression proves six doors; PASS.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

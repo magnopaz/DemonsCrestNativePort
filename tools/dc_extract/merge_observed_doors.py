@@ -78,7 +78,7 @@ def main() -> int:
                     if any(int(tr.get("next_area", -1)) == dst for tr in
                            transitions):
                         continue
-                    transitions.append({
+                    transitions.insert(0, {
                         "next_area": dst, "spawn_id": 0, "pad_mask": 255,
                         "x": cx, "y": cy, "half_w": 12, "half_h": 40,
                         "type": -3, "source": "notes_clamped",
@@ -97,25 +97,19 @@ def main() -> int:
         data = json.loads(path.read_text())
         transitions = data.setdefault("transitions", [])
         if args.trust_notes:
-            # Only replace an extracted door that sits at the SAME spot as this
-            # note edge; other extracted doors are real side exits and stay.
-            kept = []
+            # Note only: overlapping doors are resolved by order, not deletion.
             for tr in transitions:
-                target = int(tr.get("next_area", -1))
-                same_spot = (abs(float(tr.get("x", -999)) -
-                                 float(edge.get("x", 0))) <= 24.0 and
-                             abs(float(tr.get("y", -999)) -
-                                 float(edge.get("y", 0))) <= 44.0)
-                if target in (dst, -1) or not same_spot:
-                    kept.append(tr)
-                else:
-                    print(f"{src}: dropping extracted {src}->{target} at the "
-                          f"same door as notes {src}->{dst}")
-            transitions[:] = kept
+                if int(tr.get("next_area", -1)) != dst and \
+                        abs(float(tr.get("x", -999)) -
+                            float(edge.get("x", 0))) <= 24.0 and \
+                        abs(float(tr.get("y", -999)) -
+                            float(edge.get("y", 0))) <= 44.0:
+                    print(f"{src}: note door {src}->{dst} overlaps extracted "
+                          f"{src}->{tr.get('next_area')}; note goes first")
         if any(int(t.get("next_area", -1)) == dst for t in transitions):
             print(f"{src}->{dst}: already present")
             continue
-        transitions.append({
+        transitions.insert(0, {
             "next_area": dst,
             "spawn_id": int(edge.get("spawn_id", 0)),
             "pad_mask": 255,

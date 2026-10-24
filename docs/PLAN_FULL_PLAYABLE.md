@@ -385,8 +385,9 @@ The final-stage saves resolved the whole endgame:
 | 88 | VIII | demons-hideout-tunnel | entrance, before_door |
 | 90 | VIII | demons-hideout-the-dark-demon | entrance, final_boss_second |
 
-Spiny balcony has no save yet; its area is inferred as **39** from the map grid
-match and is marked as such in the notes. Boss part species seen: `$09/$11/$13`
+Spiny balcony turned out to be **area 78** (my map-grid inference of 39 was
+wrong — the save corrected it). The notes now carry
+`western bell tower -> spiny balcony -> eastern bell tower` with real areas. Boss part species seen: `$09/$11/$13`
 (mid bosses), `$86/$88/$8B/$8C/$8D` (Phalanx phases), `$58/$5C/$5D/$5E/$5F`
 (demon realm), `$89/$8A/$BD` and `$BC` (true final boss forms).
 
@@ -473,6 +474,23 @@ longer split into a bogus name + role.
 Still needed to make them walkable: a level-space → chunk-space mapping for level
 II's dark avenue (the avenue is a chunk composite; saves reach x≈990 while the
 extracted chunk is 256 px wide).
+
+## 3o. Merge policy: never drop, order instead
+
+Re-pointing a door a second time showed the risk: area 76 had a real extracted
+door to 39 only ~15 px from the note door to 78, and dropping the "overlap"
+deleted a whole branch (areas 21/23/41/42 became gate-only). Final policy:
+
+- **never delete** an extracted transition;
+- a note/clamped door is **inserted at the front** of the room's transition list,
+  so when two triggers overlap the note door wins the runtime check order;
+- a room with exactly one extracted door still has its destination re-pointed
+  (that case is unambiguous).
+
+Result: **102/113 (90%) reachable through real doors**, 113/113 with gates,
+**11 gate-dependent areas** (1, 35, 43, 46, 52, 57, 63, 77, 83, 99, 109) and 4
+chunks with no outgoing edge (14, 3, 30, 9). Regression proves six doors:
+`0→34`, `2→4`, `8→10`, `10→18`, `20→22`, `76→78`.
 
 ## 4. Milestones
 
