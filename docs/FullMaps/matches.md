@@ -6,7 +6,7 @@ size has the same screen grid as the map, which is the reliable part; the
 *name* is only a candidate and needs a human eye.
 
 Please correct any wrong names (or add the right one) in the last column —
-that table then drives the map-based room-size checks and door positions.
+fallback for rooms without a named save. Correct rows only if you want to.
 
 | area | our screens | candidate map | map screens | grid match | score | correct? |
 |---|---|---|---|---|---|---|
