@@ -2905,6 +2905,21 @@ loop is playable while the game is not yet.
 - Graph: 95/113 (84%) reachable via real doors, 113/113 with gates, 18 areas
   still gate-dependent, 4 chunks with no outgoing edge.
 
+### Step 59 — Levels I/II named; 87% reachable via real doors (done)
+
+- Level I resolved: **cemetery = 2, slope = 4, abyss = 6** (correcting the
+  earlier "level I = colosseum" guess). Level II: **dark avenue = 8,
+  reservoir = 10 (item1 potion, item2 talisman passage), boneyard = 18**.
+- Chains added: 2 -> 4 (mid boss), 4 -> 6, 6 -> map (Arma 1st), 8 -> 10 -> 18,
+  18 -> map (boss). Notes table now 20 edges.
+- Area 0 is the **game start**, not a map entry: added a `game_start` edge,
+  which made area 17 reachable via its transition.
+- Graph: **99/113 (87%) reachable via real doors**, 113/113 with gates,
+  **14 gate-dependent areas** (1, 35, 43, 46, 52, 57, 63, 76, 77, 83, 88, 94,
+  ...), 4 chunks with no outgoing edge (14, 3, 30, 9).
+- Note: area 8's before-door save sits at x=988 while the chunk is 256 px wide —
+  another instance of the map-composite/chunk model.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

@@ -306,6 +306,36 @@ Graph: 14 note edges, 59 doors total, **95/113 (84%) reachable through real
 doors**, 113/113 with gates, 18 gate-dependent areas, 4 chunks with no outgoing
 edge (14, 3, 30, 9).
 
+## 3h. Levels I/II resolved; 87% reachable by real doors
+
+The level I/II named saves also **corrected an earlier assumption**: level I is
+not the colosseum room. The names resolve as:
+
+| area | level | map |
+|---|---|---|
+| 2 | I | murkland-cemetery |
+| 4 | I | murkland-slope |
+| 6 | I | murkland-abyss |
+| 8 | II | ruined-city-dark-avenue |
+| 10 | II | ruined-city-reservoir (item1 = potion, item2 = talisman passage) |
+| 18 | II | ruined-city-boneyard |
+
+Chains added from the prose: cemetery -> slope (after the mid boss), slope ->
+abyss, abyss -> map (Arma 1st), dark avenue -> reservoir -> boneyard, boneyard ->
+map (boss). The notes table is now **20 edges**.
+
+Two model fixes this round:
+
+1. **Area 0 is the game start**, not an overworld entry; it now has its own
+   `game_start` edge. That immediately made area 17 reachable through its
+   transition.
+2. The old `save_lvl_I_room0..2` saves are the same rooms as the new named ones
+   (2/4/6), so they only add unmatched duplicates now.
+
+Graph after the round: **99/113 (87%) reachable through real doors**, 113/113
+with gates, **14 gate-dependent areas** left (1, 35, 43, 46, 52, 57, 63, 76, 77,
+83, 88, 94, ...) and 4 chunks with no outgoing edge (14, 3, 30, 9).
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

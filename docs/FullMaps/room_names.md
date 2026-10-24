@@ -6,6 +6,12 @@ plus the map it corresponds to.
 
 | area | level | map | roles | our grid | map grid | note |
 |---|---|---|---|---|---|---|
+| 2 | I | murkland-cemetery | before_door, entrance | (8, 3) | (8, 2) | our grid is smaller/larger — see below |
+| 4 | I | murkland-slope | before_door, entrance | (4, 3) | (8, 3) | our grid is smaller/larger — see below |
+| 6 | I | murkland-abyss | before_door, entrance | (2, 5) | (4, 6) | our grid is smaller/larger — see below |
+| 8 | II | ruined-city-dark-avenue | before_door, entrance | (1, 4) | (4, 3) | our grid is smaller/larger — see below |
+| 10 | II | ruined-city-reservoir | before_door, entrance, item1, item2 | (5, 3) | (8, 3) | our grid is smaller/larger — see below |
+| 18 | II | ruined-city-boneyard | before_door, entrance | (3, 5) | (9, 3) | our grid is smaller/larger — see below |
 | 20 | III | dark-forest-thorn-grove | before_door, entrance | (2, 2) | (5, 3) | our grid is smaller/larger — see below |
 | 22 | III | dark-forest-underground-dyke | before_door, e1, e2, entrance | (2, 2) | (7, 3) | our grid is smaller/larger — see below |
 | 26 | III | dark-forest-scula-cave | before_door, boss, boss_dead, entrance | (8, 2) | (6, 3) | our grid is smaller/larger — see below |

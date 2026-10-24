@@ -22,3 +22,9 @@ the trigger position from the `<from>_before_door` save when one exists.
 | mountains-ice-palace-corridor | right | mountains-ice-palace-corridor | the map's extreme right; continues to the inside door |
 | mountains-ice-palace-corridor | inside door | area:68 | boss chamber antechamber |
 | area:68 | boss door | boss | palette-swapped bug boss |
+| murkland-cemetery | right door (mid boss) | murkland-slope | mid boss must die first |
+| murkland-slope | right door | murkland-abyss | |
+| murkland-abyss | right door (Arma 1st) | map | Arma defeated returns to the map |
+| ruined-city-dark-avenue | right door | ruined-city-reservoir | |
+| ruined-city-reservoir | right door | ruined-city-boneyard | |
+| ruined-city-boneyard | right door (boss) | map | boss defeated returns to the map |

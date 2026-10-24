@@ -61,6 +61,11 @@ def main() -> int:
                 "type": tr.get("type"), "spawn_id": tr.get("spawn_id"),
             })
 
+    # The campaign starts in area 0 (new game), which is not reachable from the
+    # overworld map and therefore needs its own entry edge.
+    edges.append({"from": -1, "to": 0, "kind": "stage_entry",
+                  "source": "game_start"})
+
     campaign_path = args.rooms / "campaign.json"
     stage_entries: list[int] = []
     if campaign_path.is_file():
