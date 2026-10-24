@@ -43,7 +43,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--graph", type=Path,
                     default=Path("assets/generated/area_graph.json"))
-    ap.add_argument("--start", type=int, default=0)
+    ap.add_argument("--start", type=int, default=-1,
+                    help="root node (-1 = overworld)")
     args = ap.parse_args()
 
     graph = json.loads(args.graph.read_text())
@@ -54,12 +55,19 @@ def main() -> int:
     for e in edges:
         by_kind[e["kind"]].append((int(e["from"]), int(e["to"])))
 
-    doors_only = bfs(args.start, {"door": by_kind["door"]})
-    with_gates = bfs(args.start, {"door": by_kind["door"],
-                                  "gate": by_kind["gate"]})
-    everything = bfs(args.start, {"door": by_kind["door"],
-                                  "gate": by_kind["gate"],
-                                  "stage_entry": by_kind["stage_entry"]})
+    # The overworld is the real root: every stage entry is reachable from it and
+    # every level returns to it, so start the BFS at the virtual node -1.
+    doors_only = bfs(-1, {"door": by_kind["door"],
+                          "stage_entry": by_kind["stage_entry"]})
+    doors_only.discard(-1)
+    with_gates = bfs(-1, {"door": by_kind["door"],
+                          "stage_entry": by_kind["stage_entry"],
+                          "gate": by_kind["gate"]})
+    with_gates.discard(-1)
+    everything = bfs(-1, {"door": by_kind["door"],
+                          "gate": by_kind["gate"],
+                          "stage_entry": by_kind["stage_entry"]})
+    everything.discard(-1)
 
     total = len(nodes)
     stage_entries = set(graph.get("stage_entries", []))
@@ -80,7 +88,7 @@ def main() -> int:
     isolated = []
     for area, node in nodes.items():
         has_door = any(int(e["from"]) == area for e in edges
-                       if e["kind"] == "door")
+                       if e["kind"] in ("door", "to_map", "boss"))
         has_gate = isinstance(node.get("gate_next_area"), int) and \
             0 <= node["gate_next_area"] < 113
         if not has_door and not has_gate and area not in stage_entries:

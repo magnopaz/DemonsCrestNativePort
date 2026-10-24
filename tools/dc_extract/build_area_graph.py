@@ -23,6 +23,8 @@ def main() -> int:
     ap.add_argument("--rooms", type=Path, default=Path("assets/generated"))
     ap.add_argument("--out", type=Path,
                     default=Path("assets/generated/area_graph.json"))
+    ap.add_argument("--name-edges", type=Path, default=None,
+                    help="room_name_edges.json from the level notes")
     ap.add_argument("--probes", type=Path, default=None,
                     help="probe root with save_lvl_* dirs; adds door edges "
                          "observed in the save pairs")
@@ -103,6 +105,27 @@ def main() -> int:
                 "level": level,
             })
 
+    # Door edges transcribed from the user's level notes (map-name table).
+    if args.name_edges and args.name_edges.is_file():
+        for e in json.loads(args.name_edges.read_text()):
+            src = int(e["from_area"])
+            dst = e.get("to_area")
+            if dst is None:
+                edges.append({"from": src, "to": -1, "kind": "to_map",
+                              "x": e.get("x"), "y": e.get("y"),
+                              "door": e.get("door"), "source": "notes"})
+                continue
+            if int(dst) == src:
+                edges.append({"from": src, "to": src, "kind": "boss",
+                              "x": e.get("x"), "y": e.get("y"),
+                              "door": e.get("door"), "source": "notes"})
+                continue
+            edges.append({"from": src, "to": int(dst), "kind": "door",
+                          "x": e.get("x"), "y": e.get("y"),
+                          "half_w": 12, "half_h": 40, "type": -2,
+                          "spawn_id": 0, "door": e.get("door"),
+                          "source": "notes"})
+
     graph = {
         "nodes": nodes,
         "edges": edges,
@@ -116,6 +139,8 @@ def main() -> int:
                                     if e["kind"] == "door"}),
             "observed_doors": sum(1 for e in edges
                                   if e.get("source") == "save_observed"),
+            "note_doors": sum(1 for e in edges
+                              if e.get("source") == "notes"),
         },
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -128,7 +153,8 @@ def main() -> int:
           f"gates {graph['stats']['gates']}, stage entries {len(stage_entries)}")
     print(f"areas with a door: {len(with_door)}; with a gate: {len(with_gate)}; "
           f"no outgoing edge: {len(no_out)}")
-    print(f"observed door edges: {graph['stats']['observed_doors']}")
+    print(f"observed door edges: {graph['stats']['observed_doors']}, "
+          f"note edges: {graph['stats']['note_doors']}")
     print(f"wrote {args.out}")
     return 0
 

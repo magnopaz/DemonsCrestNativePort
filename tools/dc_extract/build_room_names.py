@@ -35,6 +35,11 @@ def main() -> int:
                     default=Path("docs/FullMaps/images"))
     ap.add_argument("--out", type=Path,
                     default=Path("assets/generated/room_names.json"))
+    ap.add_argument("--notes", type=Path, default=None,
+                    help="docs/LEVEL_TRANSITIONS.md with name-based door rows")
+    ap.add_argument("--edges-out", type=Path,
+                    default=None,
+                    help="where to write the name-resolved edges JSON")
     args = ap.parse_args()
 
     map_names = [p.stem.replace("demons-crest-", "").replace("-snes-map", "")
@@ -67,6 +72,43 @@ def main() -> int:
         entry["saves"].append(stem)
 
     args.out.write_text(json.dumps(table, indent=1))
+
+    if args.notes and args.notes.is_file() and args.edges_out:
+        by_map = {e["map"]: e for e in table.values()}
+        edges = []
+        for line in args.notes.read_text(encoding="utf-8").splitlines():
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if len(cells) < 3 or cells[0] in ("from", "---") or \
+                    set(cells[0]) <= {"-", " "}:
+                continue
+            src_name, door, dst_name = cells[0], cells[1], cells[2]
+            src = by_map.get(src_name)
+            if src is None:
+                print(f"notes: unknown source map '{src_name}'")
+                continue
+            dst = by_map.get(dst_name) if dst_name != "boss" else src
+            if dst is None and dst_name != "map":
+                print(f"notes: unknown destination map '{dst_name}'")
+                continue
+            before = [s for s in src["saves"] if s.endswith("_before_door")]
+            pos = None
+            probe = args.probes / before[0] / "info.json" if before else None
+            if probe and probe.is_file():
+                pos = json.loads(probe.read_text()).get("player")
+            edges.append({
+                "from_area": src["area"],
+                "to_area": None if dst_name == "map" else dst["area"],
+                "to_map_name": dst_name,
+                "door": door,
+                "x": round(pos[0]) if pos else None,
+                "y": round(pos[1]) if pos else None,
+                "source": "notes",
+            })
+        args.edges_out.write_text(json.dumps(edges, indent=1))
+        print(f"name edges: {len(edges)} -> {args.edges_out}")
+        for e in edges:
+            print(f"  area {e['from_area']} -> {e['to_area']} "
+                  f"({e['door']}) at ({e['x']},{e['y']})")
     print(f"named areas: {len(table)}")
     for area, e in sorted(table.items(), key=lambda kv: int(kv[0])):
         roles = ", ".join(sorted(e["roles"]))

@@ -233,6 +233,35 @@ Deciding this is the next M1 experiment: read the room-origin variable alongside
 Whatever the answer, the graph's door edges stand; only the mapping from door
 positions to world coordinates depends on it.
 
+## 3e. Navigation model: chunks, maps and the overworld root
+
+The level-I/III saves plus the maps settled the data model:
+
+- **A map is a composite of several chunk-areas.** Area 20 (512x256) seams into
+  area 21 (512x2048) at x=440; area 21 seams into 23 (1024x2048) at five
+  different heights; area 22 seams into 23 too. The community map
+  "dark-forest-underground-dyke" covers 1792x469 px, i.e. several of those
+  chunks. The ROM grid table describes **one chunk**, not the whole map — which
+  is why our worlds look narrow next to the maps.
+- **Navigation should therefore be modelled at chunk level**, with map names
+  attached to the *set* of chunks a map covers. The first three names are
+  resolved (thorn grove = 20, underground dyke = 22, scula cave = 26) and the
+  name table (`build_room_names.py`) extends as more named saves arrive.
+- **The overworld is the graph root.** Reachability must start at `-1` (the
+  overworld), with stage entries leaving it and `to_map` edges returning. With
+  that fixed the graph reports **94 of 113 areas (83%) reachable through real
+  doors**, 113/113 with the post-boss gates.
+
+Door edges can now come from three sources, all merged in `build_area_graph`:
+extracted transitions, door positions observed in saves (`save_observed`), and
+the user's level notes (`docs/LEVEL_TRANSITIONS.md` -> `notes`), which are
+resolved through the name table and take their trigger position from the
+`<room>_before_door` save.
+
+**Remaining gate-dependent areas (need real doors):** 0, 1, 2, 3, 17, 35, 36,
+43, 46, 52, 57, 63, ... (19 total). **Chunks with no outgoing edge:** 14, 3, 30,
+36, 9.
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

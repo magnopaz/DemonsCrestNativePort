@@ -2850,6 +2850,27 @@ loop is playable while the game is not yet.
   id. Next experiment: read the room-origin variable together with `$008D` and
   `$1030` in the level-I saves.
 
+### Step 56 — Named saves, notes-to-edges, chunk model (done)
+
+- `tools/dc_extract/build_room_names.py` parses saves named
+  `lvl_<level>_<map-name>[_role]`, resolves the map name against
+  `docs/FullMaps`, and writes the area->name/level table. Level III resolved:
+  **thorn grove = area 20, underground dyke = 22, scula cave = 26** (with
+  entrance/before_door/e1/e2/boss/boss_dead roles).
+- `docs/LEVEL_TRANSITIONS.md` holds the door prose as a strict table; the tool
+  turns it into edges (`room_name_edges.json`) using the `<room>_before_door`
+  save positions: 20->22 at (909,412), 22->26 at (1687,33), 26->boss, 26->map.
+- `build_area_graph.py` merges three edge sources (extracted, save-observed,
+  notes) -> 59 doors.
+- **Model confirmed: a map is a composite of chunk-areas.** Area 20 (512x256)
+  seams into 21 (512x2048), which seams into 23 at five heights; 22 also seams
+  into 23. That explains why maps are larger than any single extracted room and
+  why save coordinates can exceed one chunk.
+- `check_navigation.py` now roots reachability at the overworld (-1):
+  **94/113 areas reachable via real doors (83%)**, 113/113 with gates. The
+  19 gate-dependent areas are the shortlist for future door saves.
+- Diagnostic: 3 areas still have no outgoing edge (14, 3, 30, 36, 9).
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
