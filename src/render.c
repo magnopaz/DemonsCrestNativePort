@@ -291,7 +291,7 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                 const SpeciesFrame *sf = &sheet->frames[frame];
                 float dx = x - sf->anchor_x;
                 float dy = y - sf->anchor_y;
-                float scale = 1.0f;
+                float scale = (o->species == 0x33) ? 1.3f : 1.0f;
                 if (o->type == OBJECT_BOSS) {
                     /* Boss anchors are measured at 1x; scale around the anchor. */
                     dx = x - sf->anchor_x * scale;

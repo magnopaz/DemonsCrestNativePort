@@ -526,6 +526,23 @@ the up-door to the riverbank, whose save is still missing).
 The user supplied fight screenshots plus the pattern, which made this possible
 without any drivable save:
 
+**Animated reference folder.** `docs/sprites/animated/` holds motion material:
+
+- `dragons-crest-somulo-animation.gif` — 22 frames (50 ms each ≈ 66 game frames)
+  of the real fight: two fireballs in 1.1 s, so an attack roughly every 33
+  frames. The AI cadence was tuned to that (idle 22 → windup → fire → recover
+  12), and Somulo's draw scale is 1.3x to match the reference dragon's ~195 px.
+- `somulo-walking.webp` (16 frames, 241x181), `Arma_laugh.webp` and
+  `fireboss_animated.webp` are **hi-res fan animations**, not ripped sprites —
+  they do not match the SNES pixel style, so they are reference only (the walking
+  pose still confirmed the leg cycle).
+- `demon's-crest-bad-ending-animation.gif` (3 frames) and
+  `map_mode7_animated.mp4` are material for M8's ending sequence and the
+  overworld presentation.
+- Gameplay captures (`demon's-crest-mid-boss-gameplay.gif`,
+  `animated_gameplay_skullpile.gif`, `demons-crest-firebrand-forest-gameplay.gif`,
+  `air-crest-firebrand-gameplay.gif`) are useful for timing checks.
+
 **Sprites from the user's sheet.** `docs/sprites/` contains a labelled Somulo
 sheet (Spriters Resource, ripped by Lord Zymeth): six head poses, body, walking
 and defeated legs, fireball and firewall frames, and a darkened palette. The port

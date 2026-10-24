@@ -364,7 +364,7 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                     switch (o->state) {
                     case 0: /* idle, breathing */
                         o->state = 1;
-                        o->phase = 70;
+                        o->phase = 22;
                         break;
                     case 1: /* windup: jaw opens */
                         o->state = 2;
@@ -388,12 +388,12 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                                           (int32_t)(tx / len * 1.6f * FX_ONE),
                                           (int32_t)(ty / len * 1.6f * FX_ONE));
                         o->state = 3;
-                        o->phase = 46;
+                        o->phase = 34;
                         break;
                     }
                     case 3: /* recover */
                         o->state = 0;
-                        o->phase = 40;
+                        o->phase = 12;
                         break;
                     case 4: /* stagger over: back to idle */
                         o->state = 0;

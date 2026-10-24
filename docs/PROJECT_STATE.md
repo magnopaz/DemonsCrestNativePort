@@ -3078,6 +3078,20 @@ loop is playable while the game is not yet.
   baked gap.
 - Regression PASS.
 
+### Step 70 — Somulo tuned from the animated reference folder (done)
+
+- `docs/sprites/animated/` adds motion material. The Somulo fight capture
+  (`dragons-crest-somulo-animation.gif`, 22 frames @50 ms) shows two fireballs in
+  1.1 s → an attack every ~33 game frames; the AI loop was retuned from ~117
+  frames to that cadence (idle 22, windup, fire, recover 12) and the boss draw
+  scale raised to 1.3x (the reference dragon is ~195 px tall).
+- `somulo-walking.webp`, `Arma_laugh.webp`, `fireboss_animated.webp` are hi-res
+  fan animations, not ripped sprites: reference only, they would clash with the
+  SNES style.
+- The bad-ending GIF and `map_mode7_animated.mp4` are kept as M8/presentation
+  reference; the gameplay captures are timing references.
+- Regression PASS.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
