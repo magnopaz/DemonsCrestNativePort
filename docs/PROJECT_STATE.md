@@ -3061,6 +3061,23 @@ loop is playable while the game is not yet.
   where a grounded demo can reach it.
 - Regression updated (fireball offsets, grounded boss test) and **PASS**.
 
+### Step 69 — Somulo animated from the sprite sheet (done)
+
+- `docs/sprites/` (Spriters Resource sheets, ripped by Lord Zymeth) has a
+  labelled Somulo sheet: six head poses, body, legs, **fireball** and **firewall**
+  frames.
+- The port composes full poses from body + head (matching the original's separate
+  `$33` head and `$35/$36/$37` parts), mirrors them to face right, and writes
+  `enemy_33_0..4.png` = idle / attack high / attack low / hurt / defeated. The
+  renderer picks the frame from the boss state (and `substate` for high/low)
+  instead of cycling.
+- The sheet's fireball (`boss_fireball_0..2.png`) and firewall
+  (`boss_flame_0..6.png`) frames now draw species `$34`; flames are bottom-anchored
+  and animate as they grow.
+- The ribcage "hole" is the room's black backdrop through transparency, not a
+  baked gap.
+- Regression PASS.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

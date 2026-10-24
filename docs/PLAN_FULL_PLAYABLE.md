@@ -526,6 +526,17 @@ the up-door to the riverbank, whose save is still missing).
 The user supplied fight screenshots plus the pattern, which made this possible
 without any drivable save:
 
+**Sprites from the user's sheet.** `docs/sprites/` contains a labelled Somulo
+sheet (Spriters Resource, ripped by Lord Zymeth): six head poses, body, walking
+and defeated legs, fireball and firewall frames, and a darkened palette. The port
+composes full poses from **body + head** (the original draws them as separate
+objects: `$33` head, `$35/$36/$37` parts) and mirrors them to face right:
+
+- frames `enemy_33_0..4.png` = idle, attack high, attack low, hurt, defeated,
+  selected by the boss state (and `substate` = high/low) rather than by cycling;
+- `boss_fireball_0..2.png` and `boss_flame_0..6.png` are the sheet's fireball and
+  firewall frames, used for species `$34` (flames are bottom-anchored and grow).
+
 **Fight, as implemented from the reference**
 
 - Idle → windup → **fire** → recover loop; the fireball is aimed at Firebrand and

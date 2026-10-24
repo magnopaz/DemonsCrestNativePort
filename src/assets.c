@@ -305,6 +305,29 @@ bool Assets_Load(Assets *assets, const char *dir) {
     LoadRoomKinds(assets, dir);
     LoadEndings(assets, dir);
 
+    /* Somulo's fireball / firewall frames from the sprite sheet. */
+    for (int i = 0; i < 4; i++) {
+        char name[32];
+        snprintf(name, sizeof(name), "boss_fireball_%d.png", i);
+        char path[1200];
+        snprintf(path, sizeof(path), "%s/%s", dir, name);
+        if (!FileExists(path))
+            break;
+        if (LoadOne(&assets->boss_fireball[assets->boss_fireball_count], dir,
+                    name))
+            assets->boss_fireball_count++;
+    }
+    for (int i = 0; i < 8; i++) {
+        char name[32];
+        snprintf(name, sizeof(name), "boss_flame_%d.png", i);
+        char path[1200];
+        snprintf(path, sizeof(path), "%s/%s", dir, name);
+        if (!FileExists(path))
+            break;
+        if (LoadOne(&assets->boss_flame[assets->boss_flame_count], dir, name))
+            assets->boss_flame_count++;
+    }
+
     LoadRoomNames(assets, dir);
     LoadMapMarkers(assets, dir);
 
@@ -367,6 +390,10 @@ void Assets_Unload(Assets *assets) {
         UnloadTexture(assets->font);
     if (IsTextureValid(assets->world_map))
         UnloadTexture(assets->world_map);
+    for (int i = 0; i < assets->boss_fireball_count; i++)
+        UnloadTexture(assets->boss_fireball[i]);
+    for (int i = 0; i < assets->boss_flame_count; i++)
+        UnloadTexture(assets->boss_flame[i]);
     Anim_Unload(&assets->player_anim);
     ProjectileAnim_Unload(&assets->projectile_anim);
     memset(assets, 0, sizeof(*assets));

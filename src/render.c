@@ -206,21 +206,34 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             /* Somulo's fireballs and its firewall flames reuse the player's
              * fireball art, tinted: $34 is the boss projectile, state 1 marks a
              * standing flame. */
-            const AnimStep *fire_step =
-                assets->projectile_anim.ready
-                    ? ProjectileAnim_Step(&assets->projectile_anim,
-                                          (o->timer / 5) % 8)
-                    : NULL;
-            Texture2D fire = fire_step ? fire_step->texture : (Texture2D){0};
-            if (o->species == 0x34 && IsTextureValid(fire)) {
-                Color tint = o->state == 1 ? (Color){255, 150, 70, 255}
-                                           : (Color){255, 200, 120, 255};
-                float scale = o->state == 1 ? 1.15f : 1.0f;
-                Rectangle src = {0, 0, (float)fire.width, (float)fire.height};
-                Rectangle dst = {x - fire.width * scale * 0.5f,
-                                 y - fire.height * scale * 0.5f,
-                                 fire.width * scale, fire.height * scale};
-                DrawTexturePro(fire, src, dst, (Vector2){0, 0}, 0.0f, tint);
+            if (o->species == 0x34 &&
+                (o->state == 1 ? assets->boss_flame_count
+                               : assets->boss_fireball_count) > 0) {
+                Texture2D fire;
+                if (o->state == 1) {
+                    int idx = (o->timer / 4) % 7;
+                    if (idx >= assets->boss_flame_count)
+                        idx = assets->boss_flame_count - 1;
+                    fire = assets->boss_flame[idx];
+                    /* Flames stand on the ground: anchor at their bottom. */
+                    Rectangle src = {0, 0, (float)fire.width,
+                                     (float)fire.height};
+                    Rectangle dst = {x - fire.width * 0.5f,
+                                     y - (float)fire.height,
+                                     (float)fire.width, (float)fire.height};
+                    DrawTexturePro(fire, src, dst, (Vector2){0, 0}, 0.0f,
+                                   WHITE);
+                } else {
+                    int idx = (o->timer / 4) % assets->boss_fireball_count;
+                    fire = assets->boss_fireball[idx];
+                    Rectangle src = {0, 0, (float)fire.width,
+                                     (float)fire.height};
+                    Rectangle dst = {x - fire.width * 0.5f,
+                                     y - fire.height * 0.5f,
+                                     (float)fire.width, (float)fire.height};
+                    DrawTexturePro(fire, src, dst, (Vector2){0, 0}, 0.0f,
+                                   WHITE);
+                }
             } else {
                 const SpeciesSheet *sheet =
                     Assets_SpeciesSheet(assets, o->species);
@@ -265,6 +278,16 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, o->species);
             if (sheet && sheet->frame_count > 0) {
                 int frame = (o->timer / sheet->duration) % sheet->frame_count;
+                if (o->species == 0x33 && sheet->frame_count >= 5) {
+                    /* Poses: 0 idle, 1 attack high, 2 attack low, 3 hurt,
+                     * 4 defeated. */
+                    if (o->hit_flash > 0)
+                        frame = 3;
+                    else if (o->state == 1 || o->state == 2)
+                        frame = (o->substate == 1) ? 2 : 1;
+                    else
+                        frame = 0;
+                }
                 const SpeciesFrame *sf = &sheet->frames[frame];
                 float dx = x - sf->anchor_x;
                 float dy = y - sf->anchor_y;

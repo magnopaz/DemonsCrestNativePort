@@ -376,6 +376,7 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                         float mouth_x = ox + ((dx > 0) ? 26.0f : -26.0f);
                         float mouth_y = oy + 10.0f;
                         bool low = (o->hops++ & 1) == 0;
+                        o->substate = low ? 1 : 2;
                         float target_y = low ? (player->y - 4.0f)
                                              : (player->y - 26.0f);
                         float tx = player->x - mouth_x;

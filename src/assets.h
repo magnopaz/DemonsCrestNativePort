@@ -65,6 +65,10 @@ typedef struct Assets {
     char room_names[113][40];
     char room_levels[113][8];
     /* Overworld stage markers (map_markers.json), in map-space * 4 pixels. */
+    Texture2D boss_fireball[4];
+    int boss_fireball_count;
+    Texture2D boss_flame[8];
+    int boss_flame_count;
     int map_marker_count;
     float map_markers[64][2]; /* BG3 ASCII font mask (font.png + font.json) */
     PlayerAnim player_anim;
