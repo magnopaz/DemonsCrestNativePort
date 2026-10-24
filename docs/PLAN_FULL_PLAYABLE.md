@@ -262,6 +262,23 @@ resolved through the name table and take their trigger position from the
 43, 46, 52, 57, 63, ... (19 total). **Chunks with no outgoing edge:** 14, 3, 30,
 36, 9.
 
+## 3f. Overworld markers and stage unlocks
+
+`tools/dc_extract/build_map_markers.py` reads mode-7 saves and extracts the
+stage icons (objects with species `$94`) plus the cursor (`$6A`). Comparing two
+progress points shows the map changing:
+
+| save | markers | note |
+|---|---|---|
+| `save6ee` (mid-game) | 13 | includes (151, 99) |
+| `map_new_stages` (past the bad-ending limit) | 16 | (151, 99) gone; **four new** markers: (78,42), (90,39), (190,140), (202,137) |
+
+That is the retail progression in data form: the final-stage marker disappears
+when the bad-ending path closes, and the remaining stages open. `map_markers.json`
+now carries each snapshot and the union of positions, so the port's overworld can
+draw and land on the real markers instead of the procedural node list (M1's
+landing task and M8's unlock states both consume it).
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a

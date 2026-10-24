@@ -9,6 +9,8 @@ plus the map it corresponds to.
 | 20 | III | dark-forest-thorn-grove | before_door, entrance | (2, 2) | (5, 3) | our grid is smaller/larger — see below |
 | 22 | III | dark-forest-underground-dyke | before_door, e1, e2, entrance | (2, 2) | (7, 3) | our grid is smaller/larger — see below |
 | 26 | III | dark-forest-scula-cave | before_door, boss, boss_dead, entrance | (8, 2) | (6, 3) | our grid is smaller/larger — see below |
+| 36 | IV | towers-of-doom-gryphon-spire | before_door, entrance | (2, 2) | (3, 5) | our grid is smaller/larger — see below |
+| 38 | IV | towers-of-doom-misty-skies | before_door, boss, boss_dead, entrance | (1, 7) | (9, 1) | our grid is smaller/larger — see below |
 
 ## What the mismatch means
 

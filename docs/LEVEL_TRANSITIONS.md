@@ -11,3 +11,6 @@ the trigger position from the `<from>_before_door` save when one exists.
 | dark-forest-underground-dyke | up (Air Crest / floating platform) | dark-forest-scula-cave | door works going up |
 | dark-forest-scula-cave | right door | boss | boss room; the other door is underwater (needs Water Crest) |
 | dark-forest-scula-cave | boss defeated | map | taking the life up returns to the map |
+| towers-of-doom-gryphon-spire | right door | towers-of-doom-misty-skies | |
+| towers-of-doom-misty-skies | right door | boss | boss room (the fabled recomp bug; kill fast) |
+| towers-of-doom-misty-skies | boss defeated | map | boss leaves the Claw piece |

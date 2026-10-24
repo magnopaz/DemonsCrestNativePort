@@ -2871,6 +2871,24 @@ loop is playable while the game is not yet.
   19 gate-dependent areas are the shortlist for future door saves.
 - Diagnostic: 3 areas still have no outgoing edge (14, 3, 30, 36, 9).
 
+### Step 57 — Level IV names and the overworld marker set (done)
+
+- `lvl_IV_*` saves resolved: **gryphon spire = area 36, misty skies = area 38**
+  (boss parts `$82/$83/$84/$85`, reward `$48`). Transitions added to
+  `docs/LEVEL_TRANSITIONS.md`: gryphon spire -> misty skies (right),
+  misty skies -> boss (right), boss -> map (Claw piece).
+- The graph now merges 7 note edges and treats named rooms as stage entries
+  (the inferred entry list missed rooms that are also door targets inside their
+  own level): **95/113 (84%) reachable via real doors**, 113/113 with gates,
+  18 areas still gate-dependent, 4 chunks with no outgoing edge (14, 3, 30, 9).
+- New tool `build_map_markers.py`: the map screen's stage icons are objects with
+  species `$94`. Two snapshots show the retail progression in data:
+  `save6ee` has 13 markers including (151,99); `map_new_stages` has 16, with
+  (151,99) gone (final stage closed after passing the bad-ending limit) and four
+  new markers (78,42), (90,39), (190,140), (202,137).
+- `map_markers.json` stores the snapshots; the overworld can use them for landing
+  and unlock state.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

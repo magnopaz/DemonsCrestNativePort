@@ -23,6 +23,8 @@ def main() -> int:
     ap.add_argument("--rooms", type=Path, default=Path("assets/generated"))
     ap.add_argument("--out", type=Path,
                     default=Path("assets/generated/area_graph.json"))
+    ap.add_argument("--names", type=Path, default=None,
+                    help="room_names.json: named rooms are level entries")
     ap.add_argument("--name-edges", type=Path, default=None,
                     help="room_name_edges.json from the level notes")
     ap.add_argument("--probes", type=Path, default=None,
@@ -104,6 +106,16 @@ def main() -> int:
                 "spawn_id": 0, "source": "save_observed",
                 "level": level,
             })
+
+    # Named rooms are where their level starts, so they are entry points from
+    # the overworld (the stage-entry inference misses rooms that are also door
+    # targets inside their own level).
+    if args.names and args.names.is_file():
+        names = json.loads(args.names.read_text())
+        for area_str, entry in names.items():
+            edges.append({"from": -1, "to": int(area_str), "kind": "stage_entry",
+                          "source": "name_entry", "map": entry.get("map"),
+                          "level": entry.get("level")})
 
     # Door edges transcribed from the user's level notes (map-name table).
     if args.name_edges and args.name_edges.is_file():
