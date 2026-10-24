@@ -2777,6 +2777,19 @@ loop is playable while the game is not yet.
 - Notes: `save11d` was listed but not on disk; the burning/burned variants are
   captured but not modelled as stage states yet.
 
+### Step 51 — Guides integrated; completion-based endings (done)
+
+- Read the three guides added to `docs/` and folded their facts into
+  `PLAN_FULL_PLAYABLE.md`: the item guide's crest/Fire-shot rewards, 16 life
+  extensions, urn/vellum/talisman checklist; the endings guide's four-ending
+  rules (bad <50%, normal 50-99%, good at 100% after the Crest of Heaven, true
+  after the Dark Demon) and the post-credits secret password.
+- `Game_EndingVariant` now computes **completion** (5 crests, 4 Fire shots, 5
+  talismans, 5 urns, 5 vellums, life extensions) and returns bad under 50%,
+  normal up to 99%, good at 100%; the true variant stays behind `DC_ENDING`
+  until the Dark Demon exists.
+- Regression PASS after the change (all four variants still render).
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

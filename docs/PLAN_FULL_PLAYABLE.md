@@ -117,6 +117,17 @@ Severity: **S1** = blocks a normal playthrough · **S2** = blocks fidelity ·
   `screenshot` let a single savestate be replayed forward with synthetic input.
 - Pending from this batch: `save11d` was listed but not present; the burning /
   burned stage variants are captured but the stage-state switch is not modelled.
+- **Guides integrated** (`demon_s_crest_item_locations_guide.txt`,
+  `demon_s_crest_crests_and_crest_fragments_guide.txt`,
+  `demon_s_crest_endings_guide.txt`): the ending rule is now completion-based
+  (<50% bad, 50-99% normal, 100% good; true needs the Dark Demon), replacing the
+  crest-count approximation. The item guide lists every crest/Fire shot (with
+  the boss that grants it), the 16 life extensions, and the urn/vellum/talisman
+  locations — the checklist for M7/M8.
+- Remaining for the plan: M1 area graph, M2 placements for the new areas, M3
+  boss AI (the area 18/102 bosses are captured but not ported), M4 sheets for
+  `$28/$29/$2A` (currently multi-part clusters), M5 stage-state variants
+  (burning/burned).
 
 ## 4. Milestones
 
@@ -197,6 +208,12 @@ working session), to be revised as data comes in.
 
 ### M7 — Items, shops, NPCs, events (S2, ~4 sessions)
 
+The user-supplied guides in `docs/` are the reference for this milestone:
+`demon_s_crest_item_locations_guide.txt` (crests + 4 Fire-Crest shots, 16 life
+extensions, urns/vellums/talismans with locations and boss rewards),
+`demon_s_crest_crests_and_crest_fragments_guide.txt` and
+`demon_s_crest_endings_guide.txt`.
+
 1. Talismans (Crown/Skull/Armor/Fang/Hand) with real effects and icons.
 2. Spells/vellum and potion use from the sub-screen.
 3. Shop: full stock, prices, refusal lines; city NPC conversations (one done).
@@ -207,7 +224,15 @@ working session), to be revised as data comes in.
 
 ### M8 — Endings and final progression (S2, ~3 sessions)
 
-1. Decode the real ending conditions (likely crest/talisman set, not a count).
+The endings guide gives the retail rules, which are now implemented as a
+completion percentage (5 crests + 4 Fire shots + 5 talismans + 5 urns + 5
+vellums + life extensions): **<50% bad, 50-99% normal, 100% good**, and the
+**true** ending needs the Dark Demon fight (not implemented yet). The secret
+epilogue is the post-credits password (`QFFB KNST BDR2 SA22` / `AR3S J42S G743
+ML14`), which our password codec can accept once the format is confirmed.
+
+1. Decode the real ending conditions — partly done via the guide; still verify
+   the exact 100% gate in the ROM.
 2. Ending sequences: artwork/captures per ending, scene timing, credits.
 3. Final boss and last-area polish; verify all four endings from real play.
 4. Acceptance: `check_endings.py` reaches each ending through the route (not

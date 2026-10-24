@@ -1680,16 +1680,40 @@ static void DrawOverworld(const Game *game) {
 
 /* Ending variant from collected power crests (mask bits 1..5):
  * 0 -> bad, 1-2 -> normal, 3-4 -> good, 5 -> true. */
-static int Game_EndingVariant(const Game *game) {
-    int count = 0;
-    for (int i = 1; i <= 5; i++)
+/* Completion percentage used by the endings, following the retail rules:
+ * 5 crests + 4 Fire-Crest shots + 5 talismans + 5 urns + 5 vellums + the life
+ * extensions (16 in the original; our max HP 5..10 stands in for them). */
+static int Game_CompletionPercent(const Game *game) {
+    int have = 0, total = 0;
+    for (int i = 0; i < 5; i++) {
+        total++;
         if (game->player.crests_mask & (1u << i))
-            count++;
-    if (count >= 5)
-        return 3;
-    if (count >= 3)
+            have++;
+    }
+    total += 4;
+    have += game->player.fire_element > 4 ? 4 : game->player.fire_element;
+    for (int i = 0; i < 5; i++) {
+        total++;
+        if (game->player.talisman_mask & (1u << i))
+            have++;
+    }
+    total += 5;
+    have += game->player.potions > 5 ? 5 : game->player.potions;
+    total += 5;
+    have += game->player.scrolls > 5 ? 5 : game->player.scrolls;
+    total += 5;
+    int life = game->player.max_hp - 5;
+    have += life > 5 ? 5 : (life > 0 ? life : 0);
+    return total > 0 ? have * 100 / total : 0;
+}
+
+/* Bad under 50% completion, normal up to 99%, good at 100% (the true ending
+ * also needs the Dark Demon, which is not implemented yet). */
+static int Game_EndingVariant(const Game *game) {
+    int pct = Game_CompletionPercent(game);
+    if (pct >= 100)
         return 2;
-    if (count >= 1)
+    if (pct >= 50)
         return 1;
     return 0;
 }
