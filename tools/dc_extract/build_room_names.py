@@ -25,9 +25,17 @@ from pathlib import Path
 
 # The map names never contain underscores, so the first underscore after the
 # level prefix starts the role (before_door, e1, inside_door_before_boss, ...).
-PATTERN = re.compile(
-    r"^(?:save_)?lvl_(?P<level>[0IVX]+)_(?P<name>[a-z0-9-]+?)"
-    r"(?:_(?P<role>[a-z0-9_]+))?$")
+# Roles are a closed set of suffixes; names may themselves contain underscores
+# ("wise_man", "black_lotus"), so the role is matched from the END and only when
+# it is a known role.
+ROLE_RE = re.compile(
+    r"^(?P<name>.+?)(?:_(?P<role>"
+    r"before_door(?:_.+)?|after_door|inside_door(?:_.+)?|boss(?:_?\d)?"
+    r"(?:_.+)?|e\d+|entrance|passage|persecution(?:_trigged)?|dead|item\d+"
+    r"|final_boss_second|on_the_righ\w*"
+    r"))?$")
+
+PATTERN = re.compile(r"^(?:save_)?lvl_(?P<level>[0IVX]+)_(?P<rest>.+)$")
 
 
 def main() -> int:
@@ -57,18 +65,25 @@ def main() -> int:
         if not m:
             continue
         level = m.group("level")
-        raw = m.group("name")
-        role = m.group("role") or "entrance"
-        match = difflib.get_close_matches(raw, map_names, n=1, cutoff=0.8)
-        if not match:
-            unmatched.append(f"{stem} ({raw})")
+        rm = ROLE_RE.match(m.group("rest"))
+        if not rm:
             continue
-        map_name = match[0]
+        raw = rm.group("name")
+        role = rm.group("role") or "entrance"
+        match = difflib.get_close_matches(raw, map_names, n=1, cutoff=0.8)
+        if match:
+            map_name = match[0]
+            in_maps = True
+        else:
+            # Interiors (library, black lotus, wise man) have no community map
+            # but are still named rooms; keep the save's own name.
+            map_name = raw
+            in_maps = False
         data = json.loads(info.read_text())
         area = int(data["area"])
         entry = table.setdefault(str(area), {
             "area": area, "level": level, "map": map_name,
-            "roles": {}, "saves": [],
+            "in_maps": in_maps, "roles": {}, "saves": [],
         })
         entry["roles"].setdefault(role, []).append(stem)
         entry["saves"].append(stem)
@@ -92,7 +107,9 @@ def main() -> int:
             for entry in table.values():
                 shared.setdefault(entry["map"], []).append(entry["area"])
             for name, areas in shared.items():
-                if len(areas) > 1:
+                if len(areas) > 1 and all(
+                        e.get("in_maps") for e in table.values()
+                        if e["map"] == name):
                     print(f"notes: map '{name}' spans areas {sorted(areas)}; "
                           f"using {by_map[name]['area']} for name lookups")
         edges = []

@@ -3002,6 +3002,18 @@ loop is playable while the game is not yet.
 - Overworld stage markers (`$94` positions) are drawn on the map; alignment with
   the art still needs the Mode 7 affine, noted in the plan.
 
+### Step 65 — Interiors named (library 92, Black Lotus 96, wise man 94) (done)
+
+- The three up-door saves resolved the dark avenue's interiors: **library = 92,
+  black_lotus = 96, wise_man = 94**. Recorded in `docs/INTERIOR_DOORS.md` (not in
+  the parsed transition table: level-space coordinates would clamp into the same
+  chunk spot and create ambiguous triggers).
+- The names feed the UI: the area banner shows **LIBRARY** for area 92 (verified
+  in a capture), and the stage list picks them up too.
+- Parser fix: roles are matched from the end against a known role set, so
+  `wise_man`/`black_lotus` no longer parse as name+role (`wise`+`man`).
+- Still needed for walkability: level-space → chunk-space mapping for level II.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

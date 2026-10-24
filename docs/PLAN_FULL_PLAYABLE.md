@@ -451,6 +451,29 @@ Regression now walks five doors with only synthetic input:
 `0→34`, `2→4`, `8→10`, `10→18`, `20→22` (`DC_AREA` + `DC_START_X/Y` +
 `DC_CAMPAIGN` + `DC_BOSS_CLEAR`, then the walk demo).
 
+## 3n. Interiors: library, Black Lotus, wise man
+
+The three up-doors inside the ruined city's dark avenue resolved to their rooms:
+
+| room | area | what it is |
+|---|---|---|
+| library | 92 | NPC describes talismans (`$85:8C51..8DD0`) |
+| black_lotus | 96 | potion shop (Mercury/Sulfur/Herb/Elixir/Ginseng) |
+| wise_man | 94 | spell shop; asks for a vellum first (`$85:8370`) |
+
+They are recorded in `docs/INTERIOR_DOORS.md` rather than the parseable transition
+table: their save coordinates are level-space and would clamp to the same spot in
+the chunk, producing ambiguous triggers. The **names** are still used by the UI —
+the area banner now shows **LIBRARY** for area 92 (verified).
+
+The save-name parser was also hardened: roles are matched from the end against a
+known set, so names containing underscores (`wise_man`, `black_lotus`) are no
+longer split into a bogus name + role.
+
+Still needed to make them walkable: a level-space → chunk-space mapping for level
+II's dark avenue (the avenue is a chunk composite; saves reach x≈990 while the
+extracted chunk is 256 px wide).
+
 ## 4. Milestones
 
 Each milestone ends with committed code, green regression, updated docs and a
