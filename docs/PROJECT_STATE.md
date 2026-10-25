@@ -3521,6 +3521,32 @@ y~150 where the game has it at ~205, so Somulo's body is cut off. Shifting
 scroll is not a plain constant - the real layer almost certainly uses per-band
 HDMA. That is the next thing to solve, with the floor position as the check.
 
+### Step 92 — Background vertical placement: what did NOT work (recorded)
+
+Tried three ways to move the colosseum's floor from our screen y ~150 to the
+game's ~205, so Somulo would stand on it:
+
+1. **`scroll_y` shift** (‑23): the floor lands correctly but a black band opens at
+   the top - the layer's content simply ends there. The game has no band, so its
+   scroll is not one constant; per-band HDMA (`BgLayer.hdma_bands`, still empty)
+   is the likely mechanism.
+2. **Padding the tilemap upward** (7 rows, repeated or zero-filled): the floor
+   lands at ~200 but the padded rows are visible as a gate-bar "ceiling" - the
+   room's top row really is gate, and the game never shows it.
+3. **Reading BG1's tilemap straight from VRAM** (`rebake_bg.py`, SC `$2107` =
+   0x41, CHR base 0, palettes 0/3): produced a different layout with a large
+   black block, i.e. our renderer does not reproduce a captured tilemap the way
+   the PPU does. Not usable as-is.
+
+All three were reverted; the committed state (ROM tilemap + VRAM-rebaked atlas)
+is still the best one: complete background, floor at the wrong height.
+
+**Next, in order**: (a) recompose the game's own BG1/BG2 from the dump in Python
+at the dump's scroll and compare to the game frame - that settles whether our
+data or our renderer is wrong, the same recomposition gate used for sprites;
+(b) only then adjust the port's layer maths, with the floor at y ~205 as the
+pass condition.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
