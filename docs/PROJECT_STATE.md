@@ -3473,6 +3473,32 @@ Two things this exposed:
 - the compositor's OAM grouping is still needed for multi-part poses (walk, bite),
   but a full-body cut like this is now the preferred source for `0x33`.
 
+### Step 90 — Immortality in a take: capturing poses normal play forbids (done)
+
+Somulo walking past Firebrand cannot happen in play (contact kills), so the walk
+pose had no clean source. The debug server has `write_ram`, and our own
+disassembly notes put **current HP at `$0062`** (max at `$1E50`), so
+`tools/immortal_walk.py` replays a take while rewriting that byte every frame:
+the player survives the contact and the dragon walks by.
+
+Result: 17 frames of the walk-past, including him looming over an immortal
+Firebrand and continuing to the right against plain wall — the pose set the
+sprite work needed. `docs/…/immortal_sheet` is the contact sheet.
+
+Two findings from those frames:
+
+- the walking pose has the **head raised** while moving and the jaws closed (the
+  head-down jaws-open frame is the *approach*, before the roar);
+- **Firebrand renders white/grey** while immortal under Somulo, which is his
+  hurt/dying sprite — worth checking against the player sheet before the death
+  state is implemented.
+
+The cut (`enemy_33_walk.png`) is ~95 % clean: the gate bars behind his neck are
+painted in a purple only slightly bluer than the bronze (`b 57` vs `r 49`), so a
+naive cold key keeps them; 170 such pixels are now removed, but faint streaks
+remain, so the walk frame is **not** wired into `species_anim.json` yet. The
+blocker is still the compositor's dropped 16×16 body parts.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
