@@ -289,6 +289,23 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                     else
                         frame = 0;
                 }
+                if (sheet->frame_count >= 6 &&
+                    (o->species == 0x13 || o->species == 0x09 ||
+                     o->species == 0x86)) {
+                    /* Sheets: first row is idle, second row is the attack /
+                     * movement set. */
+                    if (o->hit_flash > 0)
+                        frame = 5;
+                    else if (o->species == 0x13 && o->state == 2)
+                        frame = 3;
+                    else if (o->species == 0x09 && (o->state == 2 ||
+                                                    o->state == 3))
+                        frame = 3;
+                    else if (o->species == 0x86 && o->state == 1)
+                        frame = 3;
+                    else
+                        frame = 0;
+                }
                 if (o->species == 0x33 && sheet->frame_count >= 5) {
                     /* Poses: 0 idle, 1 attack high, 2 attack low, 3 hurt,
                      * 4 defeated. */

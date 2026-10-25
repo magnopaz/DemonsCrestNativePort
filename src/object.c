@@ -410,6 +410,172 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 float oy = (float)o->y_fx / FX_ONE;
                 if (Level_FloorAt(level, ox, oy, &surf) && oy >= surf)
                     o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+            } else if (o->species == 0x13) {
+                /* Grewon: a ground beast. It paces toward Firebrand, crouches,
+                 * then charges across the arena, and is helpless while turning
+                 * around. */
+                if (o->hit_flash > 0 && o->state != 4) {
+                    o->state = 4;
+                    o->phase = 20;
+                }
+                o->phase--;
+                float surf;
+                float ox = (float)o->x_fx / FX_ONE;
+                float oy = (float)o->y_fx / FX_ONE;
+                if (Level_FloorAt(level, ox, oy, &surf) && oy < surf)
+                    o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+                if (o->phase <= 0) {
+                    switch (o->state) {
+                    case 0: /* pace toward the player */
+                        o->x_fx += (dx > 0) ? 0x0080 : -0x0080;
+                        o->facing = dx > 0 ? 1 : -1;
+                        if (abs(dx) < 90 * FX_ONE) {
+                            o->state = 1;
+                            o->phase = 26;
+                        } else {
+                            o->phase = 10;
+                        }
+                        break;
+                    case 1: /* crouch before the charge */
+                        o->state = 2;
+                        o->phase = 64;
+                        o->substate = o->facing;
+                        break;
+                    case 2: /* charge */
+                        o->x_fx += (o->substate > 0) ? 0x0300 : -0x0300;
+                        if (o->x_fx < level->play_min_x * FX_ONE ||
+                            o->x_fx > level->play_max_x * FX_ONE) {
+                            o->x_fx = (o->substate > 0)
+                                          ? (int32_t)(level->play_max_x *
+                                                      FX_ONE)
+                                          : (int32_t)(level->play_min_x *
+                                                      FX_ONE);
+                            o->state = 3;
+                            o->phase = 34;
+                        } else if (o->phase <= 1) {
+                            o->state = 3;
+                            o->phase = 34;
+                        }
+                        break;
+                    case 3: /* recover */
+                        o->state = 0;
+                        o->phase = 20;
+                        break;
+                    case 4:
+                        o->state = 0;
+                        o->phase = 20;
+                        break;
+                    default:
+                        o->state = 0;
+                        o->phase = 20;
+                        break;
+                    }
+                }
+                o->origin_y_fx = o->y_fx;
+            } else if (o->species == 0x09) {
+                /* Hippogriff: hovers, dives at the player, and throws feathers. */
+                if (o->hit_flash > 0 && o->state != 4) {
+                    o->state = 4;
+                    o->phase = 20;
+                }
+                o->phase--;
+                if (o->phase <= 0) {
+                    switch (o->state) {
+                    case 0: /* hover and track */
+                        o->state = (o->hops++ & 1) ? 1 : 2;
+                        o->phase = (o->state == 1) ? 50 : 30;
+                        break;
+                    case 1: { /* feather volley */
+                        float ox = (float)o->x_fx / FX_ONE;
+                        float oy = (float)o->y_fx / FX_ONE;
+                        for (int k = -1; k <= 1; k++) {
+                            float tx = player->x - ox;
+                            float ty = (player->y - 12.0f) - oy;
+                            float len = sqrtf(tx * tx + ty * ty);
+                            if (len < 0.001f)
+                                len = 1.0f;
+                            SpawnEnemyShot(pool, ox, oy,
+                                           (int32_t)(tx / len * 1.3f * FX_ONE +
+                                                     k * 0.4f * FX_ONE),
+                                           (int32_t)(ty / len * 1.3f * FX_ONE));
+                        }
+                        o->state = 0;
+                        o->phase = 40;
+                        break;
+                    }
+                    case 2: /* dive */
+                        o->x_fx += (dx > 0) ? 0x0240 : -0x0240;
+                        o->y_fx += (dy > 0) ? 0x0180 : -0x0180;
+                        o->state = 3;
+                        o->phase = 26;
+                        break;
+                    case 3: /* climb back */
+                        o->x_fx += (o->origin_x_fx - o->x_fx) / 8;
+                        o->y_fx += (o->origin_y_fx - o->y_fx) / 8;
+                        o->state = 0;
+                        o->phase = 30;
+                        break;
+                    case 4:
+                        o->state = 0;
+                        o->phase = 20;
+                        break;
+                    default:
+                        o->state = 0;
+                        o->phase = 30;
+                        break;
+                    }
+                }
+                if (o->state == 0)
+                    o->y_fx = o->origin_y_fx +
+                              (int32_t)(sinf(o->timer * 0.06f) * 14.0f *
+                                        FX_ONE);
+            } else if (o->species == 0x86) {
+                /* Phalanx: the demon form hovers and lobs slow orbs. The
+                 * segmented second form uses the same object for its head. */
+                if (o->hit_flash > 0 && o->state != 4) {
+                    o->state = 4;
+                    o->phase = 20;
+                }
+                o->phase--;
+                if (o->phase <= 0) {
+                    switch (o->state) {
+                    case 0: /* drift above the player */
+                        o->x_fx += (dx > 0) ? 0x00A0 : -0x00A0;
+                        o->y_fx = o->origin_y_fx +
+                                  (int32_t)(sinf(o->timer * 0.05f) * 18.0f *
+                                            FX_ONE);
+                        if (o->timer % 90 == 0) {
+                            o->state = 1;
+                            o->phase = 26;
+                        } else {
+                            o->phase = 4;
+                        }
+                        break;
+                    case 1: { /* orb */
+                        float ox = (float)o->x_fx / FX_ONE;
+                        float oy = (float)o->y_fx / FX_ONE;
+                        float tx = player->x - ox;
+                        float ty = (player->y - 10.0f) - oy;
+                        float len = sqrtf(tx * tx + ty * ty);
+                        if (len < 0.001f)
+                            len = 1.0f;
+                        SpawnEnemyShot(pool, ox, oy + 14.0f,
+                                       (int32_t)(tx / len * 1.1f * FX_ONE),
+                                       (int32_t)(ty / len * 1.1f * FX_ONE));
+                        o->state = 0;
+                        o->phase = 60;
+                        break;
+                    }
+                    case 4:
+                        o->state = 0;
+                        o->phase = 20;
+                        break;
+                    default:
+                        o->state = 0;
+                        o->phase = 20;
+                        break;
+                    }
+                }
             } else if (o->species == 0xA5) {
                 /* Arma: hovers in place, then either breathes a pair of shots
                  * or divebombs along the player's line, with a stagger when

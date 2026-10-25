@@ -3197,6 +3197,38 @@ Note: the in-game screenshot for this step could not be taken — GLFW failed to
 create a context while another game window was open ("Failed to create
 interface"), so the frames are verified as extracted assets only.
 
+### Step 78 — Boss identities from the new saves; Grewon and Phalanx fight (done)
+
+The latest saves settled which species is which:
+
+| save | area | species | reading |
+|---|---|---|---|
+| hipogriff_fight | 74 | **`$09`** | the hippogriff mid-boss (third encounter); `$A5` is therefore *not* Arma |
+| Grewon_fight | 82 | **`$13`** | Grewon, second encounter (stronger version) |
+| Phalanx_fight_first | 84 | **`$86`** + `$88` | first form (the flying demon) |
+| Phalanx_fight_second | 84 | **`$86`** + many **`$8D`** | second form: head plus a segmented serpent |
+| normal_ending | 84 | `$86` + `$8B` | after the second form falls |
+| spiny-balcony_fang | 78 | **`$50`** | the **fang talisman** pickup |
+
+Behaviour read from the takes: **Grewon** is a ground beast that paces, crouches
+and charges; **Hippogriff** flies and throws feather volleys; **Phalanx** first
+form hovers and lobs orbs, second form rises from the pit as a segmented serpent.
+
+Implemented now:
+
+- `$13` Grewon: pace → crouch → charge (bounces at the arena bounds) → recover,
+  with the hurt window; `$09` Hippogriff: hover/dive/feather volley; `$86`
+  Phalanx: hover and orb, same object as the second form's head.
+- Boss objects for areas 74/82/84 are added from the probes, clamped into their
+  chunks like the doors, and deduplicated.
+- Frame selection for these species uses their sheets (idle row, attack row, hurt).
+
+Verified: Grewon and Phalanx render and act in their arenas (screenshots). Not
+verified: the hippogriff's sprite — its sheet bake produced **fragments** (59×58
+pieces) instead of whole poses, so it is in the arena but effectively invisible;
+it needs a proper per-sheet crop. The `$8D` segment object was removed again
+until the second form is modelled.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
