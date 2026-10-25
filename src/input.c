@@ -205,7 +205,16 @@ void Input_Read(Input *in, InputState *st) {
         subscreen = demo_frame == 3;
         down = demo_frame == 6 || demo_frame == 8;
         start = demo_frame == 12;
-    } else if (demo_mode == 13) {
+    } else if (demo_mode == 14) {
+        /* Somulo MVP: stop about 90 px short of the dragon (the walk covers
+         * ~1.4 px/frame), shoot the head every 40 frames (the hurt flash lasts
+         * 32), then walk right to the gate. */
+        demo_frame++;
+        right = (demo_frame >= 20 && demo_frame < 300) ||
+                (demo_frame >= 640 && demo_frame < 900);
+        shot = demo_frame >= 320 && demo_frame < 620 &&
+               (demo_frame % 40) == 0;
+        } else if (demo_mode == 13) {
         /* Title-menu flow: confirm NEW GAME, then walk right. */
         demo_frame++;
         start = demo_frame == 5;

@@ -3250,6 +3250,27 @@ until the second form is modelled.
 Regression PASS. Verified by screenshot: Hippogriff, Grewon (normal and the
 green state pending a hit), fang talisman in area 78, Phalanx in area 84.
 
+### Step 80 — MVP 1: the Somulo fight is playable end to end (done)
+
+- **The critical bug:** the boss branch ends with `continue`, so the shared
+  `hit_flash` decrement never ran for bosses. After the first hit a boss stayed
+  flashing — and, with the new invulnerability, permanently untouchable. The
+  boss branch now ticks its own flash. Without this the six-hit rhythm could
+  never work.
+- The head now **rises to breathe and sinks afterwards**, so a grounded
+  Firebrand can reach it; the hit box is the head (40x46), not the body.
+- In campaign mode the fight **no longer ends the area**: the player keeps
+  control and the gate leads to area 34 (`DC_MVP_KEEP_CONTROL` opts in; other
+  runs keep the immediate clear the campaign tests rely on).
+- `demo 14` plays the fight: walk to the dragon, six shots 40 frames apart,
+  then the gate. Regression asserts HP `6→5→4→3→2→1` and that area 34 is
+  reached.
+- `DC_BOSS_NO_ATTACK` is a test hook so the loop is checkable without dodging.
+- The object trace now carries `hp,flash,species`, which made the fight
+  assertable at all.
+- Spec: `docs/MVP_SOMULO.md` (definition of done + known gaps: intro roar,
+  area 34 staging, mouth flame).
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

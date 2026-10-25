@@ -380,6 +380,8 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
         if (o->type == OBJECT_BOSS) {
             pool->boss_alive = true;
             o->timer++;
+            if (o->hit_flash > 0)
+                o->hit_flash--;
             int32_t dx = player->x_fx - o->x_fx;
             int32_t dy = (player->y_fx - 16 * FX_ONE) - o->y_fx;
             if (o->species == 0x33) {
@@ -396,13 +398,20 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                     switch (o->state) {
                     case 0: /* idle, breathing */
                         o->state = 1;
-                        o->phase = 22;
+                        o->phase = 34;
                         break;
                     case 1: /* windup: jaw opens */
                         o->state = 2;
-                        o->phase = 1;
+                        o->phase = 10;
                         break;
                     case 2: { /* fire */
+                        /* Test hook: a passive boss lets the fight loop be
+                         * verified without dodging. */
+                        if (getenv("DC_BOSS_NO_ATTACK")) {
+                            o->state = 0;
+                            o->phase = 30;
+                            break;
+                        }
                         float ox = (float)o->x_fx / FX_ONE;
                         float oy = (float)o->y_fx / FX_ONE;
                         float mouth_x = ox + ((dx > 0) ? 26.0f : -26.0f);
@@ -420,7 +429,7 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                                           (int32_t)(tx / len * 1.6f * FX_ONE),
                                           (int32_t)(ty / len * 1.6f * FX_ONE));
                         o->state = 3;
-                        o->phase = 34;
+                        o->phase = 20;
                         break;
                     }
                     case 3: /* recover */
@@ -437,11 +446,14 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                         break;
                     }
                 }
-                float surf;
-                float ox = (float)o->x_fx / FX_ONE;
-                float oy = (float)o->y_fx / FX_ONE;
-                if (Level_FloorAt(level, ox, oy, &surf) && oy >= surf)
-                    o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+                /* The head rises while breathing fire and sinks again after,
+                 * which is the window a grounded shot can reach. */
+                int32_t low_y = o->origin_y_fx + (int32_t)(86.0f * FX_ONE);
+                int32_t high_y = o->origin_y_fx;
+                if (o->state == 1 || o->state == 2)
+                    o->y_fx += (high_y - o->y_fx) / 4;
+                else
+                    o->y_fx += (low_y - o->y_fx) / 2;
             } else if (o->species == 0x13) {
                 /* Grewon: a ground beast. It paces toward Firebrand, crouches,
                  * then charges across the arena, and is helpless while turning
@@ -1198,7 +1210,9 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                     break;
                 }
             } else if (o->type == OBJECT_BOSS) {
-                if (fabsf(px - ox) <= 20.0f && fabsf(py - oy) <= 24.0f) {
+                float hw = (o->species == 0x33) ? 40.0f : 20.0f;
+                float hh = (o->species == 0x33) ? 46.0f : 24.0f;
+                if (fabsf(px - ox) <= hw && fabsf(py - oy) <= hh) {
                     /* Somulo flashes white for ~33 frames after a hit in the
                      * recording and cannot be hit again until it ends, so the
                      * six-hit rhythm is the player's, not a machine gun.

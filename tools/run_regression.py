@@ -416,6 +416,29 @@ def main() -> int:
         check(bool(rows14) and any(m != 1 for m in modes14),
               "demo12/boss: Somulo defeat did not leave GAME_PLAYING")
 
+        # ---- MVP: the Somulo fight, start to gate ----
+        d14 = run_demo(base, out, 14, 1200,
+                       {"DC_AREA": "0", "DC_CAMPAIGN": "1",
+                        "DC_BOSS_NO_ATTACK": "1",
+                        "DC_MVP_KEEP_CONTROL": "1"})
+        rows14 = csv_rows(d14["player"])
+        objs14 = csv_rows(d14["objects"])
+        areas14 = [int(r["area"]) for r in rows14]
+        check(0 in areas14, f"MVP: area 0 never ran ({sorted(set(areas14))})")
+        check(34 in areas14,
+              f"MVP: the gate after Somulo did not lead to area 34 "
+              f"({sorted(set(areas14))})")
+        boss14 = [r for r in objs14 if int(r["type"]) == 6]
+        hps = []
+        for r in boss14:
+            hp = int(r["hp"])
+            if not hps or hps[-1] != hp:
+                hps.append(hp)
+        check(hps == [6, 5, 4, 3, 2, 1] or hps == [6, 5, 4, 3, 2, 1, 0],
+              f"MVP: the six-hit rhythm is wrong: hp went {hps}")
+        check(boss14 and int(boss14[-1]["frame"]) < len(rows14) - 100,
+              "MVP: the boss was still alive at the end of the run")
+
         d10 = run_demo(base, out, 10, 260,
                        {"DC_START_X": "900", "DC_START_Y": "160"})
         rows10 = csv_rows(d10["player"])

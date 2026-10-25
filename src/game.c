@@ -452,7 +452,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->object_trace = fopen(object_trace_path, "w");
         if (game->object_trace) {
             fprintf(game->object_trace,
-                    "frame,slot,type,x,y,vx,vy,state\n");
+                    "frame,slot,type,x,y,vx,vy,state,hp,flash,species\n");
         } else {
             fprintf(stderr, "game: cannot open object trace %s\n",
                     object_trace_path);
@@ -716,11 +716,12 @@ static void Game_UpdateSimulation(Game *game) {
             const Object *o = &game->objects.slots[i];
             if (!o->active)
                 continue;
-            fprintf(game->object_trace, "%u,%d,%d,%.3f,%.3f,%.3f,%.3f,%d\n",
+            fprintf(game->object_trace,
+                    "%u,%d,%d,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d\n",
                     game->frame, i, (int)o->type,
                     (float)o->x_fx / 256.0f, (float)o->y_fx / 256.0f,
                     (float)o->vx_fx / 256.0f, (float)o->vy_fx / 256.0f,
-                    o->state);
+                    o->state, o->hp, o->hit_flash, o->species);
         }
     }
     game->frame++;
@@ -1394,8 +1395,17 @@ void Game_Update(Game *game) {
                                          ? game->player.max_hp + 1
                                          : game->player.max_hp;
                 game->player.hp = game->player.max_hp;
-                game->campaign_mode = true;
-                Game_CompleteArea(game);
+                /* Keep control after a boss defeat only in the opt-in MVP
+                 * flow: the player then walks through the gate and the area
+                 * transitions (area 0 -> 34). Everywhere else the area still
+                 * completes on the spot, which the campaign tests rely on. */
+                bool keep_control =
+                    getenv("DC_MVP_KEEP_CONTROL") != NULL &&
+                    game->campaign_mode && game->level.gate_next_area >= 0;
+                if (!keep_control) {
+                    game->campaign_mode = true;
+                    Game_CompleteArea(game);
+                }
             } else {
                 Game_CheckTransitions(game);
             }

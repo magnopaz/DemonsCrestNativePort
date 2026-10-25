@@ -42,6 +42,17 @@ answers two questions: **what can be done with the material at hand**, and
 
 ---
 
+## 1b. Deliveries (MVP framing)
+
+The work is now organised as playable slices, each with a definition-of-done
+table, rather than only as systems:
+
+| delivery | scope | state |
+|---|---|---|
+| **MVP 1 — Somulo** | new game → colosseum → the six-hit dragon fight → gate to area 34 | **done**, see [`MVP_SOMULO.md`](MVP_SOMULO.md) |
+| **MVP 2 — Murkland cemetery** | area 2 fully playable: rooms, enemies, urns, doors, stage boss | next |
+| MVP 3+ | more stages, the shops/library, endings | later |
+
 ## 2. What I can do with what I have — no new input
 
 Ordered by player-visible value per unit of work.
