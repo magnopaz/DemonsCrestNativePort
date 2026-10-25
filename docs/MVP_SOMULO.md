@@ -74,3 +74,30 @@ roar, the deadly blind walk (state 7), and `DC_BOSS_INTRO=0` to skip it in tests
 Still missing: the **gate opening** animation, the glowing-eyes-behind-the-bars
 shot, and the eyes-closed / eyes-open / scream sprites (the entrance currently
 reuses the single full-body frame).
+
+
+## Entrance timings from a boot-start take
+
+`captures/rec_20261025_005437` starts at boot and dies to the entrance:
+
+| frames | what happens |
+|---|---|
+| 15–794 | Capcom logo, title |
+| 1008–1400 | colosseum, Firebrand at the left |
+| ~1562 | the gate with the mouth statue next to him |
+| ~1726–2049 | the camera waits; the screen shifts as Somulo approaches |
+| **2130** | Somulo appears at the left, **head down, jaws open** (eyes closed) |
+| 2211–2454 | he walks right, head still down |
+| 2617–2698 | head raised, still walking |
+| ~2781 | he is on top of Firebrand; the player dies |
+
+So the blind walk is **~500 frames** from his entry to the contact, and the walk
+pose has the **head lowered with the jaws open**, which is what the port should
+show during `state 7`.
+
+Art note: the standing pose (cut from frame 8200 of the earlier take) is in the
+port. The walking pose cannot be cut from these frames — he stands in front of
+the torch relief and the gate bars, so enclosures inside his silhouette keep the
+background (the bars and the flame survive any colour/f lood-fill key). The OAM
+compositor gives his head and neck cleanly but still drops body parts, so fixing
+that is the next step for the walk cycle.
