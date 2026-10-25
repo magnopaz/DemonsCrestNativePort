@@ -328,7 +328,9 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                 if (o->species == 0x33 && sheet->frame_count >= 5) {
                     /* Poses: 0 idle, 1 attack high, 2 attack low, 3 hurt,
                      * 4 defeated. */
-                    if (o->hit_flash > 0)
+                    if (o->state == 5)
+                        frame = 4;   /* collapsed */
+                    else if (o->hit_flash > 0)
                         frame = 3;
                     else if (o->state == 1 || o->state == 2)
                         frame = (o->substate == 1) ? 2 : 1;

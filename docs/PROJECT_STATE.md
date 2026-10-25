@@ -3299,6 +3299,31 @@ The build is in the state the first playable MVP is captured from: the Somulo
 fight with real frames, the six-hit/invulnerability rhythm, the cinematic
 HUD-less first room, dots elsewhere, and the gate into area 34.
 
+### Step 83 — MVP staging matched to the full capture; screen kinds documented (done)
+
+Watched the user's `mvp_somulo` take (5 548 frames, boot → Somulo's death):
+
+- the dragon **walks after Firebrand** down the colosseum corridor, and the fight
+  happens *while moving* — the port's boss was static at a far position;
+- he **collapses and lies on the floor** before the room ends, and only then the
+  game moves on;
+- the HUD returns in area 34 exactly as the dot grid we implemented.
+
+Changes:
+
+- Somulo now **follows** the player when the distance exceeds 150 px, and starts
+  at the save's opening position (288, 88) instead of the far one.
+- He gets a **death state**: 90 frames lying in the defeated pose, ignoring
+  further hits, before the room ends.
+- The dying boss no longer takes damage (hp used to fall below zero).
+- `demo 14` re-staged for the chase: it closes in, lands six shots
+  (hp `6→5→4→3→2→1→0`), and reaches area 34.
+
+Screen kinds: `initial_cutscene` is `$008D = 168` and `menu_cutscene` is 160 —
+menus and cinematics, **not** rooms. Documented in `docs/SCREEN_KINDS.md`
+together with the intro's text pages (which already exist in
+`text_strings.json`, so staging the intro is presentation work).
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

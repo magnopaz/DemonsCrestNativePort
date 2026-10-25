@@ -378,6 +378,14 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
         }
 
         if (o->type == OBJECT_BOSS) {
+            if (o->state == 5) {   /* dying: hold the defeated pose, then go */
+                o->timer++;
+                if (o->phase > 0)
+                    o->phase--;
+                else
+                    o->active = false;
+                continue;
+            }
             pool->boss_alive = true;
             o->timer++;
             if (o->hit_flash > 0)
@@ -392,6 +400,21 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 if (o->hit_flash > 0 && o->state != 4) {
                     o->state = 4;   /* stagger */
                     o->phase = 36;
+                }
+                /* The recording shows him walking the corridor after Firebrand:
+                 * close the distance when the player runs away. */
+                if (o->state == 0 || o->state == 3) {
+                    if (dx > 150 * FX_ONE)
+                        o->x_fx += 0x0090;
+                    else if (dx < -150 * FX_ONE)
+                        o->x_fx -= 0x0090;
+                    int32_t lo = (int32_t)(40.0f * FX_ONE);
+                    int32_t hi = (int32_t)((level->play_max_x - 60.0f) *
+                                           FX_ONE);
+                    if (o->x_fx < lo)
+                        o->x_fx = lo;
+                    if (o->x_fx > hi)
+                        o->x_fx = hi;
                 }
                 o->phase--;
                 if (o->phase <= 0) {
@@ -1210,6 +1233,8 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                     break;
                 }
             } else if (o->type == OBJECT_BOSS) {
+                if (o->state == 5)
+                    continue;   /* already collapsing: ignore hits */
                 float hw = (o->species == 0x33) ? 40.0f : 20.0f;
                 float hh = (o->species == 0x33) ? 46.0f : 24.0f;
                 if (fabsf(px - ox) <= hw && fabsf(py - oy) <= hh) {
@@ -1231,6 +1256,17 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                         o->hit_flash = 8;
                     pool->events |= OBJECT_EVENT_ENEMY_HIT;
                     if (o->hp <= 0) {
+                        if (o->species == 0x33) {
+                            /* Collapse, lie there, then leave the room. */
+                            o->state = 5;
+                            o->phase = 90;
+                            o->hit_flash = 0;
+                            pool->boss_alive = false;
+                            pool->boss_defeated = true;
+                            pool->events |= OBJECT_EVENT_BOSS_DEFEATED;
+                            SpawnPickup(pool, ox, oy + 8.0f);
+                            break;
+                        }
                         o->active = false;
                         if (o->species == 0x86 && pool->boss_phase == 1) {
                             /* Phalanx's first form falls and the second rises
