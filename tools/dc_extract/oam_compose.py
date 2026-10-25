@@ -38,6 +38,26 @@ def load_probe(folder: Path):
     return vram, cgram, oam, ppu, info
 
 
+OBJ_BASE, OBJ_STRIDE, OBJ_SLOTS = 0x1080, 0x50, 26
+
+
+def read_pool(wram: bytes):
+    """[{slot, species, x, y}] from the object pool ($1080, stride $50)."""
+    out = []
+    for slot in range(OBJ_SLOTS):
+        rec = wram[OBJ_BASE + slot * OBJ_STRIDE:
+                   OBJ_BASE + (slot + 1) * OBJ_STRIDE]
+        if len(rec) < 0x36 or rec[0] == 0 or rec[2] == 0:
+            continue
+
+        def fx24(off):
+            return (rec[off] | (rec[off + 1] << 8) | (rec[off + 2] << 16)) / 256.0
+
+        out.append({"slot": slot, "species": rec[2], "x": fx24(0x30),
+                    "y": fx24(0x33)})
+    return out
+
+
 def cgram_colours(cgram: bytes):
     cols = []
     for i in range(256):
@@ -102,6 +122,8 @@ def main() -> int:
     ap.add_argument("probe", type=Path)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--big-endian-words", action="store_true")
+    ap.add_argument("--object", type=lambda v: int(v, 0), default=None,
+                    help="species to cut out by its pool position (e.g. 0x33)")
     args = ap.parse_args()
 
     global BIG_ENDIAN_DUMP
@@ -159,6 +181,36 @@ def main() -> int:
                         "width": width, "height": height})
 
     canvas.save(args.out / "oam_layer.png")
+
+    if args.object is not None:
+        wram_path = args.probe / "wram.bin"
+        if wram_path.is_file():
+            pool = read_pool(wram_path.read_bytes())
+            target = [o for o in pool if o["species"] == args.object]
+            if target:
+                obj = target[0]
+                hs = ppu.get("hScroll", [0])[0]
+                vs = ppu.get("vScroll", [0])[0]
+                sx, sy = obj["x"] - hs, obj["y"] - vs
+                near = [s for s in sprites
+                        if abs((s["x"] + s["width"] / 2) - sx) < 200 and
+                        abs((s["y"] + s["height"] / 2) - sy) < 170]
+                if near:
+                    x0 = max(0, min(s["x"] for s in near) - 2)
+                    y0 = max(0, min(s["y"] for s in near) - 2)
+                    x1 = min(W, max(s["x"] + s["width"] for s in near) + 2)
+                    y1 = min(H, max(s["y"] + s["height"] for s in near) + 2)
+                    crop = canvas.crop((x0, y0, x1, y1))
+                    crop.save(args.out / f"object_{args.object:02x}.png")
+                    meta = {"species": args.object, "obj_world": [obj["x"], obj["y"]],
+                            "scroll": [hs, vs], "obj_screen": [sx, sy],
+                            "rect": [x0, y0, x1, y1],
+                            "anchor": [sx - x0, sy - y0],
+                            "sprites": len(near)}
+                    (args.out / f"object_{args.object:02x}.json").write_text(
+                        json.dumps(meta, indent=1))
+                    print(f"object {args.object:02x}: crop {crop.size} "
+                          f"anchor {meta['anchor']} from {len(near)} sprites")
     (args.out / "sprites.json").write_text(json.dumps(sprites, indent=1))
     print(f"{len(sprites)} sprites -> {args.out / 'oam_layer.png'}")
 

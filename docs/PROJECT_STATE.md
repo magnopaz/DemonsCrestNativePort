@@ -3448,6 +3448,31 @@ cannot supply the ground truth on its own because the live session's PPU
 registers are reset (black render). The fix is to inject the registers too, or to
 dump the presented frame together with OAM in the same pass.
 
+### Step 89 — Somulo at native size, cut from a clean frame (done)
+
+The user's second take (`rec_20261024_235733`, 8 258 frames) replays exactly and
+contains a **death and restart**: the fight runs to ~5 180, the screen fades to
+black for ~70 frames, the room reloads at the spawn and the fight starts again
+(there is **no game-over screen in this area**; elsewhere the game shows a retry
+menu, which is out of scope for now).
+
+Frame 8 200 of that take has Somulo fully on screen at native resolution — the
+first clean, complete reference of him. Cutting him out by flood-filling the cold
+arena colours from the border (his body is warm bronze, the arena is cold purple,
+and a flood fill keeps his dark interior that a colour key would eat) yields a
+**158 x 174 sprite with clean alpha and no debris**.
+
+Installed as species `0x33` at **scale 1.0** (native art, no guessing) and the
+head anchor measured on the art. In game he now looks like the real Somulo: head,
+teeth, open jaw with fire, ribcage body.
+
+Two things this exposed:
+
+- the port's **colosseum floor is drawn too high** (his feet land below it), which
+  is the same background-hole problem from the sprite plan;
+- the compositor's OAM grouping is still needed for multi-part poses (walk, bite),
+  but a full-body cut like this is now the preferred source for `0x33`.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
