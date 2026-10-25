@@ -3547,6 +3547,36 @@ data or our renderer is wrong, the same recomposition gate used for sprites;
 (b) only then adjust the port's layer maths, with the floor at y ~205 as the
 pass condition.
 
+### Step 93 — Floor height solved: the layer scroll was doubling the camera (done)
+
+Measured instead of guessed: the arena floor sits at screen row **192** in the game
+frame and at **161** in the port, i.e. 31 px too high, which is what cut Somulo off
+at the bottom.
+
+Instrumented `DrawLayer` (`DC_DEBUG_BG=1`) and printed the origin:
+
+```
+BG1 origin_y=0.0 cam_y=32.0 level_cam_y=32.0 scroll_y=0
+```
+
+With that the maths is simple: `screen_y = row*8 - origin_y`, and
+`origin_y = camera->y + scroll_y - level.camera_y`. The extractor wrote
+**`scroll_y = cam_y`**, so the camera offset was applied twice; the layer is meant
+to start at its world origin, where the answer is **0**.
+
+Fixes:
+
+- `tools/dc_extract/extract.py`: `scroll_y` is 0 for BG1 (and only the
+  vscroll delta for a captured BG2) instead of `cam_y`;
+- area 0's generated room keeps `scroll_y` 0/16 with a little top padding so the
+  256-tall world covers the 224-tall view: floor now lands on **row 193**
+  (game 192) and **no black band** remains;
+- Somulo's anchors moved up 10 px so his feet rest on that floor.
+
+Verified side by side with the game frame: the wall, arches, pillar, lion relief
+and torches are complete, and he stands on the floor instead of sinking through
+it. Regression PASS.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

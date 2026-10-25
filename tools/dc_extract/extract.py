@@ -948,7 +948,11 @@ def build_area_room_doc(rom: Rom, area: int, bg2_layer: dict,
         "map_width": map_w,
         "map_height": map_h,
         "scroll_x": cam_x,
-        "scroll_y": cam_y,
+        # The port places a layer at its world origin and scrolls it with the
+        # camera, so a tilemap that starts at world 0 must say 0 here. Writing
+        # cam_y duplicated the camera offset and lifted the floor by ~31 px,
+        # which cut the boss off at the bottom of the screen.
+        "scroll_y": 0,
         "tilemap": full_tiles,
     }
     bg2_copy = dict(bg2_layer)
@@ -964,7 +968,7 @@ def build_area_room_doc(rom: Rom, area: int, bg2_layer: dict,
             "map_width": map_w,
             "map_height": map_h,
             "scroll_x": cam_x + (regs["hscroll"][1] - regs["hscroll"][0]),
-            "scroll_y": cam_y + (regs["vscroll"][1] - regs["vscroll"][0]),
+            "scroll_y": (regs["vscroll"][1] - regs["vscroll"][0]),
             "tilemap": tiles,
         }
     elif area != 1:

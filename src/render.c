@@ -1,6 +1,7 @@
 #include "render.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "raylib.h"
@@ -111,6 +112,15 @@ static void DrawLayer(const Assets *assets, const BgLayer *layer,
     }
 
     float origin_x = camera->x + offset_x;
+    if (getenv("DC_DEBUG_BG") && layer == &level->bg[1]) {
+        static int printed = 0;
+        if (printed < 3) {
+            fprintf(stderr, "BG1 origin_y=%.1f cam_y=%.1f level_cam_y=%.1f "
+                    "scroll_y=%d\n", origin_y, camera->y, level->camera_y,
+                    layer->scroll_y);
+            printed++;
+        }
+    }
     DrawLayerBand(assets, layer, level->area_id, wrap_x, wrap_y,
                   layer == &level->bg[0], origin_x, origin_y, 0, 224);
 }
