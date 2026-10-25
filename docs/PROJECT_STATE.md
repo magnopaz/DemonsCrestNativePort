@@ -3371,6 +3371,26 @@ with structural filters), background rebuilds from VRAM, an animation model with
 pose tags, and **acceptance gates** in the regression (no debris components, no
 opaque black, anchor consistency, screenshot diff).
 
+### Step 86 — Applying the sprite plan: OAM compositor (in progress)
+
+Started Pipeline A (`tools/dc_extract/oam_compose.py`): reads a probe's
+`vram.bin` / `cgram.bin` / `oam.bin` / `ppu.json`, decodes OAM entries (palette
+bits, flips, tile bank bit, OBSEL tile base, size pair, 4bpp plane layout),
+composites them in screen space, and crops the largest cluster as the boss.
+
+**Not passing the gate yet.** The composite still breaks into 8×8 chunks, so the
+sprites are *not* wired into the port. The probe dumps themselves are the first
+suspect: the recomposition diff against the emulator's own frame has not been
+run, and the word order inside `vram.bin` is untested (the tool now takes a
+`--big-endian-words` flag rather than guessing).
+
+Next step, per the plan: render the probe's buffers with the recomp's
+`render_inject` and compare with the recorded frame of the same state. That
+single comparison tells us whether the dump layout or the decoder is wrong — the
+question the plan says to answer before touching the port.
+
+Somulo therefore stays on the cleaned sheet frames (scale 0.95) for now.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
