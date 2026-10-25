@@ -149,8 +149,10 @@ def main() -> int:
         size16 = (hi >> ((i % 4) * 2 + 1)) & 1
         if y >= 224 or x >= 256 or (x == 0 and y == 0 and tile == 0):
             continue
-        # Attribute bit 0 is tile bit 8 (the bank bit for 16x16 sprites).
-        tile |= (attr & 1) << 8
+        # Attribute bit 0 is tile bit 8 ONLY for 16x16 sprites; 8x8 entries
+        # ignore it (applying it read the wrong tiles and dropped parts).
+        if size16:
+            tile = (tile & 0xFE) | ((attr & 1) << 8)
         palette = (attr >> 1) & 7
         flip_h = bool(attr & 0x40)
         flip_v = bool(attr & 0x80)
@@ -159,9 +161,10 @@ def main() -> int:
         # 0x10 bit the row, in row-major order.
         quads = []
         n = size // 8
+        base_tile = (tile & 0x1FE) if size16 else tile
         for row in range(n):
             for col in range(n):
-                quads.append((tile + col + row * 16, col * 8, row * 8))
+                quads.append((base_tile + col + row * 16, col * 8, row * 8))
         width = height = size
         for t, ox, oy in quads:
             pix = tile_pixels(vram, t, palette, colours, flip_h, flip_v,

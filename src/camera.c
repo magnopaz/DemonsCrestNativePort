@@ -41,3 +41,17 @@ void Camera_Update(GameCamera *camera, const Level *level, const Player *player)
     if (camera->y > max_y)
         camera->y = max_y;
 }
+
+
+/* Centre the view on a world x, clamped to the room. Used by scripted scenes
+ * (Somulo's entrance pans with him) where the player is not the subject. */
+void Camera_Focus(GameCamera *camera, const Level *level, float x) {
+    camera->x = x - 128.0f;
+    float max_x = level->camera_max_x;
+    if (max_x < level->camera_min_x)
+        max_x = level->camera_min_x;
+    if (camera->x < level->camera_min_x)
+        camera->x = level->camera_min_x;
+    if (camera->x > max_x)
+        camera->x = max_x;
+}

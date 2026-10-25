@@ -330,17 +330,11 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                     else
                         frame = 0;
                 }
-                if (o->species == 0x33 && sheet->frame_count >= 5) {
-                    /* Poses: 0 idle, 1 attack high, 2 attack low, 3 hurt,
-                     * 4 defeated. */
-                    if (o->state == 5)
-                        frame = 4;   /* collapsed */
-                    else if (o->hit_flash > 0)
-                        frame = 3;
-                    else if (o->state == 1 || o->state == 2)
-                        frame = (o->substate == 1) ? 2 : 1;
-                    else
-                        frame = 0;
+                if (o->species == 0x33) {
+                    /* 0 = walking (the blind walk), 1 = standing. */
+                    frame = (o->state == 7 || o->state == 8) ? 0 : 1;
+                    if (frame >= sheet->frame_count)
+                        frame = sheet->frame_count - 1;
                 }
                 const SpeciesFrame *sf = &sheet->frames[frame];
                 float dx = x - sf->anchor_x;
@@ -427,31 +421,30 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
 }
 
 static void DrawHud(const Assets *assets, const Player *player) {
-    /* The original HUD is a grid of dots, not a bar: ten life dots over six
-     * potion dots, top-left, plus the crest slots. Measured from captures. */
+    /* The real HUD is ONE row of life dots: filled pink for current HP, hollow
+     * gold rings for the rest of the maximum (measured on the captures: three
+     * filled + five hollow in the cemetery). There is no second, yellow
+     * resource row - what looked like one is just the empty slots. */
     const int dot_r = 2;
     const int step = 6;
-    const int row1_y = 9;
-    const int row2_y = 16;
-    const int x0 = 8;
-    Color full = {235, 72, 96, 255};
-    Color empty = {52, 44, 56, 255};
+    const int y = 20;
+    const int x0 = 26;
+    Color full = {198, 99, 132, 255};
+    Color hollow = {99, 49, 16, 255};
     Color rim = {18, 14, 22, 255};
 
-    for (int i = 0; i < 10; i++) {
+    int max_dots = player->max_hp;
+    if (max_dots < 1)
+        max_dots = 1;
+    if (max_dots > 10)
+        max_dots = 10;
+    for (int i = 0; i < max_dots; i++) {
         int cx = x0 + i * step;
-        bool on = i < player->max_hp && i < player->hp;
-        bool slot = i < player->max_hp;
-        DrawCircle(cx, row1_y, dot_r + 1.0f, rim);
-        DrawCircle(cx, row1_y, dot_r,
-                   on ? full : (slot ? empty : (Color){26, 22, 30, 255}));
-    }
-    for (int i = 0; i < 6; i++) {
-        int cx = x0 + i * step;
-        bool on = i < player->potions;
-        DrawCircle(cx, row2_y, dot_r + 1.0f, rim);
-        DrawCircle(cx, row2_y, dot_r, on ? (Color){240, 190, 90, 255}
-                                         : (Color){38, 32, 44, 255});
+        bool on = i < player->hp;
+        DrawCircle(cx, y, dot_r + 1.0f, rim);
+        DrawCircle(cx, y, dot_r, on ? full : hollow);
+        if (!on)
+            DrawCircle(cx, y, dot_r - 1.0f, (Color){24, 16, 57, 255});
     }
 
     if (IsTextureValid(assets->hud_slots)) {

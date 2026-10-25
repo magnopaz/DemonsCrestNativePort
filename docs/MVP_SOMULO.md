@@ -101,3 +101,15 @@ the torch relief and the gate bars, so enclosures inside his silhouette keep the
 background (the bars and the flame survive any colour/f lood-fill key). The OAM
 compositor gives his head and neck cleanly but still drops body parts, so fixing
 that is the next step for the walk cycle.
+
+
+## The HUD is one row, not two
+
+The user asked what the yellow dots under the life row are. They are not a
+resource: the original draws **one row of life dots** where the current HP is
+pink and the rest of the maximum is a **hollow gold ring**. Measured on the
+cemetery capture at frame 3600: three filled + five hollow = 3/8 life.
+
+The port had invented a second yellow row ("potion dots") from a misread of an
+upscaled screenshot. `DrawHud` now draws only the life row (filled + hollow) and
+the crest slots, with the row starting at x = 26, y = 20 as the game does.

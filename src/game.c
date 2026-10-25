@@ -821,6 +821,12 @@ static bool Game_UpdateBossIntro(Game *game) {
 
     game->boss_intro_timer++;
     int f = game->boss_intro_timer;
+    /* The real entrance pans the camera with him; the player is not the
+     * subject until the roar ends. */
+    Camera_Focus(&game->camera, &game->level,
+                 (float)boss->x_fx / 256.0f);
+    if (game->shake > 0)
+        game->camera.x += (float)((game->shake % 5) - 2);
     const int32_t fx_one = 256;
 #define FX_ONE fx_one
 
@@ -835,6 +841,7 @@ static bool Game_UpdateBossIntro(Game *game) {
         }
         break;
     case 2: /* walking in, one heavy step after another */
+        boss->state = 8;   /* walking pose; the intro moves him, not the AI */
         boss->x_fx += (int32_t)(1.3f * FX_ONE);
         if (boss->x_fx > (int32_t)(288.0f * FX_ONE))
             boss->x_fx = (int32_t)(288.0f * FX_ONE);
@@ -847,6 +854,7 @@ static bool Game_UpdateBossIntro(Game *game) {
         }
         break;
     case 3: /* the roar */
+        boss->state = 0;   /* stands up to roar */
         if (f == 1) {
             game->shake = 60;
             boss->hit_flash = 0;

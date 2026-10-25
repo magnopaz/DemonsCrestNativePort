@@ -213,6 +213,7 @@ def main() -> int:
         # ---- Campaign: Area 0 boss gate -> Area 17 transition ----
         d12 = run_demo(base, out, 12, 1200,
                        {"DC_AREA": "0", "DC_CAMPAIGN": "1",
+                        "DC_BOSS_INTRO": "0",
                         "DC_BOSS_DEFEATED": "1"})
         rows12 = csv_rows(d12["player"])
         areas12 = []
@@ -408,6 +409,7 @@ def main() -> int:
         # ---- Campaign: Somulo defeat ends the area ----
         d14 = run_demo(base, out, 7, 300,
                        {"DC_AREA": "0", "DC_CAMPAIGN": "1",
+                        "DC_BOSS_INTRO": "0",
                         "DC_BOSS_HP": "1", "DC_START_X": "560",
                         "DC_START_Y": "172", "DC_BOSS_X": "600",
                         "DC_BOSS_Y": "150"})
