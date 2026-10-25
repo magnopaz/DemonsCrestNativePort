@@ -420,6 +420,7 @@ def main() -> int:
         d14 = run_demo(base, out, 14, 1200,
                        {"DC_AREA": "0", "DC_CAMPAIGN": "1",
                         "DC_BOSS_NO_ATTACK": "1",
+                        "DC_BOSS_INTRO": "0",
                         "DC_MVP_KEEP_CONTROL": "1"})
         rows14 = csv_rows(d14["player"])
         objs14 = csv_rows(d14["objects"])

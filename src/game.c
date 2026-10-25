@@ -783,6 +783,90 @@ static void Game_CheckTransitions(Game *game) {
     }
 }
 
+/* Somulo's entrance, as the recorded fight shows it: he is on the far side of
+ * the colosseum behind the gate, his steps shake the screen as he comes through,
+ * and he roars before Firebrand has control. Phases:
+ *   1  waiting off-screen, distant steps
+ *   2  walking in to the arena
+ *   3  the roar
+ * Returns true while the intro still owns the frame. */
+static bool Game_UpdateBossIntro(Game *game) {
+    if (game->level.area_id != 0 || game->objects.boss_alive == false) {
+        if (game->level.area_id != 0)
+            game->boss_intro = 0;
+    }
+    ObjectPool *pool = &game->objects;
+    Object *boss = NULL;
+    for (int i = 0; i < OBJECT_POOL_SIZE; i++) {
+        Object *o = &pool->slots[i];
+        if (o->active && o->type == OBJECT_BOSS) {
+            boss = o;
+            break;
+        }
+    }
+    if (!boss) {
+        game->boss_intro = 0;
+        return false;
+    }
+
+    /* No control, and no shooting at him during the entrance. */
+    game->input.left = false;
+    game->input.right = false;
+    game->input.up = false;
+    game->input.down = false;
+    game->input.jump_pressed = false;
+    game->input.jump_held = false;
+    game->input.shot_pressed = false;
+    game->input.shot_held = false;
+
+    game->boss_intro_timer++;
+    int f = game->boss_intro_timer;
+    const int32_t fx_one = 256;
+#define FX_ONE fx_one
+
+    switch (game->boss_intro) {
+    case 1: /* off-screen, coming closer */
+        boss->x_fx = (int32_t)(-70.0f * FX_ONE);
+        if (f == 1 || (f % 22) == 0)
+            game->shake = 14;
+        if (f > 70) {
+            game->boss_intro = 2;
+            game->boss_intro_timer = 0;
+        }
+        break;
+    case 2: /* walking in, one heavy step after another */
+        boss->x_fx += (int32_t)(1.3f * FX_ONE);
+        if (boss->x_fx > (int32_t)(288.0f * FX_ONE))
+            boss->x_fx = (int32_t)(288.0f * FX_ONE);
+        if ((f % 24) == 5)
+            game->shake = 16;
+        if (f > 280) {
+            game->boss_intro = 3;
+            game->boss_intro_timer = 0;
+            game->shake = 26;
+        }
+        break;
+    case 3: /* the roar */
+        if (f == 1) {
+            game->shake = 60;
+            boss->hit_flash = 0;
+        }
+        if (f > 110) {
+            game->boss_intro = 0;
+            game->boss_intro_timer = 0;
+            /* He starts walking blind down the corridor: contact is fatal. */
+            boss->state = 7;
+            boss->phase = 420;
+            boss->substate = 0;
+        }
+        break;
+    default:
+        game->boss_intro = 0;
+        break;
+    }
+    return true;
+}
+
 static void Game_HandleDeath(Game *game) {
     if (game->player.hp > 0 || game->state != GAME_PLAYING)
         return;
@@ -1210,6 +1294,10 @@ static void Game_UpdateOptions(Game *game) {
 /* Title, stage, boss and ending loops follow the game state. */
 static void Game_SyncMusic(Game *game) {
     int track = MUSIC_STAGE;
+    if (game->state == GAME_PLAYING && game->boss_intro > 0 &&
+        Game_UpdateBossIntro(game))
+        return;
+
     switch ((GameState)game->state) {
     case GAME_TITLE:
         track = MUSIC_TITLE;
@@ -1342,6 +1430,8 @@ void Game_Update(Game *game) {
         game->input.shot_held = shoot;
     }
     game->state_timer++;
+    if (game->shake > 0)
+        game->shake--;
 
     /* Edge-detect direction presses for menu navigation. */
     bool up_pressed = game->input.up && !game->prev_up;
@@ -1364,6 +1454,12 @@ void Game_Update(Game *game) {
                 has_exit = true;
                 break;
             }
+        }
+        if (game->level.area_id == 0 && game->boss_intro == 0 &&
+            game->shake_phase == 0 && getenv("DC_BOSS_INTRO") == NULL) {
+            game->boss_intro = 1;
+            game->boss_intro_timer = 0;
+            game->shake_phase = 1;
         }
         if (game->campaign_mode && !has_exit &&
             game->level.gate_next_area < 0 && game->input.start_pressed) {

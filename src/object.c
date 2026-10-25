@@ -399,6 +399,20 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                  * the fight is a fireball duel: idle -> windup -> fire (low or
                  * high, aimed at Firebrand) -> recover, with a stagger when the
                  * head is hit. Six head hits kill him. */
+                if (o->state == 7) {   /* blind walk after the roar */
+                    int32_t towards = (player->x_fx > o->x_fx) ? 1 : -1;
+                    o->x_fx += towards * (int32_t)(0.85f * FX_ONE);
+                    if (o->phase > 0)
+                        o->phase--;
+                    else {
+                        o->state = 0;   /* eyes open: the fireball duel */
+                        o->phase = 40;
+                    }
+                    if (player->hp > 0 &&
+                        fabsf((float)(player->x_fx - o->x_fx) / FX_ONE) < 70.0f)
+                        player->hp = 0;
+                    continue;
+                }
                 if (o->hit_flash > 0 && o->state != 4) {
                     o->state = 4;   /* stagger */
                     o->phase = 36;

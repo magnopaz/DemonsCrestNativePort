@@ -41,6 +41,12 @@ typedef struct Game {
     int stage_sel;
     int pause_flash; /* frames the SAVED hint stays visible */
     int intro_timer; /* frames the area-entry banner stays visible */
+    /* Somulo's scripted entrance: the player has no control until the roar.
+     * 0 = off, otherwise the phase below (1..3). */
+    int boss_intro;
+    int boss_intro_timer;
+    int shake;       /* frames of screen shake left */
+    int shake_phase;
     int talisman_toast;       /* frames the talisman line is shown */
     int talisman_toast_index; /* which talisman was picked up */
     bool attract;    /* title-screen demo running */

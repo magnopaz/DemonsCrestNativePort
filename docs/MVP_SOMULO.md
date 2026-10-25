@@ -50,3 +50,27 @@ $env:DC_AREA="0"; $env:DC_DEMO="14"; .\demonscrest.exe --assets assets\generated
 
 MVP 2: **Murkland cemetery** (area 2) fully playable — its rooms, enemies, urns,
 doors and the stage's boss, with the same definition-of-done table.
+
+
+## The entrance (how the fight actually opens)
+
+Explained by the user from the recorded fight — it is scripted, not a cutscene
+you can skip:
+
+1. Firebrand is shown in the colosseum; **Somulo is on the far side of the gate**
+   and looks at him (his eyes glow between the bars).
+2. The steps shake the screen as he comes to the **other gate, which opens** for
+   him.
+3. He passes through and **screams**.
+4. **Only after the scream does the player get control.**
+5. He then **walks toward the player with his eyes closed** — he cannot see
+   Firebrand, so he does not react; standing in his path is fatal.
+6. When he stops and **opens his eyes**, the fireball duel begins.
+
+Implemented so far: the three phases (distant steps, walking in from the left,
+the roar), control lockout until the roar ends, screen shake on the steps and the
+roar, the deadly blind walk (state 7), and `DC_BOSS_INTRO=0` to skip it in tests.
+
+Still missing: the **gate opening** animation, the glowing-eyes-behind-the-bars
+shot, and the eyes-closed / eyes-open / scream sprites (the entrance currently
+reuses the single full-body frame).
