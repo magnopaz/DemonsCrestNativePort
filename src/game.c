@@ -2098,9 +2098,13 @@ static void DrawOverlay(const Game *game) {
 
 void Game_Render(Game *game) {
     BeginTextureMode(game->target);
-    bool show_hud = game->state == GAME_PLAYING ||
+    /* The first Somulo fight hides the HUD on purpose: the player learns
+     * their state only in the next room. */
+    bool cinematic = game->level.area_id == 0;
+    bool show_hud = !cinematic &&
+                    (game->state == GAME_PLAYING ||
                     game->state == GAME_PAUSED ||
-                    game->state == GAME_SUBSCREEN;
+                    game->state == GAME_SUBSCREEN);
     if (game->state == GAME_OVERWORLD) {
         DrawOverworld(game);
         if (game->stage_select)

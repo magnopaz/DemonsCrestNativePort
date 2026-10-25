@@ -15,6 +15,7 @@ playable end to end, without cheats or stage select.
 | 6 | Defeat leaves the player in control and the gate leads to area 34 | **done** (opt-in `DC_MVP_KEEP_CONTROL`) | `demo 14` reaches area 34 |
 | 7 | No placeholder art for the boss, his fireballs or the firewall | **done** | recorded frames + sheet fire art |
 | 8 | Beat it as a player with the normal form, no debug flags | **check** | `DC_AREA=0` plain run; the demo's six hits prove reachability |
+| 9 | **No HUD during the fight** (the original hides it for the cinematic), and life elsewhere is shown as **dots**, not a bar | **done** | measured from the user's captures; area 0 has no HUD, area 34 shows the two dot rows |
 
 ### How it was verified
 

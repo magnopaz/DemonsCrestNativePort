@@ -3271,6 +3271,18 @@ green state pending a hit), fang talisman in area 78, Phalanx in area 84.
 - Spec: `docs/MVP_SOMULO.md` (definition of done + known gaps: intro roar,
   area 34 staging, mouth flame).
 
+### Step 81 — HUD matches the original: dots, and hidden for the first fight (done)
+
+- Measured the real HUD from the user's captures: **life is a row of 10 dots**
+  (filled per HP), **six potion dots** under it, plus the crest slot panel. There
+  is **no HP bar and no boss bar** — the port had invented both.
+- `DrawHud` now draws those two dot rows and the crest slots; the baked bar, the
+  black band behind it and the boss health bar are gone.
+- The whole HUD is **hidden in area 0**, matching the cinematic first Somulo
+  fight: the player only sees their state in the next room.
+- Verified by screenshot: area 0 shows no HUD at all; area 34 shows the dot rows
+  and crest panel.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

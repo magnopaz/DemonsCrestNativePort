@@ -403,42 +403,36 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                                  body);
                 }
             }
-            if (o->type == OBJECT_BOSS && o->max_hp > 0 && o->hp > 0) {
-                int bw = 48;
-                int filled = (o->hp * bw) / o->max_hp;
-                DrawRectangle(196, 26, bw + 2, 6, (Color){20, 10, 20, 200});
-                DrawRectangle(197, 27, filled, 4, (Color){230, 60, 80, 255});
-            }
         }
     }
 }
 
 static void DrawHud(const Assets *assets, const Player *player) {
-    DrawRectangle(0, 0, 256, 24, (Color){0, 0, 0, 150});
+    /* The original HUD is a grid of dots, not a bar: ten life dots over six
+     * potion dots, top-left, plus the crest slots. Measured from captures. */
+    const int dot_r = 2;
+    const int step = 6;
+    const int row1_y = 9;
+    const int row2_y = 16;
+    const int x0 = 8;
+    Color full = {235, 72, 96, 255};
+    Color empty = {52, 44, 56, 255};
+    Color rim = {18, 14, 22, 255};
 
-    if (IsTextureValid(assets->hud_bar)) {
-        int bar_x = 24;
-        int bar_y = 16;
-        int width = assets->hud_bar.width;
-        /* The baked bar is a brightness mask (light body + pink highlight),
-         * so tint it: dark for missing health, red for the filled part. */
-        DrawTexture(assets->hud_bar, bar_x, bar_y,
-                    (Color){52, 48, 58, 255});
-        if (player->max_hp > 0 && player->hp > 0) {
-            float ratio = (float)player->hp / (float)player->max_hp;
-            if (ratio > 1.0f)
-                ratio = 1.0f;
-            int filled = (int)lroundf(ratio * width);
-            if (filled > 0) {
-                Rectangle src = {0, 0, (float)filled,
-                                 (float)assets->hud_bar.height};
-                Rectangle dst = {(float)bar_x, (float)bar_y,
-                                 (float)filled,
-                                 (float)assets->hud_bar.height};
-                DrawTexturePro(assets->hud_bar, src, dst, (Vector2){0, 0},
-                               0.0f, (Color){235, 88, 120, 255});
-            }
-        }
+    for (int i = 0; i < 10; i++) {
+        int cx = x0 + i * step;
+        bool on = i < player->max_hp && i < player->hp;
+        bool slot = i < player->max_hp;
+        DrawCircle(cx, row1_y, dot_r + 1.0f, rim);
+        DrawCircle(cx, row1_y, dot_r,
+                   on ? full : (slot ? empty : (Color){26, 22, 30, 255}));
+    }
+    for (int i = 0; i < 6; i++) {
+        int cx = x0 + i * step;
+        bool on = i < player->potions;
+        DrawCircle(cx, row2_y, dot_r + 1.0f, rim);
+        DrawCircle(cx, row2_y, dot_r, on ? (Color){240, 190, 90, 255}
+                                         : (Color){38, 32, 44, 255});
     }
 
     if (IsTextureValid(assets->hud_slots)) {
