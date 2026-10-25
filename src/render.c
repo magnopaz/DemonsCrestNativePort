@@ -331,8 +331,12 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                         frame = 0;
                 }
                 if (o->species == 0x33) {
-                    /* 0 = walking (the blind walk), 1 = standing. */
-                    frame = (o->state == 7 || o->state == 8) ? 0 : 1;
+                    /* Frames 0-3 are the walk cycle, 4 is standing. */
+                    int stand = sheet->frame_count - 1;
+                    if ((o->state == 7 || o->state == 8) && stand >= 3)
+                        frame = (o->timer / 9) % 3;
+                    else
+                        frame = stand;
                     if (frame >= sheet->frame_count)
                         frame = sheet->frame_count - 1;
                 }

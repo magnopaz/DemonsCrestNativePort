@@ -113,3 +113,23 @@ cemetery capture at frame 3600: three filled + five hollow = 3/8 life.
 The port had invented a second yellow row ("potion dots") from a misread of an
 upscaled screenshot. `DrawHud` now draws only the life row (filled + hollow) and
 the crest slots, with the row starting at x = 26, y = 20 as the game does.
+
+
+## Somulo animation
+
+The walk is a **3-frame cycle**, cut from the immortal walk-past (frames 2475,
+2516, 2596 of `rec_20261025_005437`) and aligned by each cut's feet and body
+centroid so the cycle does not jitter. Frames 0-2 are the cycle (9 frames each in
+`species_anim.json`), frame 3 is the standing pose used for the roar and the
+fireball duel.
+
+Known defects, all from the frames being cut out of gameplay:
+
+- thin **wall/gate remnants** survive behind his back (the bars are only slightly
+  bluer than the bronze, so a cold-key keeps them);
+- the ground strip from the arena sits at the bottom of each frame;
+- his **feet sit below the room's floor** in the port because the colosseum
+  background is still missing tiles - the same background problem as before.
+
+The clean fix for all three is the same one the sprite plan calls for: rebuild the
+room's background from VRAM, then cut the boss against a known backdrop.
