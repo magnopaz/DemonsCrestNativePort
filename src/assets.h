@@ -29,10 +29,23 @@ typedef struct EndingData {
     bool loaded;
 } EndingData;
 
+/* Animation clips per object state (review P1): the JSON can map an object's
+ * state byte to a list of frames instead of every species needing an `if` in
+ * the renderer. */
+#define DC_SPECIES_STATES 16
+#define DC_STATE_FRAMES 8
+
+typedef struct StateClip {
+    int count;
+    int frames[DC_STATE_FRAMES];
+} StateClip;
+
 typedef struct SpeciesSheet {
     int species;
     int frame_count;
     int duration;
+    bool has_states;
+    StateClip states[DC_SPECIES_STATES];
     SpeciesFrame frames[DC_SPECIES_FRAMES];
 } SpeciesSheet;
 

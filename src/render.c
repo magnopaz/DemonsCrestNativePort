@@ -340,15 +340,19 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                     else
                         frame = 0;
                 }
-                if (o->species == 0x33) {
-                    /* Frames 0-3 are the walk cycle, 4 is standing. */
-                    int stand = sheet->frame_count - 1;
-                    if ((o->state == 7 || o->state == 8) && stand >= 3)
-                        frame = (o->timer / 9) % 3;
-                    else
-                        frame = stand;
-                    if (frame >= sheet->frame_count)
-                        frame = sheet->frame_count - 1;
+                /* Data-driven: the sheet's `states` map picks the clip for the
+                 * object's own state, so no species needs a block here. */
+                if (sheet->has_states && o->state >= 0 &&
+                    o->state < DC_SPECIES_STATES) {
+                    const StateClip *clip = &sheet->states[o->state];
+                    if (clip->count > 0) {
+                        int step = (o->timer / (sheet->duration > 0
+                                                    ? sheet->duration
+                                                    : 6)) % clip->count;
+                        int idx = clip->frames[step];
+                        if (idx >= 0 && idx < sheet->frame_count)
+                            frame = idx;
+                    }
                 }
                 const SpeciesFrame *sf = &sheet->frames[frame];
                 float dx = x - sf->anchor_x;

@@ -3602,6 +3602,33 @@ Also from the same report:
 - the frames carried ~10 rows of baked ground strip, now cropped, so his feet -
   not the floor texture - are the bottom of the sprite.
 
+### Step 95 — Taking the review's Fase 0/1: state clips instead of `species ==`
+
+Read `docs/PLAN_SPRITES_ANIMATION_REVIEW.md` and acted on its two cheapest,
+highest-leverage items.
+
+**P5 is settled**: its claim that `extract.py::compose_oam` is the reference is
+right, and comparing the two shows our `oam_compose.py` uses the same quadrant
+maths (`((tile >> 4) + row) << 4 | ((tile & 0x0F) + col)`) and the same
+`0x80 + palette*16` CGRAM row. The leftover "missing parts" are not a decode bug:
+part of a boss this large is drawn by the BG layers (the 32-sprite-per-line
+limit), which is why cutting from the frame is the correct source.
+
+**Fase 0/1 implemented (the data contract)**:
+
+- `SpeciesSheet` gained `has_states` + `StateClip states[16]` (up to 8 frames
+  each), loaded from a new `"states"` object in `species_anim.json` keyed by the
+  object's own state byte;
+- `DrawObjects` now picks the frame from that table (animated with the object's
+  timer) and the `species == 0x33` block is **gone** - Somulo is data-driven:
+  `{"7": [0,1,2], "8": [0,1,2], "0": [3], ...}` = walk cycle while walking,
+  standing otherwise;
+- verified in game and by the regression (PASS).
+
+Still open from the review, in its own priority order: **P2 facing/flip**
+(object sprites never mirror), P1's remaining species blocks, P3 long captures,
+P4 integer anchors, and the `recompose_diff.py` gate.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

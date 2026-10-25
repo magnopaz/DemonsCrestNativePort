@@ -71,6 +71,27 @@ static void LoadSpeciesSheets(Assets *assets, const char *dir) {
             sheet->duration = JsonNum(frame, "duration", sheet->duration);
             sheet->frame_count++;
         }
+        const cJSON *states =
+            cJSON_GetObjectItemCaseSensitive(entry, "states");
+        if (cJSON_IsObject(states)) {
+            const cJSON *st = NULL;
+            cJSON_ArrayForEach(st, states) {
+                if (!cJSON_IsArray(st))
+                    continue;
+                int idx = atoi(st->string ? st->string : "-1");
+                if (idx < 0 || idx >= DC_SPECIES_STATES)
+                    continue;
+                StateClip *clip = &sheet->states[idx];
+                const cJSON *fv = NULL;
+                cJSON_ArrayForEach(fv, st) {
+                    if (clip->count >= DC_STATE_FRAMES || !cJSON_IsNumber(fv))
+                        continue;
+                    clip->frames[clip->count++] = fv->valueint;
+                }
+                if (clip->count > 0)
+                    sheet->has_states = true;
+            }
+        }
         if (sheet->frame_count > 0)
             assets->species_count++;
         else
