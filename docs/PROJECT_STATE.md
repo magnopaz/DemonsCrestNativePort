@@ -3348,6 +3348,29 @@ backdrop (the port is black) and the enemy art. `docs/sprites/…Backgrounds -
 Cemetery.png` holds the tile set plus a composed parallax strip, so the backdrop
 is buildable from it; that is the next task.
 
+### Step 85 — Sprite/animation plan; Somulo no longer debris (done)
+
+The user reported the sprint animation as "really strange, buggy" and the
+background as broken. Measured it:
+
+- the Somulo frames cut from the recorded fight have **113 alpha components**
+  each (largest ~2.2k px): the video colour key removed the dragon's dark
+  shading and kept the golden floor as speckles;
+- the sheet-composed frames carry the sheet's **opaque-black ribcage interior**;
+- the colosseum background has **black rectangles** where the BG tilemap
+  references tiles whose CHR was never captured.
+
+Immediate mitigation: Somulo is back on **sheet-composed frames**, black patches
+keyed out, scale set to **0.95** (was 1.3, then 1.15 — both guesses). No more
+debris, though the sprite is still on the large side and the background holes
+remain.
+
+The method is written down in `docs/PLAN_SPRITES_ANIMATION.md`: Pipeline A (exact
+OAM/VRAM compositor with recomposition diff), Pipeline B (measured sheet crops
+with structural filters), background rebuilds from VRAM, an animation model with
+pose tags, and **acceptance gates** in the regression (no debris components, no
+opaque black, anchor consistency, screenshot diff).
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
