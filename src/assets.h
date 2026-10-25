@@ -10,7 +10,7 @@
 #define DC_OBJ_PALETTES 8
 #define DC_CAMPAIGN_AREAS 128
 #define DC_SPECIES_MAX 64
-#define DC_SPECIES_FRAMES 4
+#define DC_SPECIES_FRAMES 8
 
 typedef struct SpeciesFrame {
     Texture2D texture;

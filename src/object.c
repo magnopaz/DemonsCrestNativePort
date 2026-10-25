@@ -68,6 +68,8 @@ static void SpawnEnemy(ObjectPool *pool, const LevelObject *src) {
     o->origin_y_fx = o->y_fx;
     o->hp = (src->species == 0x26) ? 3 : 2;
     o->max_hp = o->hp;
+    if (getenv("DC_BOSS_HURT") != NULL)  /* test hook: show the damage tint */
+        o->hp = o->max_hp > 1 ? o->max_hp / 2 : 1;
     o->state = 0; /* emerge / init */
     o->timer = 24;
     o->vx_fx = (src->flags & 1) ? 0x0080 : -0x0080;
@@ -540,7 +542,25 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 }
                 o->origin_y_fx = o->y_fx;
             } else if (o->species == 0x09) {
-                /* Hippogriff: hovers, dives at the player, and throws feathers. */
+                /* Hippogriff: hovers, dives, throws feathers — and now and then
+                 * turns back into a statue. Shots do nothing then; a headbutt
+                 * wakes him (the recording shows this, randomly). */
+                if (o->state == 6) {
+                    if ((player->dash_timer > 0 &&
+                         fabsf((float)(player->x_fx - o->x_fx) / FX_ONE) < 30.0f) ||
+                        getenv("DC_BOSS_STATUE") == NULL) {
+                        o->state = 0;
+                        o->phase = 40;
+                        o->hit_flash = 10;
+                    } else {
+                        o->phase--;
+                        if (o->phase <= 0) {
+                            o->state = 0;   /* got bored, woke on his own */
+                            o->phase = 40;
+                        }
+                    }
+                    continue;
+                }
                 if (o->hit_flash > 0 && o->state != 4) {
                     o->state = 4;
                     o->phase = 20;
@@ -549,6 +569,15 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 if (o->phase <= 0) {
                     switch (o->state) {
                     case 0: /* hover and track */
+                        /* Occasionally turn to stone: 1 in 4 every cycle, or
+                         * always with the test hook. */
+                        if (getenv("DC_BOSS_STATUE") != NULL ||
+                            (o->timer > 120 && (o->hops % 4) == 3)) {
+                            o->state = 6;
+                            o->phase = 260;
+                            o->hops++;
+                            break;
+                        }
                         o->state = (o->hops++ & 1) ? 1 : 2;
                         o->phase = (o->state == 1) ? 50 : 30;
                         break;
@@ -1238,6 +1267,10 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                 float hw = (o->species == 0x33) ? 40.0f : 20.0f;
                 float hh = (o->species == 0x33) ? 46.0f : 24.0f;
                 if (fabsf(px - ox) <= hw && fabsf(py - oy) <= hh) {
+                    if (o->species == 0x09 && o->state == 6) {
+                        p->active = false;   /* spark off the stone */
+                        break;
+                    }
                     /* Somulo flashes white for ~33 frames after a hit in the
                      * recording and cannot be hit again until it ends, so the
                      * six-hit rhythm is the player's, not a machine gun.

@@ -301,7 +301,12 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                     else
                         frame = 0;
                 }
-                if (o->species == 0x09 && sheet->frame_count >= 5) {
+                if (o->species == 0x09 && sheet->frame_count >= 6 &&
+                    o->state == 6) {
+                    frame = 5;   /* statue */
+                }
+                if (o->species == 0x09 && sheet->frame_count >= 5 &&
+                    o->state != 6) {
                     if (o->state == 1)
                         frame = 4;   /* feather volley */
                     else if (o->state == 2 || o->state == 3)
@@ -359,6 +364,18 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                     /* Grewon's tell: he turns green while invincible, so the
                      * player can read when he is safe to hit again. */
                     tint = (Color){120, 255, 140, 255};
+                } else if (o->type == OBJECT_BOSS && o->species != 0x33 &&
+                           o->max_hp > 0 && o->hp < o->max_hp) {
+                    /* Bosses redden as they take damage (Somulo is the
+                     * exception, per the recorded fights). */
+                    float hurt = 1.0f - (float)o->hp / (float)o->max_hp;
+                    if (hurt < 0.0f)
+                        hurt = 0.0f;
+                    if (hurt > 1.0f)
+                        hurt = 1.0f;
+                    tint.r = 255;
+                    tint.g = (unsigned char)(255.0f - 90.0f * hurt);
+                    tint.b = (unsigned char)(255.0f - 120.0f * hurt);
                 }
                 DrawTexturePro(sf->texture, src, dst, (Vector2){0, 0}, 0.0f,
                                tint);

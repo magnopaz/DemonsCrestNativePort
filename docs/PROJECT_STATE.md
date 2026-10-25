@@ -3324,6 +3324,30 @@ menus and cinematics, **not** rooms. Documented in `docs/SCREEN_KINDS.md`
 together with the intro's text pages (which already exist in
 `text_strings.json`, so staging the intro is presentation work).
 
+### Step 84 — Hippogriff's statue and the bosses' damage reddening (done)
+
+From the user's cemetery capture (7 211 frames):
+
+- **The mid-boss turns back into a statue mid-fight** and only a **headbutt**
+  wakes him; it is random and a fast kill can skip it entirely.
+  Implemented as a new `state 6`: he freezes on the statue frame, shots spark off
+  (no damage), a headbutt within 30 px wakes him, and after ~4 s he wakes on his
+  own. `DC_BOSS_STATUE` forces it for testing.
+- **Bosses redden as they lose health** — every boss except Somulo. The sprite
+  tint now blends toward red by `1 - hp/max_hp`; Grewon's green invincible colour
+  still wins while it is active. `DC_BOSS_HURT` spawns a boss at half health to
+  show it.
+- Found and fixed `DC_SPECIES_FRAMES = 4`: sheets with more than four frames
+  (Hippogriff now has six, including the statue) silently lost the extra ones.
+  Raised to 8.
+- Verified by screenshot: the stone statue renders in area 74, and Grewon comes
+  out pink/red at half health.
+
+The cemetery capture also shows exactly what MVP 2 still misses: the real
+backdrop (the port is black) and the enemy art. `docs/sprites/…Backgrounds -
+Cemetery.png` holds the tile set plus a composed parallax strip, so the backdrop
+is buildable from it; that is the next task.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
