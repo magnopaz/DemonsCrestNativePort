@@ -46,9 +46,9 @@ typedef enum LevelObjectType {
     LEVEL_OBJECT_PLATFORM,
     LEVEL_OBJECT_PICKUP_CREST,
     LEVEL_OBJECT_BOSS,
-    LEVEL_OBJECT_EXIT
-,
-    LEVEL_OBJECT_NPC} LevelObjectType;
+    LEVEL_OBJECT_EXIT,
+    LEVEL_OBJECT_NPC,
+    LEVEL_OBJECT_TALISMAN  /* flags = talisman index (0..4) */} LevelObjectType;
 
 typedef struct LevelObject {
     LevelObjectType type;

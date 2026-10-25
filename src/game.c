@@ -646,6 +646,16 @@ static void Game_UpdateSimulation(Game *game) {
             game->state_timer = 0;
         }
     }
+    if (game->objects.events & OBJECT_EVENT_TALISMAN) {
+        int talisman = game->objects.last_talisman;
+        if (talisman >= 0 && talisman < 5) {
+            game->talisman_toast = 150;
+            game->talisman_toast_index = talisman;
+            Audio_Play(SFX_PICKUP);
+        }
+    }
+    if (game->talisman_toast > 0)
+        game->talisman_toast--;
     if (game->player.hurt_event)
         Audio_Play(SFX_HURT);
     if (game->objects.events & OBJECT_EVENT_BREAK)
@@ -1675,7 +1685,13 @@ static bool DrawWorldMapView(const Game *game) {
 
 static void DrawOverworld(const Game *game) {
     if (DrawWorldMapView(game)) {
-        DrawText("OVERWORLD", 8, 6, 10, (Color){240, 232, 200, 255});
+        if (game->talisman_toast > 0 && game->talisman_toast_index >= 0 &&
+        game->talisman_toast_index < 5) {
+        const char *name = kTalismanNames[game->talisman_toast_index];
+        DrawText(TextFormat("%s TALISMAN", name), 60, 196, 10,
+                 (Color){255, 236, 170, 255});
+    }
+    DrawText("OVERWORLD", 8, 6, 10, (Color){240, 232, 200, 255});
         DrawText(TextFormat("GOLD %d", game->player.gold), 190, 6, 10,
                  (Color){255, 224, 120, 255});
         DrawText("X STAGE SELECT   ENTER LAND   Q/E ZOOM", 8, 208, 8,

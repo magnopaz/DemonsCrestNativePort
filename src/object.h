@@ -16,6 +16,7 @@
 #define OBJECT_EVENT_BOSS_DEFEATED 0x08
 #define OBJECT_EVENT_CREST_PICKUP 0x10
 #define OBJECT_EVENT_FIRE_PIECE 0x20
+#define OBJECT_EVENT_TALISMAN   0x40
 
 typedef enum ObjectType {
     OBJECT_NONE = 0,
@@ -26,7 +27,8 @@ typedef enum ObjectType {
     OBJECT_CREST_ITEM = 5,
     OBJECT_BOSS = 6,
     OBJECT_ENEMY_SHOT = 7, /* hostile projectile (species $67) */
-    OBJECT_NPC = 8        /* talkable city NPC (species $96) */
+    OBJECT_NPC = 8,       /* talkable city NPC (species $96) */
+    OBJECT_TALISMAN = 9   /* floating talisman pickup; species = index */
 } ObjectType;
 
 typedef struct Object {
@@ -56,7 +58,9 @@ typedef struct ObjectPool {
     bool boss_alive;
     bool boss_defeated;
     bool boss_present; /* an OBJECT_BOSS was spawned in this room */
-    int last_fire_piece; /* 1..4 = Buster/Tornado/Claw/Demon Fire */
+    int boss_phase;    /* 1 until a two-form boss transforms */
+    int last_fire_piece;
+    int last_talisman; /* 1..4 = Buster/Tornado/Claw/Demon Fire */
 } ObjectPool;
 
 void Objects_Init(ObjectPool *pool, const Level *level);

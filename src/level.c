@@ -308,6 +308,8 @@ static bool Level_LoadFile(Level *level, const Assets *assets,
                 dst->type = LEVEL_OBJECT_EXIT;
             else if (strcmp(type->valuestring, "npc") == 0)
                 dst->type = LEVEL_OBJECT_NPC;
+            else if (strcmp(type->valuestring, "talisman") == 0)
+                dst->type = LEVEL_OBJECT_TALISMAN;
             else
                 continue;
             if (!ReadFloat(o, "x", &dst->x) ||

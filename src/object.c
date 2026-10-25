@@ -163,6 +163,21 @@ static void SpawnCrestItem(ObjectPool *pool, const LevelObject *src) {
     o->origin_y_fx = o->y_fx;
 }
 
+/* Talismans (crown/skull/armor/fang/hand) float in place until collected. */
+static void SpawnTalisman(ObjectPool *pool, const LevelObject *src) {
+    Object *o = Alloc(pool);
+    if (!o)
+        return;
+    memset(o, 0, sizeof(*o));
+    o->active = true;
+    o->type = OBJECT_TALISMAN;
+    o->species = src->flags >= 0 && src->flags < 5 ? src->flags : 3;
+    o->x_fx = (int32_t)lroundf(src->x * FX_ONE);
+    o->y_fx = (int32_t)lroundf(src->y * FX_ONE);
+    o->origin_x_fx = o->x_fx;
+    o->origin_y_fx = o->y_fx;
+}
+
 static void SpawnBoss(ObjectPool *pool, const LevelObject *src) {
     Object *o = Alloc(pool);
     if (!o)
@@ -230,6 +245,7 @@ static void SpawnNpc(ObjectPool *pool, const LevelObject *src) {
 
 void Objects_Init(ObjectPool *pool, const Level *level) {
     memset(pool, 0, sizeof(*pool));
+    pool->boss_phase = 1;
     if (getenv("DC_DEBUG_OBJ"))
         fprintf(stderr, "objects: init with %d level objects\n",
                 level->object_count);
@@ -247,6 +263,8 @@ void Objects_Init(ObjectPool *pool, const Level *level) {
             SpawnBoss(pool, o);
         else if (o->type == LEVEL_OBJECT_NPC)
             SpawnNpc(pool, o);
+        else if (o->type == LEVEL_OBJECT_TALISMAN)
+            SpawnTalisman(pool, o);
     }
     if (getenv("DC_DEBUG_OBJ")) {
         int n = 0;
@@ -318,6 +336,20 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 player->vy_fx = 0;
                 player->vy = 0.0f;
                 player->on_ground = true;
+            }
+            continue;
+        }
+
+        if (o->type == OBJECT_TALISMAN) {
+            o->timer++;
+            o->y_fx = o->origin_y_fx +
+                      (int32_t)(sinf(o->timer * 0.05f) * 3.0f * FX_ONE);
+            if (PlayerTouches(o, player)) {
+                player->talisman_mask |= (uint8_t)(1u << o->species);
+                player->active_talisman = o->species;
+                pool->last_talisman = o->species;
+                o->active = false;
+                pool->events |= OBJECT_EVENT_PICKUP | OBJECT_EVENT_TALISMAN;
             }
             continue;
         }
@@ -1169,15 +1201,46 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                 if (fabsf(px - ox) <= 20.0f && fabsf(py - oy) <= 24.0f) {
                     /* Somulo flashes white for ~33 frames after a hit in the
                      * recording and cannot be hit again until it ends, so the
-                     * six-hit rhythm is the player's, not a machine gun. */
-                    if (o->species == 0x33 && o->hit_flash > 0)
+                     * six-hit rhythm is the player's, not a machine gun.
+                     * Grewon turns green for 45..75 frames and is invincible
+                     * until he changes back: hits during it do nothing. */
+                    if ((o->species == 0x33 || o->species == 0x13) &&
+                        o->hit_flash > 0)
                         continue;
                     p->active = false;
                     o->hp -= dmg;
-                    o->hit_flash = (o->species == 0x33) ? 32 : 8;
+                    if (o->species == 0x33)
+                        o->hit_flash = 32;
+                    else if (o->species == 0x13)
+                        o->hit_flash = 60;
+                    else
+                        o->hit_flash = 8;
                     pool->events |= OBJECT_EVENT_ENEMY_HIT;
                     if (o->hp <= 0) {
                         o->active = false;
+                        if (o->species == 0x86 && pool->boss_phase == 1) {
+                            /* Phalanx's first form falls and the second rises
+                             * from the pit: same head, stronger, and the exit
+                             * stays shut until it dies too. */
+                            pool->boss_phase = 2;
+                            Object *n = Alloc(pool);
+                            if (n) {
+                                memset(n, 0, sizeof(*n));
+                                n->active = true;
+                                n->type = OBJECT_BOSS;
+                                n->species = 0x86;
+                                n->x_fx = o->x_fx;
+                                n->y_fx = o->y_fx + 40 * FX_ONE;
+                                n->origin_x_fx = n->x_fx;
+                                n->origin_y_fx = n->y_fx;
+                                n->hp = 10;
+                                n->max_hp = 10;
+                                n->substate = 1;   /* second form */
+                                pool->boss_alive = true;
+                                pool->events |= OBJECT_EVENT_BOSS_DEFEATED;
+                            }
+                            break;
+                        }
                         pool->boss_alive = false;
                         pool->boss_defeated = true;
                         pool->events |= OBJECT_EVENT_BOSS_DEFEATED;

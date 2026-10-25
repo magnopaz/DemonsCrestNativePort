@@ -262,6 +262,18 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             Texture2D tex = assets->heart;
             DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
                         (int)lroundf(y - tex.height), WHITE);
+        } else if (o->type == OBJECT_TALISMAN) {
+            Texture2D tex = assets->item;
+            Color tint = WHITE;
+            switch (o->species) {
+            case 0: tint = (Color){255, 230, 120, 255}; break; /* crown */
+            case 1: tint = (Color){210, 210, 230, 255}; break; /* skull */
+            case 2: tint = (Color){170, 200, 255, 255}; break; /* armor */
+            case 3: tint = (Color){255, 200, 160, 255}; break; /* fang */
+            default: tint = (Color){190, 255, 190, 255}; break; /* hand */
+            }
+            DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
+                        (int)lroundf(y - tex.height), tint);
         } else if (o->type == OBJECT_CREST_ITEM) {
             Texture2D tex = assets->heart;
             Color tint = ((o->timer / 6) & 1)
@@ -289,9 +301,16 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                     else
                         frame = 0;
                 }
+                if (o->species == 0x09 && sheet->frame_count >= 5) {
+                    if (o->state == 1)
+                        frame = 4;   /* feather volley */
+                    else if (o->state == 2 || o->state == 3)
+                        frame = 3;   /* swoop */
+                    else
+                        frame = (o->timer / 8) % 3;  /* flap cycle */
+                }
                 if (sheet->frame_count >= 6 &&
-                    (o->species == 0x13 || o->species == 0x09 ||
-                     o->species == 0x86)) {
+                    (o->species == 0x13 || o->species == 0x86)) {
                     /* Sheets: first row is idle, second row is the attack /
                      * movement set. */
                     if (o->hit_flash > 0)
@@ -334,6 +353,11 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                                               : WHITE;
                 if (o->hit_flash > 4)
                     tint = (Color){255, 255, 255, 255};
+                if (o->species == 0x13 && o->hit_flash > 0) {
+                    /* Grewon's tell: he turns green while invincible, so the
+                     * player can read when he is safe to hit again. */
+                    tint = (Color){120, 255, 140, 255};
+                }
                 DrawTexturePro(sf->texture, src, dst, (Vector2){0, 0}, 0.0f,
                                tint);
             } else {

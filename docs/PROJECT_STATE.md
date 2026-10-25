@@ -3229,6 +3229,27 @@ pieces) instead of whole poses, so it is in the arena but effectively invisible;
 it needs a proper per-sheet crop. The `$8D` segment object was removed again
 until the second form is modelled.
 
+### Step 79 — Grewon's invincible colour, Hippogriff frames, talismans, Phalanx phase 2 (done)
+
+- **Grewon** now follows the fight's rule: a hit turns him **green for 60 frames**
+  and he is **invincible** until he changes back (the recording showed 44–77
+  frame green windows). Hits during the green do nothing, so the player must wait
+  — exactly as described.
+- **Hippogriff frames fixed**: the sheet's first pose row was measured on a
+  coordinate grid and five poses (idle, flap, glide, swoop, feather) are cut with
+  the background keyed, replacing the fragments. He renders in area 74.
+- **Talismans are now objects**: a `talisman` level object type spawns a floating
+  pickup, grants `talisman_mask`, sets it active and shows a short HUD line. The
+  **fang** (`$50`) is placed in area 78 at (224,170), clamped from the save's
+  level-space position.
+- **Phalanx has two forms**: killing `$86` once spawns the second form from the
+  pit (same species, `substate` 1, 10 HP) and keeps the exit shut; killing that
+  one opens the way to the normal ending. The `$8D` segment body art is still
+  missing, so the second form is currently the head alone.
+
+Regression PASS. Verified by screenshot: Hippogriff, Grewon (normal and the
+green state pending a hit), fang talisman in area 78, Phalanx in area 84.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

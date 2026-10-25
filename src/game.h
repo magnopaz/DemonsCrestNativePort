@@ -41,6 +41,8 @@ typedef struct Game {
     int stage_sel;
     int pause_flash; /* frames the SAVED hint stays visible */
     int intro_timer; /* frames the area-entry banner stays visible */
+    int talisman_toast;       /* frames the talisman line is shown */
+    int talisman_toast_index; /* which talisman was picked up */
     bool attract;    /* title-screen demo running */
     int attract_frame;
     float overworld_x;
