@@ -3283,6 +3283,22 @@ green state pending a hit), fang talisman in area 78, Phalanx in area 84.
 - Verified by screenshot: area 0 shows no HUD at all; area 34 shows the dot rows
   and crest panel.
 
+### Step 82 — Full suite green before the MVP capture (done)
+
+Ran every check against the current build:
+
+| check | result |
+|---|---|
+| `check_areas.py` | 113 areas, ok=113 |
+| `check_campaign.py` | no-boss=56, ok=10 (every boss entry clears) |
+| `check_playthrough.py` | 6/6 steps |
+| `check_navigation.py` | 103/113 via doors (91%), 113/113 with gates, 10 gate-dependent, 4 chunks without outgoing |
+| `run_regression.py` | PASS (demos, six-door tests, MVP Somulo, boss clears, endings, save/password) |
+
+The build is in the state the first playable MVP is captured from: the Somulo
+fight with real frames, the six-hit/invulnerability rhythm, the cinematic
+HUD-less first room, dots elsewhere, and the gate into area 34.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
