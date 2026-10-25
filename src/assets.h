@@ -59,6 +59,11 @@ typedef struct Assets {
     Texture2D bg_pal[DC_BG_PALETTES];
     Texture2D bg_area[DC_BG_PALETTES];
     Texture2D bg2_area[DC_BG_PALETTES];
+    /* Optional wide backdrop (sky/trees) drawn behind the tile layers, for rooms
+     * whose BG2 was never captured - the cemetery and friends. */
+    Texture2D backdrop;
+    int backdrop_w;
+    int backdrop_h;
     bool bg_area_ready;
     int bg_area_id;
     char asset_dir[1024];

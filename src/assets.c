@@ -491,8 +491,19 @@ void Assets_LoadAreaBg(Assets *assets, int area) {
             memset(&assets->bg2_area[p], 0, sizeof(assets->bg2_area[p]));
         }
         assets->bg_area_ready = false;
+        if (IsTextureValid(assets->backdrop))
+            UnloadTexture(assets->backdrop);
+        memset(&assets->backdrop, 0, sizeof(assets->backdrop));
     }
     assets->bg_area_id = area;
+    {
+        char name[48];
+        snprintf(name, sizeof(name), "bg_backdrop_area%d.png", area);
+        if (LoadOne(&assets->backdrop, assets->asset_dir, name)) {
+            assets->backdrop_w = assets->backdrop.width;
+            assets->backdrop_h = assets->backdrop.height;
+        }
+    }
     bool any = false;
     for (int p = 0; p < DC_BG_PALETTES; p++) {
         char name[48];

@@ -3653,6 +3653,29 @@ frames, 1:4 volley, 2/3:3 swoop, 6:5 statue}, `0x13` {2:3, hurt:5},
 Verified: regression PASS, and the Hippogriff still turns to stone
 (`DC_BOSS_STATUE`) through the data table.
 
+### Step 97 — Backdrop layer: the cemetery has its sky and trees (done)
+
+Area 2's BG2 tilemap is empty in the ROM set, which is why the cemetery rendered
+as a black void. Added a **wide backdrop image** layer:
+
+- `Assets` loads `bg_backdrop_area<N>.png` when an area's BG loads (absent file =
+  no change, so other rooms are untouched);
+- `Render_Game` draws it behind the tile layers, tiled horizontally at **half
+  parallax**, pinned to the top of the view.
+
+The image itself comes from the game: the top 256x150 band of a cemetery capture
+frame, which contains sky and distant trees and no sprites.
+
+Also rebaked area 2's BG1 atlases from the probe dump (`rebake_bg_atlas.py`), so
+the graves and bushes draw with the right tiles instead of holes.
+
+Result: sky, purple trees, gravestones, bushes and HUD - the cemetery reads as
+itself. Still missing there: the mid-ground black gaps (BG2 detail we never
+captured) and a longer backdrop strip than one screen.
+
+Regression PASS (after removing a stray `room_area2_pre.json` backup that
+`check_areas.py` tried to parse as an area number).
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
