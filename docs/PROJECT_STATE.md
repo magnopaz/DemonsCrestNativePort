@@ -3577,6 +3577,31 @@ Verified side by side with the game frame: the wall, arches, pillar, lion relief
 and torches are complete, and he stands on the floor instead of sinking through
 it. Regression PASS.
 
+### Step 94 — The camera, not the background, was lifting everything (done)
+
+The user's video showed Firebrand standing **well above the floor** while the
+newly fixed background was correct. That split - objects high, background right -
+pointed at the room's starting camera: the extractor computed
+`cam_y = spawn.y - 140` (a guess) which gave **32**, while the runtime deadzone
+never moves the camera before the player passes y 176, so the real start is **0**.
+
+Fixes, all in the extractor so regeneration keeps them:
+
+- `cam_y = clamp(spawn.y - 176, 0, world_h - 224)` (same deadzone the camera uses);
+- per-room background padding/scroll for rooms whose ROM tilemap sits a couple of
+  rows above the game's layout (`AREA_PAD_ROWS = {0: 3}`, `AREA_SCROLL_Y = {0: -2}`).
+
+Verified: Firebrand's feet now rest on the floor line (row ~203), the wall is
+complete, and Somulo stands on the arena.
+
+Also from the same report:
+
+- the walk frames were cut with `b > r` as the background key, which ate the
+  dragon's **dark grey shading** and left him looking pale and speckled; the key
+  is now `b > r + 20`, which keeps the bronze and still removes the wall;
+- the frames carried ~10 rows of baked ground strip, now cropped, so his feet -
+  not the floor texture - are the bottom of the sprite.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

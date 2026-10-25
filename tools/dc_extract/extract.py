@@ -942,7 +942,19 @@ def build_area_room_doc(rom: Rom, area: int, bg2_layer: dict,
         })
 
     cam_x = max(0, min(max(0, world_w - 256), spawn0["x"] - 128))
-    cam_y = max(0, min(max(0, world_h - 224), spawn0["y"] - 140))
+    # The vertical deadzone matches the runtime camera: it only follows when the
+    # player leaves the 96..176 window. The old -140 guess started the room at
+    # cam_y = 32, which lifted every object 32 px above the background.
+    cam_y = max(0, min(max(0, world_h - 224), spawn0["y"] - 176))
+    # Rooms whose ROM tilemap sits a couple of rows above the game's own layout
+    # (the 256-tall world is shown through a 224-tall view, so the missing band
+    # has to be filled): pad the top with a wall row and shift the layer.
+    bg_pad_rows = {0: 3}.get(area, 0)
+    bg_scroll_y = {0: -2}.get(area, 0)
+    if bg_pad_rows and map_w:
+        filler = full_tiles[4 * map_w:5 * map_w]
+        full_tiles = [x for _ in range(bg_pad_rows) for x in filler] + full_tiles
+        map_h += bg_pad_rows
     bg1 = {
         "name": "bg1",
         "map_width": map_w,
@@ -952,7 +964,7 @@ def build_area_room_doc(rom: Rom, area: int, bg2_layer: dict,
         # camera, so a tilemap that starts at world 0 must say 0 here. Writing
         # cam_y duplicated the camera offset and lifted the floor by ~31 px,
         # which cut the boss off at the bottom of the screen.
-        "scroll_y": 0,
+        "scroll_y": bg_scroll_y,
         "tilemap": full_tiles,
     }
     bg2_copy = dict(bg2_layer)
