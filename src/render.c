@@ -301,58 +301,25 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, o->species);
             if (sheet && sheet->frame_count > 0) {
                 int frame = (o->timer / sheet->duration) % sheet->frame_count;
-                if (o->species == 0xA5 && sheet->frame_count >= 4) {
-                    if (o->hit_flash > 0)
-                        frame = 3;
-                    else if (o->state == 2 || o->state == 3)
-                        frame = 2;
-                    else if (o->state == 1)
-                        frame = 1;
-                    else
-                        frame = 0;
-                }
-                if (o->species == 0x09 && sheet->frame_count >= 6 &&
-                    o->state == 6) {
-                    frame = 5;   /* statue */
-                }
-                if (o->species == 0x09 && sheet->frame_count >= 5 &&
-                    o->state != 6) {
-                    if (o->state == 1)
-                        frame = 4;   /* feather volley */
-                    else if (o->state == 2 || o->state == 3)
-                        frame = 3;   /* swoop */
-                    else
-                        frame = (o->timer / 8) % 3;  /* flap cycle */
-                }
-                if (sheet->frame_count >= 6 &&
-                    (o->species == 0x13 || o->species == 0x86)) {
-                    /* Sheets: first row is idle, second row is the attack /
-                     * movement set. */
-                    if (o->hit_flash > 0)
-                        frame = 5;
-                    else if (o->species == 0x13 && o->state == 2)
-                        frame = 3;
-                    else if (o->species == 0x09 && (o->state == 2 ||
-                                                    o->state == 3))
-                        frame = 3;
-                    else if (o->species == 0x86 && o->state == 1)
-                        frame = 3;
-                    else
-                        frame = 0;
-                }
-                /* Data-driven: the sheet's `states` map picks the clip for the
-                 * object's own state, so no species needs a block here. */
-                if (sheet->has_states && o->state >= 0 &&
-                    o->state < DC_SPECIES_STATES) {
+                /* Pose selection is data (review P1): `hurt` for the hit
+                 * flash, then the clip for this object state, then the sheet's
+                 * default. No species needs a block here. */
+                if (o->hit_flash > 0 && sheet->has_hurt &&
+                    sheet->hurt_frame < sheet->frame_count) {
+                    frame = sheet->hurt_frame;
+                } else if (sheet->has_states && o->state >= 0 &&
+                           o->state < DC_SPECIES_STATES &&
+                           sheet->states[o->state].count > 0) {
                     const StateClip *clip = &sheet->states[o->state];
-                    if (clip->count > 0) {
-                        int step = (o->timer / (sheet->duration > 0
-                                                    ? sheet->duration
-                                                    : 6)) % clip->count;
-                        int idx = clip->frames[step];
-                        if (idx >= 0 && idx < sheet->frame_count)
-                            frame = idx;
-                    }
+                    int step = (o->timer / (sheet->duration > 0
+                                                ? sheet->duration
+                                                : 6)) % clip->count;
+                    int idx = clip->frames[step];
+                    if (idx >= 0 && idx < sheet->frame_count)
+                        frame = idx;
+                } else if (sheet->has_default &&
+                           sheet->default_frame < sheet->frame_count) {
+                    frame = sheet->default_frame;
                 }
                 const SpeciesFrame *sf = &sheet->frames[frame];
                 float dx = x - sf->anchor_x;
@@ -363,11 +330,18 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                     dx = x - sf->anchor_x * scale;
                     dy = y - sf->anchor_y * scale;
                 }
-                Rectangle src = {0, 0, (float)sf->texture.width,
-                                 (float)sf->texture.height};
-                Rectangle dst = {dx, dy,
-                                 (float)sf->texture.width * scale,
-                                 (float)sf->texture.height * scale};
+                /* Objects face the player: negative facing uses the mirrored
+                 * art (review P2 - sprites used to never flip). */
+                bool mirrored = o->facing < 0 && IsTextureValid(sf->flipped);
+                Texture2D tex = mirrored ? sf->flipped : sf->texture;
+                if (mirrored && sf->flipped.width > 0) {
+                    /* keep the anchor at the same relative point */
+                    dx = x - (sf->flipped.width - sf->anchor_x) * scale;
+                    dy = y - sf->anchor_y * scale;
+                }
+                Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+                Rectangle dst = {dx, dy, (float)tex.width * scale,
+                                 (float)tex.height * scale};
                 Color tint = o->hit_flash > 0 ? (Color){255, 200, 200, 255}
                                               : WHITE;
                 if (o->hit_flash > 4)

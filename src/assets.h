@@ -14,8 +14,10 @@
 
 typedef struct SpeciesFrame {
     Texture2D texture;
-    float anchor_x;
-    float anchor_y;
+    Texture2D flipped;  /* pre-baked mirror: negative source rects are unreliable
+                         * in raylib, so the flip is baked at load time. */
+    int anchor_x;       /* whole pixels: fractional anchors truncated when drawn */
+    int anchor_y;
 } SpeciesFrame;
 
 #define DC_ENDING_VARIANTS 4
@@ -46,6 +48,10 @@ typedef struct SpeciesSheet {
     int duration;
     bool has_states;
     StateClip states[DC_SPECIES_STATES];
+    int hurt_frame;   /* pose while hit_flash > 0 (review P1) */
+    bool has_hurt;
+    int default_frame; /* pose for states with no clip */
+    bool has_default;
     SpeciesFrame frames[DC_SPECIES_FRAMES];
 } SpeciesSheet;
 

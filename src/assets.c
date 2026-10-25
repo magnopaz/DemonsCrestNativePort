@@ -66,8 +66,16 @@ static void LoadSpeciesSheets(Assets *assets, const char *dir) {
             SpeciesFrame *slot = &sheet->frames[sheet->frame_count];
             if (!LoadOne(&slot->texture, dir, tex->valuestring))
                 continue;
-            slot->anchor_x = (float)JsonDouble(frame, "anchor_x", 0.0);
-            slot->anchor_y = (float)JsonDouble(frame, "anchor_y", 0.0);
+            {
+                Image img = LoadImageFromTexture(slot->texture);
+                ImageFlipHorizontal(&img);
+                slot->flipped = LoadTextureFromImage(img);
+                UnloadImage(img);
+                if (IsTextureValid(slot->flipped))
+                    SetTextureFilter(slot->flipped, TEXTURE_FILTER_POINT);
+            }
+            slot->anchor_x = (int)(JsonDouble(frame, "anchor_x", 0.0) + 0.5);
+            slot->anchor_y = (int)(JsonDouble(frame, "anchor_y", 0.0) + 0.5);
             sheet->duration = JsonNum(frame, "duration", sheet->duration);
             sheet->frame_count++;
         }
@@ -91,6 +99,16 @@ static void LoadSpeciesSheets(Assets *assets, const char *dir) {
                 if (clip->count > 0)
                     sheet->has_states = true;
             }
+        }
+        const cJSON *hurt = cJSON_GetObjectItemCaseSensitive(entry, "hurt");
+        if (cJSON_IsNumber(hurt)) {
+            sheet->hurt_frame = hurt->valueint;
+            sheet->has_hurt = true;
+        }
+        const cJSON *def = cJSON_GetObjectItemCaseSensitive(entry, "default");
+        if (cJSON_IsNumber(def)) {
+            sheet->default_frame = def->valueint;
+            sheet->has_default = true;
         }
         if (sheet->frame_count > 0)
             assets->species_count++;

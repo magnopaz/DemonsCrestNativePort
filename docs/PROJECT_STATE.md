@@ -3629,6 +3629,30 @@ Still open from the review, in its own priority order: **P2 facing/flip**
 (object sprites never mirror), P1's remaining species blocks, P3 long captures,
 P4 integer anchors, and the `recompose_diff.py` gate.
 
+### Step 96 — Review Fase 1 complete: facing, integer anchors, no species blocks
+
+Finished the review's Fase 1 and P4.
+
+- **P2 (facing)**: `SpeciesFrame` gained a pre-baked `flipped` texture (baked with
+  `ImageFlipHorizontal` at load, because negative source rects are unreliable in
+  raylib - the project's own trap #6). `DrawObjects` draws it when
+  `o->facing < 0`, moving the anchor to the mirrored side so the sprite does not
+  jump. Object sprites had **never** flipped before.
+- **P4 (anchors)**: `anchor_x/anchor_y` are now `int` and rounded at load, so the
+  fractional values stop truncating on draw.
+- **P1 (finished)**: pose selection is entirely data. `species_anim.json` now
+  carries, per species, `states` (object state -> frame list), `hurt` (pose while
+  `hit_flash > 0`) and `default`. `render.c` has **no `o->species ==` pose
+  blocks** left - the only remaining ones are the `0x34` projectile check and
+  Grewon's green invincibility tint, which are not pose selection.
+
+Mapping migrated: `0xA5` {0:0,1:1,2:2,3:2,hurt:3}, `0x09` {0:[0,1,2] flap at 8
+frames, 1:4 volley, 2/3:3 swoop, 6:5 statue}, `0x13` {2:3, hurt:5},
+`0x86` {1:3, hurt:5}, `0x33` {7/8:[0,1,2] walk, others:3 standing}.
+
+Verified: regression PASS, and the Hippogriff still turns to stone
+(`DC_BOSS_STATUE`) through the data table.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
