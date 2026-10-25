@@ -3391,6 +3391,63 @@ question the plan says to answer before touching the port.
 
 Somulo therefore stays on the cleaned sheet frames (scale 0.95) for now.
 
+### Step 87 — Replayable takes and the exact-state dump pipeline (done, blocked on framing)
+
+Working through the sprite plan's validation step turned up four structural
+facts and two fixes:
+
+**Fixes**
+- Takes now log the **guest frame** next to the take frame
+  (`{"frame":0,"gframe":192,"inputs":0}`). Verified on a fresh take.
+- `SNESREC_AUTORECORD=1` starts a take on the first frames of boot, so the log can
+  be replayed from reset. Verified: 382 samples starting at guest frame 1.
+
+**Tooling**
+- `tools/…/replay_dump.py`: aligns a take by its `gframe` offset, replays it,
+  freezes at a guest frame, and dumps VRAM / CGRAM / OAM / WRAM plus a screenshot
+  from that same frame. Verified end to end (replay accepted, freeze, dump).
+
+**What blocked the sprite gate**
+- A take that starts **mid-session cannot be replayed**: its log has no boot
+  inputs, so replay lands wherever the fresh boot is (verified: area 160, black
+  frame). Takes must start at boot — hence the autorocord flag.
+- A **savestate cannot be rendered either**: `--resume-state` restores memory but
+  the CPU reboots, resetting the PPU (`bgmode` reads 0 with `--paused`, the
+  injected render comes out black).
+- `dump_vram` reads the live `g_ppu->vram`; it returns a populated buffer
+  (40 794 nonzero bytes) on a real frame and a near-empty one on a menu, which is
+  correct behaviour, not a bug.
+
+**Next**: record a boot-start take that plays into the Somulo fight (the user can
+do it with this build, or a scripted walk), replay to a fight frame, dump, then
+run `oam_compose.py` and diff against that frame's screenshot. That is the gate
+from the plan. Somulo stays on the cleaned sheet frames until it passes.
+
+### Step 88 — Pipeline A works: OAM sprites decode correctly (done)
+
+The take the user recorded (`captures/rec_20261024_234748`, 6 286 frames from
+boot) replays exactly and reproduces the whole run: title at ~620, **area 0 with
+Somulo (`$33` + `$35/$36/$37`) from ~1 000 to ~4 400**, then **area 34**.
+
+Two real bugs in `oam_compose.py`, both found against the *verified* decoder in
+`extract.py` / `bake_object_sprites.py`:
+
+1. **OBSEL's sprite pattern base is `(obsel & 7) << 13` in 16-bit words**, not
+   `<< 12`. The port had been reading background tiles as sprite tiles.
+2. **Sprite palettes live in the second CGRAM half**: `0x80 + palette * 16 + idx`.
+   Reading from 0 gave the wrong colours.
+
+With both fixed, composing the dump of frame 1200 yields **Firebrand pixel-perfect
+and Somulo's head/neck/body parts correctly shaped and coloured** — the first
+time the compositor has produced recognisable sprites.
+
+Remaining gap for the formal gate: the screenshot and the dumps are not perfectly
+atomic (the frozen frame advances past the freeze point, so sprite positions and
+the presented frame can differ by a few frames of motion), and `render_inject`
+cannot supply the ground truth on its own because the live session's PPU
+registers are reset (black render). The fix is to inject the registers too, or to
+dump the presented frame together with OAM in the same pass.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

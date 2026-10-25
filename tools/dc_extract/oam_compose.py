@@ -33,7 +33,8 @@ def load_probe(folder: Path):
     cgram = (folder / "cgram.bin").read_bytes()
     oam = (folder / "oam.bin").read_bytes()
     ppu = json.loads((folder / "ppu.json").read_text())
-    info = json.loads((folder / "info.json").read_text())
+    info_path = folder / "info.json"
+    info = json.loads(info_path.read_text()) if info_path.is_file() else {}
     return vram, cgram, oam, ppu, info
 
 
@@ -57,8 +58,9 @@ SIZE_PAIRS = {
 
 
 def sprite_base_words(obsel: int) -> int:
-    """OBSEL bits 0..2: sprite tile base in 8 KB steps (in 16-bit words)."""
-    return (obsel & 0x07) << 12
+    """OBSEL bits 0..2: sprite pattern base, in 16-bit words (as the verified
+    decoder in extract.py uses: (obsel & 7) << 13)."""
+    return (obsel & 0x07) << 13
 
 
 def tile_pixels(vram: bytes, tile: int, palette: int, colours, flip_h, flip_v,
@@ -88,7 +90,7 @@ def tile_pixels(vram: bytes, tile: int, palette: int, colours, flip_h, flip_v,
             srcy = 7 - y if flip_v else y
             srcx = 7 - x if flip_h else x
             if idx:
-                r, g, b = colours[palette * 16 + idx]
+                r, g, b = colours[(0x80 + palette * 16 + idx) & 0xFF]
                 out[srcy * 8 + srcx] = (r, g, b, 255)
             else:
                 out[srcy * 8 + srcx] = (0, 0, 0, 0)
