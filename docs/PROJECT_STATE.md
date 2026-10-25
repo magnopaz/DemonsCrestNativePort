@@ -3499,6 +3499,28 @@ naive cold key keeps them; 170 such pixels are now removed, but faint streaks
 remain, so the walk frame is **not** wired into `species_anim.json` yet. The
 blocker is still the compositor's dropped 16×16 body parts.
 
+### Step 91 — The colosseum's black rectangles are fixed (done)
+
+Diagnosed the holes by rendering each BG layer alone (`DC_LAYER_MASK=1|2`): they
+were in **BG1**, the level geometry whose tiles the ROM set does not contain
+because the area streams them into VRAM.
+
+`tools/dc_extract/rebake_bg_atlas.py` rebuilds a layer's **CHR atlas from a VRAM
+dump**, keeping the room's tilemap: the tiles now come from the same memory the
+game uses, so every referenced tile exists. Running it for area 0 with the fight
+dump (`rec_20261024_234748_dump_1200`, BG1 CHR base from `$210B` low nibble)
+removed the rectangles completely - the wall, arches, pillars and torches are
+whole.
+
+`tools/dc_extract/rebake_bg2.py` does the same for a backdrop layer *including*
+its tilemap, for areas where BG2's tilemap is streamed too.
+
+Still wrong, and separate: the **vertical placement**. Our floor sits at screen
+y~150 where the game has it at ~205, so Somulo's body is cut off. Shifting
+`scroll_y` moves the layer but leaves a band at the top, which means the level's
+scroll is not a plain constant - the real layer almost certainly uses per-band
+HDMA. That is the next thing to solve, with the floor position as the check.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
