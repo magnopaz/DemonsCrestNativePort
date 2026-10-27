@@ -90,3 +90,25 @@ player (hiding `DrawPlayer` leaves it) and *not* a projectile (hiding those chan
 nothing), so it is an object drawn by `DrawObjects` whose species we have not
 identified yet — the `DC_DEBUG_OBJ` print only covers the first frames, so it needs
 a frame filter before it can answer that.
+
+
+## The stray "second Firebrand" was baked into the backdrop
+
+Solved with three throwaway hooks: hiding the player (`DC_NO_PLAYER`) left the
+figure, hiding the objects (`DC_NO_OBJ`) left it too, and hiding the projectiles
+changed nothing - so it was not drawn by any of them. It was **inside
+`bg_backdrop_area2.png`**: the backdrop had been cut from a frame in which
+Firebrand stood high enough to fall inside the cropped band, so his sprite was part
+of the layer and scrolled with the parallax.
+
+`tools/fix_backdrop4.py` now builds the backdrop properly: it scores candidate
+frames by bright pixels below the HUD, takes a **sky-only band (110 rows)**, and
+paints every pixel inside the HUD rectangles or brighter than the sky with that
+column's own sky colour. Nothing from the game's sprites can survive that.
+
+Verified in game: one Firebrand, no ghost copy, the purple tree behind him, HUD
+correct. Regression PASS.
+
+Still open for the cemetery: sprite art for `0x23` (9), `0x40` (16), `0x0A` (15)
+and `0x39` (9), which are now spawned but have no pictures - their frames can be
+cut from OAM dumps the same way the flame was.

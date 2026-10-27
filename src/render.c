@@ -210,6 +210,8 @@ static void DrawProjectiles(const Assets *assets, const GameCamera *camera,
 
 static void DrawObjects(const Assets *assets, const GameCamera *camera,
                         const ObjectPool *objects) {
+    if (getenv("DC_NO_OBJ"))
+        return;
     for (int i = 0; i < OBJECT_POOL_SIZE; i++) {
         const Object *o = &objects->slots[i];
         if (!o->active)
