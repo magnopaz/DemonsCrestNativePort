@@ -146,6 +146,8 @@ static Color CrestTint(int crest_form, int invuln_timer) {
 
 static void DrawPlayer(const Assets *assets, const Level *level,
                        const GameCamera *camera, const Player *player) {
+    if (getenv("DC_NO_PLAYER"))
+        return;
     const AnimStep *step = NULL;
     const PlayerAnim *anim =
         Assets_PlayerAnimForForm(assets, player->crest_form);
@@ -175,6 +177,8 @@ static void DrawPlayer(const Assets *assets, const Level *level,
 
 static void DrawProjectiles(const Assets *assets, const GameCamera *camera,
                             const ProjectilePool *projectiles) {
+    if (getenv("DC_NO_PROJ"))
+        return;
     if (!assets->projectile_anim.ready)
         return;
 
@@ -300,7 +304,7 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                     o->type == OBJECT_NPC)) {
             if (getenv("DC_DEBUG_OBJ")) {
                 static int printed = 0;
-                if (printed < 40) {
+                if (printed < 40 && x > -40 && x < 296 && y > -40 && y < 264) {
                     fprintf(stderr, "obj type=%d species=%02X screen=(%.0f,%.0f) "
                             "state=%d\n", o->type, o->species, x, y, o->state);
                     printed++;

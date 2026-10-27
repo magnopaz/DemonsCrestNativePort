@@ -62,3 +62,31 @@ Open items found while running a scripted traversal (`DC_DEMO=15`):
    and is the tool for chasing it.
 3. The room's exits sit at y 300 (area 4) and y 80 (area 3); a straight walk never
    reaches them, so an end-to-end run needs a proper jump script or a human.
+
+
+## The room's object list was wrong, and the take proved it
+
+The user's boot-start take (`captures/rec_20261027_151150`, 16 025 frames) covers
+the whole Somulo fight, the transition to area 34 and a slow walk through the
+cemetery. Reading the live object pool while the player is in area 2 shows the
+room is populated by **0x72 (flame spirits), 0x67 (ghouls), 0x40, 0x0A, 0x23,
+0x39, 0x57 (urns), 0x09 and 0x41** — while our extracted room listed
+`0x2C/0x07/0x26/0x67`. So the ROM object table we used for this area does not
+match what the game spawns, and most of the cemetery's enemies were invisible or
+plain wrong.
+
+`tools/harvest_objects.py` walks a take, reads the pool while the player is in the
+chosen area, and collects every distinct object; `rewrite_room_objects.py` then
+rewrites the room's enemy list from that harvest, keeping only species we have art
+for. Area 2 now spawns **71 objects**: 25 flames, 22 ghouls, 9 of 0x23, 5 of
+0x41, 5 Hippogriff slots, 3 urns and the pickups.
+
+The flame sprite itself was cut from the composed OAM layer of frame 7002
+(`enemy_72_0.png`, 24x40) — exact art, no background, since the compositor only
+draws sprites.
+
+**Open**: a Firebrand-like figure still appears in the cemetery that is *not* the
+player (hiding `DrawPlayer` leaves it) and *not* a projectile (hiding those changes
+nothing), so it is an object drawn by `DrawObjects` whose species we have not
+identified yet — the `DC_DEBUG_OBJ` print only covers the first frames, so it needs
+a frame filter before it can answer that.
