@@ -449,6 +449,12 @@ static void DrawHud(const Assets *assets, const Player *player) {
     }
 }
 
+/* 0 = clear view, 1 = fully black. Used for the death fade before a room
+ * restarts (the arena does not show GAME OVER). */
+static float s_fade = 0.0f;
+
+void Render_SetFade(float alpha) { s_fade = alpha; }
+
 void Render_Game(const Assets *assets, const Level *level, const GameCamera *camera,
                  const Player *player, const ProjectilePool *projectiles,
                  const ObjectPool *objects, bool show_hud,
@@ -484,8 +490,14 @@ void Render_Game(const Assets *assets, const Level *level, const GameCamera *cam
     }
 
     DrawPlayer(assets, level, camera, player);
-    DrawProjectiles(assets, camera, projectiles);
     DrawObjects(assets, camera, objects);
+    /* Projectiles last: drawing them before the objects hid the player's shots
+     * whenever a boss was between them and the camera. */
+    DrawProjectiles(assets, camera, projectiles);
+    if (s_fade > 0.0f) {
+        unsigned char a = (unsigned char)(s_fade * 255.0f);
+        DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, a});
+    }
     if (show_hud)
         DrawHud(assets, player);
 

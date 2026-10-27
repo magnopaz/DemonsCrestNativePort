@@ -8,6 +8,8 @@
 #include "projectile.h"
 #include "object.h"
 
+void Render_SetFade(float alpha);
+
 void Render_Game(const Assets *assets, const Level *level, const GameCamera *camera,
                  const Player *player, const ProjectilePool *projectiles,
                  const ObjectPool *objects, bool show_hud,

@@ -3702,6 +3702,27 @@ Still to do on this axis: the remaining one-frame species (0x26, 0x07, 0x2d,
 0x57 and others) and a proper species-to-sheet-name table, which the labelled
 sheets now make possible.
 
+### Step 101 — Shots in front, and the arena restarts on death (done)
+
+Two MVP 2 defects from the user's videos.
+
+**Shots were drawn behind the objects.** The order was player -> projectiles ->
+objects, so any boss between the camera and the shot hid it - the player appeared
+to fire nothing at Somulo. `DrawProjectiles` now runs last and the fireballs read
+correctly in front of him.
+
+**Death in the arena shows GAME OVER; the original restarts the room.** The
+recording of Somulo shows fade to black, room reload, entrance again. Added
+`Game.restart_timer`: dying in area 0 fades to black (a new `Render_SetFade`
+overlay), reloads the area with full HP and resets `boss_intro`/shake so the
+entrance replays. Other areas keep the game-over screen (the retry menu is still
+out of scope, as the user asked). `DC_DEATH_GAMEOVER=1` restores the old
+behaviour for tests.
+
+Verified: hp reaches 0 at frame ~550, the screen fades out, the room reloads and
+`MURKLAND COLOSSEUM` plays again with the player back at spawn; the mode never
+leaves GAME_PLAYING. Regression PASS.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

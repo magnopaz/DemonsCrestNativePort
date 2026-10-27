@@ -878,6 +878,14 @@ static bool Game_UpdateBossIntro(Game *game) {
 static void Game_HandleDeath(Game *game) {
     if (game->player.hp > 0 || game->state != GAME_PLAYING)
         return;
+    if (game->restart_timer > 0)
+        return;
+    /* The colosseum restarts the room (with Somulo's entrance) on death; other
+     * areas keep the game-over screen for now. */
+    if (game->level.area_id == 0 && getenv("DC_DEATH_GAMEOVER") == NULL) {
+        game->restart_timer = 90;
+        return;
+    }
     game->state = GAME_OVER;
     game->state_timer = 0;
 }
@@ -1302,6 +1310,25 @@ static void Game_UpdateOptions(Game *game) {
 /* Title, stage, boss and ending loops follow the game state. */
 static void Game_SyncMusic(Game *game) {
     int track = MUSIC_STAGE;
+    if (game->state == GAME_PLAYING && game->restart_timer > 0) {
+        /* Fade out, then hold black for the reload and fade back in. */
+        int t_left = game->restart_timer;
+        float fade = t_left > 60 ? (float)(90 - t_left) / 30.0f
+                                 : (t_left < 20 ? (float)t_left / 20.0f : 1.0f);
+        Render_SetFade(fade);
+        game->restart_timer--;
+        if (game->restart_timer == 0) {
+            int area = game->level.area_id;
+            Game_TransitionToArea(game, area, 0);
+            game->player.hp = game->player.max_hp;
+            game->boss_intro = 0;
+            game->shake_phase = 0;
+            game->shake = 0;
+            Render_SetFade(0.0f);
+        }
+        return;
+    }
+
     if (game->state == GAME_PLAYING && game->boss_intro > 0 &&
         Game_UpdateBossIntro(game))
         return;

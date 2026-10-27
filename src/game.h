@@ -47,6 +47,9 @@ typedef struct Game {
     int boss_intro_timer;
     int shake;       /* frames of screen shake left */
     int shake_phase;
+    /* Death in an arena restarts the room (entrance included) instead of
+     * showing GAME OVER, which is what the recording of Somulo shows. */
+    int restart_timer;
     int talisman_toast;       /* frames the talisman line is shown */
     int talisman_toast_index; /* which talisman was picked up */
     bool attract;    /* title-screen demo running */
