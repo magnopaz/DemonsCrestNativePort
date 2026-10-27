@@ -205,6 +205,14 @@ void Input_Read(Input *in, InputState *st) {
         subscreen = demo_frame == 3;
         down = demo_frame == 6 || demo_frame == 8;
         start = demo_frame == 12;
+    } else if (demo_mode == 15) {
+        /* MVP 2: a straight run through the cemetery. Walk right, jump the
+         * gaps, and fire in bursts so the skeletons and ghouls get engaged. */
+        demo_frame++;
+        int ph = demo_frame % 240;
+        right = (demo_frame > 10);
+        jump = (ph == 30) || (ph == 40);
+        shot = (demo_frame % 26) == 0 && demo_frame > 30;
     } else if (demo_mode == 14) {
         /* Somulo MVP: he now starts near the player and follows, so the script
          * closes in, shoots the lowered head every 40 frames (the hurt flash

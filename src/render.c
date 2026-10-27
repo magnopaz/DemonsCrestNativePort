@@ -298,6 +298,14 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             DrawRectangleLines(px, py, 32, 6, (Color){200, 192, 168, 255});
         } else if ((o->type == OBJECT_ENEMY || o->type == OBJECT_BOSS ||
                     o->type == OBJECT_NPC)) {
+            if (getenv("DC_DEBUG_OBJ")) {
+                static int printed = 0;
+                if (printed < 40) {
+                    fprintf(stderr, "obj type=%d species=%02X screen=(%.0f,%.0f) "
+                            "state=%d\n", o->type, o->species, x, y, o->state);
+                    printed++;
+                }
+            }
             const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, o->species);
             if (sheet && sheet->frame_count > 0) {
                 int frame = (o->timer / sheet->duration) % sheet->frame_count;
