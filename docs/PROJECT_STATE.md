@@ -3676,6 +3676,32 @@ captured) and a longer backdrop strip than one screen.
 Regression PASS (after removing a stray `room_area2_pre.json` backup that
 `check_areas.py` tried to parse as an area number).
 
+### Step 98 — Enemy sprites come from the labelled sheets (done)
+
+The user asked whether the room's enemies could be extracted. They can - and the
+best source is not the frames at all: `docs/sprites/…Enemies 1.gif` is **labelled
+by enemy name** (Phantom, Axe Demon, Wall Spider, Fountain of Flames, Aquatic
+Demon, Ghost, Zombie Hand, Zombie Head, Armor Zombie, Scavenger Demon), so a row
+can be cut by its band and split on empty columns.
+
+`tools/sheet_row.py` does exactly that: crop a labelled band, split into frames on
+background columns, trim each frame and key the sheet's flat background to alpha.
+
+First results, for the cemetery (area 2):
+
+- **`0x2c` had no sprite at all** (10 of them in the room - invisible enemies!).
+  It is the *skeleton walker*, now three walking poses from the Scavenger Demon
+  row. They are visible in the room for the first time.
+- **`0x67`** (Graveyard Ghoul) held a pink blob from the old broken capture
+  pipeline; it now uses three Ghost poses from the same sheet.
+
+Also learned: the JSON's species keys are **lowercase** (`"2c"`, not `"2C"`) -
+a new entry silently does nothing if the case is wrong.
+
+Still to do on this axis: the remaining one-frame species (0x26, 0x07, 0x2d,
+0x57 and others) and a proper species-to-sheet-name table, which the labelled
+sheets now make possible.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
