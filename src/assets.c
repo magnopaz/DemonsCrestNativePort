@@ -76,7 +76,10 @@ static void LoadSpeciesSheets(Assets *assets, const char *dir) {
             }
             slot->anchor_x = (int)(JsonDouble(frame, "anchor_x", 0.0) + 0.5);
             slot->anchor_y = (int)(JsonDouble(frame, "anchor_y", 0.0) + 0.5);
-            sheet->duration = JsonNum(frame, "duration", sheet->duration);
+            slot->duration = JsonNum(frame, "duration", 6);
+            if (slot->duration < 1)
+                slot->duration = 6;
+            sheet->duration = slot->duration;
             sheet->frame_count++;
         }
         const cJSON *states =
@@ -110,6 +113,13 @@ static void LoadSpeciesSheets(Assets *assets, const char *dir) {
             sheet->default_frame = def->valueint;
             sheet->has_default = true;
         }
+        if (sheet->has_hurt &&
+            (sheet->hurt_frame < 0 || sheet->hurt_frame >= sheet->frame_count))
+            sheet->has_hurt = false;
+        if (sheet->has_default &&
+            (sheet->default_frame < 0 ||
+             sheet->default_frame >= sheet->frame_count))
+            sheet->has_default = false;
         if (sheet->frame_count > 0)
             assets->species_count++;
         else
@@ -214,11 +224,14 @@ static void LoadEndings(Assets *assets, const char *dir) {
 }
 
 const PlayerAnim *Assets_PlayerAnimForForm(const Assets *assets, int form) {
-    /* The ripped form sheets are opt-in until their frame split is polished:
-     * the captured player_anim is smoother, so it stays the default. */
+    /* The form sheets are baked from connected pose components now, so their
+     * clips are clean enough to be the default. DC_PLAYER_FORMS=0 keeps the
+     * captured base animation as an escape hatch for comparison. */
     static int use_forms = -1;
-    if (use_forms < 0)
-        use_forms = getenv("DC_PLAYER_FORMS") != NULL ? 1 : 0;
+    if (use_forms < 0) {
+        const char *env = getenv("DC_PLAYER_FORMS");
+        use_forms = (env && env[0] == '0' && env[1] == '\0') ? 0 : 1;
+    }
     if (use_forms && form >= 0 && form < 6 &&
         assets->player_forms[form].ready)
         return &assets->player_forms[form];
@@ -436,6 +449,8 @@ void Assets_Unload(Assets *assets) {
         for (int f = 0; f < assets->species[i].frame_count; f++) {
             if (IsTextureValid(assets->species[i].frames[f].texture))
                 UnloadTexture(assets->species[i].frames[f].texture);
+            if (IsTextureValid(assets->species[i].frames[f].flipped))
+                UnloadTexture(assets->species[i].frames[f].flipped);
         }
     }
     if (IsTextureValid(assets->hud_bar))

@@ -166,6 +166,10 @@ static void DrawPlayer(const Assets *assets, const Level *level,
         anchor_x = level->player_feet_x;
         anchor_y = level->player_feet_y;
     }
+    /* Anchors are measured from the left edge of the right-facing sheet.
+     * Mirroring swaps that distance to the other edge. */
+    if (left && texture.width > 0)
+        anchor_x = (float)texture.width - anchor_x;
 
     float x = player->x - anchor_x - camera->x;
     float y = player->y - anchor_y - camera->y;
@@ -191,9 +195,12 @@ static void DrawProjectiles(const Assets *assets, const GameCamera *camera,
         if (!step)
             continue;
 
-        float x = (float)p->x_fx / 256.0f - (float)step->anchor_x - camera->x;
-        float y = (float)p->y_fx / 256.0f - (float)step->anchor_y - camera->y;
         Texture2D texture = p->vx_fx < 0 ? step->flipped : step->texture;
+        float anchor_x = (float)step->anchor_x;
+        if (p->vx_fx < 0 && texture.width > 0)
+            anchor_x = (float)texture.width - anchor_x;
+        float x = (float)p->x_fx / 256.0f - anchor_x - camera->x;
+        float y = (float)p->y_fx / 256.0f - (float)step->anchor_y - camera->y;
         Rectangle src = {0, 0, (float)texture.width, (float)texture.height};
         Rectangle dst = {x, y, (float)texture.width, (float)texture.height};
         Color tint = WHITE;
@@ -206,6 +213,63 @@ static void DrawProjectiles(const Assets *assets, const GameCamera *camera,
         }
         DrawTexturePro(texture, src, dst, (Vector2){0, 0}, 0.0f, tint);
     }
+}
+
+static int SpeciesFrameDuration(const SpeciesSheet *sheet, int frame) {
+    if (frame < 0 || frame >= sheet->frame_count)
+        return 6;
+    return sheet->frames[frame].duration > 0 ? sheet->frames[frame].duration
+                                             : 6;
+}
+
+/* Advance through a frame list using each pose's own duration. The old code
+ * used one sheet-wide duration, so poses that came from different rows played
+ * at the wrong cadence and the last frame silently overrode all others. */
+static int SpeciesCycleFrame(const SpeciesSheet *sheet, const int *frames,
+                             int count, int timer) {
+    if (count <= 0)
+        return 0;
+    int total = 0;
+    for (int i = 0; i < count; i++)
+        total += SpeciesFrameDuration(sheet, frames[i]);
+    if (total <= 0)
+        return frames[0];
+
+    int t = timer % total;
+    if (t < 0)
+        t += total;
+    for (int i = 0; i < count; i++) {
+        int d = SpeciesFrameDuration(sheet, frames[i]);
+        if (t < d)
+            return frames[i];
+        t -= d;
+    }
+    return frames[count - 1];
+}
+
+static int SpeciesDefaultFrame(const SpeciesSheet *sheet, int timer) {
+    int frames[DC_SPECIES_FRAMES];
+    for (int i = 0; i < sheet->frame_count; i++)
+        frames[i] = i;
+    return SpeciesCycleFrame(sheet, frames, sheet->frame_count, timer);
+}
+
+/* First pose of a sheet, drawn with its captured anchor. Used for the object
+ * kinds (urns, crest items) that previously ignored their per-species art. */
+static bool DrawSpeciesFirstPose(const Assets *assets, int species, float x,
+                                 float y, Color tint) {
+    const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, species);
+    if (!sheet || sheet->frame_count <= 0)
+        return false;
+    const SpeciesFrame *sf = &sheet->frames[0];
+    if (!IsTextureValid(sf->texture))
+        return false;
+    Rectangle src = {0, 0, (float)sf->texture.width,
+                     (float)sf->texture.height};
+    Rectangle dst = {x - sf->anchor_x, y - sf->anchor_y,
+                     (float)sf->texture.width, (float)sf->texture.height};
+    DrawTexturePro(sf->texture, src, dst, (Vector2){0, 0}, 0.0f, tint);
+    return true;
 }
 
 static void DrawObjects(const Assets *assets, const GameCamera *camera,
@@ -271,9 +335,11 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                 }
             }
         } else if (o->type == OBJECT_URN) {
-            Texture2D tex = assets->item;
-            DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
-                        (int)lroundf(y - tex.height * 0.5f), WHITE);
+            if (!DrawSpeciesFirstPose(assets, o->species, x, y, WHITE)) {
+                Texture2D tex = assets->item;
+                DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
+                            (int)lroundf(y - tex.height * 0.5f), WHITE);
+            }
         } else if (o->type == OBJECT_PICKUP) {
             Texture2D tex = assets->heart;
             DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
@@ -291,12 +357,14 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
                         (int)lroundf(y - tex.height), tint);
         } else if (o->type == OBJECT_CREST_ITEM) {
-            Texture2D tex = assets->heart;
             Color tint = ((o->timer / 6) & 1)
                          ? (Color){255, 240, 120, 255}
                          : (Color){180, 230, 255, 255};
-            DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
-                        (int)lroundf(y - tex.height), tint);
+            if (!DrawSpeciesFirstPose(assets, o->species, x, y, tint)) {
+                Texture2D tex = assets->heart;
+                DrawTexture(tex, (int)lroundf(x - tex.width * 0.5f),
+                            (int)lroundf(y - tex.height), tint);
+            }
         } else if (o->type == OBJECT_PLATFORM) {
             int px = (int)lroundf(x) - 16;
             int py = (int)lroundf(y);
@@ -314,7 +382,7 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             }
             const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, o->species);
             if (sheet && sheet->frame_count > 0) {
-                int frame = (o->timer / sheet->duration) % sheet->frame_count;
+                int frame = SpeciesDefaultFrame(sheet, o->timer);
                 /* Pose selection is data (review P1): `hurt` for the hit
                  * flash, then the clip for this object state, then the sheet's
                  * default. No species needs a block here. */
@@ -325,10 +393,8 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                            o->state < DC_SPECIES_STATES &&
                            sheet->states[o->state].count > 0) {
                     const StateClip *clip = &sheet->states[o->state];
-                    int step = (o->timer / (sheet->duration > 0
-                                                ? sheet->duration
-                                                : 6)) % clip->count;
-                    int idx = clip->frames[step];
+                    int idx = SpeciesCycleFrame(sheet, clip->frames, clip->count,
+                                                o->timer);
                     if (idx >= 0 && idx < sheet->frame_count)
                         frame = idx;
                 } else if (sheet->has_default &&
@@ -377,8 +443,7 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                     tint.g = (unsigned char)(255.0f - 90.0f * hurt);
                     tint.b = (unsigned char)(255.0f - 120.0f * hurt);
                 }
-                DrawTexturePro(sf->texture, src, dst, (Vector2){0, 0}, 0.0f,
-                               tint);
+                DrawTexturePro(tex, src, dst, (Vector2){0, 0}, 0.0f, tint);
             } else {
                 /* No trustworthy sheet for this species yet (the capture was
                  * ambiguous): draw a small silhouette so rooms are not filled

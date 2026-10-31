@@ -7,7 +7,8 @@
 #include "cJSON.h"
 
 static const char *const kClipNames[ANIM_CLIP_COUNT] = {
-    "idle", "walk", "jump", "hover", "fall", "land", "attack", "spell"
+    "idle", "walk", "jump", "hover", "fall", "land", "attack", "spell",
+    "flying", "hurt"
 };
 
 static char *ReadText(const char *path) {

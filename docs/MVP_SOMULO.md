@@ -131,5 +131,9 @@ Known defects, all from the frames being cut out of gameplay:
 - his **feet sit below the room's floor** in the port because the colosseum
   background is still missing tiles - the same background problem as before.
 
+The three walk frames remain in the asset folder for a future clean cut, but
+states 7/8 now use the clean native standing pose; a gate-bar walk is not shown
+while the multi-part attribution remains unresolved.
+
 The clean fix for all three is the same one the sprite plan calls for: rebuild the
 room's background from VRAM, then cut the boss against a known backdrop.

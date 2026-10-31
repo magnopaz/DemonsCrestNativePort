@@ -3723,6 +3723,51 @@ Verified: hp reaches 0 at frame ~550, the screen fades out, the room reloads and
 `MURKLAND COLOSSEUM` plays again with the player back at spawn; the mode never
 leaves GAME_PLAYING. Regression PASS.
 
+### Step 102 — Sprite pipeline hardening (2026-10-31)
+
+Applied the highest-impact items from the sprite review:
+
+- **Rendering:** `DrawObjects` now actually draws the mirrored texture (the old
+  code computed `tex` and then drew `sf->texture`); player and projectile
+  anchors are mirrored with `width - anchor_x`. `facing` is initialised for
+  enemies/bosses and updated when patrols/charges turn.
+- **Object art:** urns and crest items use their captured species sheet when
+  available, with the generic item/heart only as fallback.
+- **Animation model:** species poses carry per-frame durations; `flying` and
+  `hurt` are real form clips, missing form clips fall back to attack/hover/idle
+  instead of silently freezing on idle; jump/fall forms no longer loop. The
+  form baker now takes connected pose components from measured per-sheet clip
+  regions instead of splitting raw bands on empty columns, so captions and
+  slivers are gone; the form sheets are the default (`DC_PLAYER_FORMS=0`
+  restores the captured base sheet).
+- **Data gate:** new `tools/audit_sprites.py` rejects missing textures, anchors
+  outside the image, duplicate images assigned to different species, and
+  fragmented tilemap-like captures. It runs in `run_regression.py`.
+  `species_anim.json` was quarantined from 34 to 21 species; the removed entries
+  were duplicates/shared clusters (`28/29/2a`, `41/87`) and fragmented captures.
+  A clean `$23` ghost was then recovered from reference frame 8000 (22 species).
+- **Arma:** `bake_arma.py` now uses individual measured pose boxes, producing
+  eight clean frames instead of row crops containing captions and multiple
+  dragons.
+- **Tooling:** `OAM` composition now reuses the verified `extract.py` metaspriter
+  (whole-sprite flips); `extract_species.py` merges instead of overwriting
+  hand-baked entries (with `--prune` to force a replacement); species captures
+  now sample 60 frames and use the pre-injection player anchor when available.
+  `tools/oracle/replay_capture.py` replays a recording and dumps exact reference
+  frames; `tools/sheet_row.py` bakes a measured labelled sheet row.
+  `bg_recompose.py` had its BGnSC/CHR base conversions corrected (the old
+  `/2` conversion read half a tilemap early); frame 7002 now recomposes the
+  cemetery trees and graves instead of noise, which is the base for the
+  remaining full-room background pass. A clean `$23` ghost sprite was also
+  recovered from that reference frame.
+
+Still open: Somulo's multi-part walk needs part-to-object attribution or a
+clean full-frame cut, and the cemetery BG1/backdrop still needs its own
+recomposition pass. The 2026-10-27 recording `rec_20261027_151150` is the
+reference for the cemetery: replaying frame 7002 reproduces Firebrand, the
+flame spirit and the urn through the fixed compositor, while OAM-only Somulo
+parts remain scattered.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |

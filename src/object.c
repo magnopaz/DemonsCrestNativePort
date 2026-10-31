@@ -73,6 +73,7 @@ static void SpawnEnemy(ObjectPool *pool, const LevelObject *src) {
     o->state = 0; /* emerge / init */
     o->timer = 24;
     o->vx_fx = (src->flags & 1) ? 0x0080 : -0x0080;
+    o->facing = (o->vx_fx >= 0) ? 1 : -1;
 }
 
 /* Hostile projectile spawned by the species $67 ghoul ($82877B in the
@@ -210,6 +211,7 @@ static void SpawnBoss(ObjectPool *pool, const LevelObject *src) {
     o->origin_x_fx = o->x_fx;
     o->origin_y_fx = o->y_fx;
     o->hp = (src->species == 0x33) ? 6 : 8;
+    o->facing = 1; /* sheets face right; the AI updates this as it turns */
     const char *hp_env = getenv("DC_BOSS_HP");
     if (hp_env && *hp_env)
         o->hp = atoi(hp_env);
@@ -401,6 +403,7 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                  * head is hit. Six head hits kill him. */
                 if (o->state == 7) {   /* blind walk after the roar */
                     int32_t towards = (player->x_fx > o->x_fx) ? 1 : -1;
+                    o->facing = (int)towards;
                     o->x_fx += towards * (int32_t)(0.85f * FX_ONE);
                     if (o->phase > 0)
                         o->phase--;
@@ -420,6 +423,10 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 /* The recording shows him walking the corridor after Firebrand:
                  * close the distance when the player runs away. */
                 if (o->state == 0 || o->state == 3) {
+                    if (dx > 0)
+                        o->facing = 1;
+                    else if (dx < 0)
+                        o->facing = -1;
                     if (dx > 150 * FX_ONE)
                         o->x_fx += 0x0090;
                     else if (dx < -150 * FX_ONE)
@@ -791,6 +798,12 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                     }
                 }
             }
+            /* Keep boss art turned toward the player between attack states. */
+            if (dx > 8 * FX_ONE)
+                o->facing = 1;
+            else if (dx < -8 * FX_ONE)
+                o->facing = -1;
+
             float ox = (float)o->x_fx / FX_ONE;
             float oy = (float)o->y_fx / FX_ONE;
             if (fabsf(ox - player->x) < 20.0f &&
@@ -827,6 +840,7 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                                    oy - 8.0f) ||
                     abs(o->x_fx - o->origin_x_fx) > 96 * FX_ONE) {
                     o->vx_fx = -o->vx_fx;
+                    o->facing = (o->vx_fx >= 0) ? 1 : -1;
                 }
                 if (Level_FloorAt(level, ox, oy + 4.0f, &surf))
                     o->y_fx = (int32_t)lroundf(surf * FX_ONE);
@@ -1119,8 +1133,10 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                                 o->vx_fx = 0x0048;
                             o->x_fx += o->vx_fx;
                             if (labs((long)(o->x_fx - o->origin_x_fx)) >
-                                48 * FX_ONE)
+                                48 * FX_ONE) {
                                 o->vx_fx = -o->vx_fx;
+                                o->facing = (o->vx_fx >= 0) ? 1 : -1;
+                            }
                         }
                         float gx = (float)o->x_fx / FX_ONE;
                         float gy = (float)o->y_fx / FX_ONE;

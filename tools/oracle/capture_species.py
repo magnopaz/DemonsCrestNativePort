@@ -52,8 +52,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--out", type=Path, default=ROOT / "captures" / "species")
     ap.add_argument("--species", default="",
                     help="comma-separated species ids (hex or decimal)")
-    ap.add_argument("--frames", default="2,4,6",
-                    help="frames after injection to dump (default 2,4,6)")
+    ap.add_argument("--frames", default="2,4,8,12,20,30,45,60",
+                    help="frames after injection to dump; longer samples are "
+                         "needed for walk/attack cycles (default 2..60)")
     ap.add_argument("--port", type=int, default=4406)
     ap.add_argument("--settle", type=int, default=40)
     ap.add_argument("--timeout", type=float, default=120.0)
@@ -128,21 +129,40 @@ def world_pos(raw: bytes) -> tuple[float, float]:
 
 
 def oam_visible_span(oam: bytes) -> tuple[float, float] | None:
-    """Centre of the visible palette-7 player group (before injection)."""
+    """Feet anchor of the visible palette-7 player group (before injection).
+
+    The OAM low-table byte order is X, Y, tile, attr. Groups are split by
+    proximity because some rooms draw another palette-7 object; the largest
+    group before injection is the player in the normal case.
+    """
     if len(oam) != 0x220:
         return None
-    xs, ys = [], []
+    groups: list[list[tuple[int, int, int]]] = []
     for i in range(128):
-        y = oam[i * 4]
-        x = oam[i * 4 + 1]
+        x = oam[i * 4]
+        y = oam[i * 4 + 1]
         attr = oam[i * 4 + 3]
-        if y >= 224 or (attr & 0x0E) >> 1 != 7:
+        hi = oam[0x200 + i // 4]
+        x |= ((hi >> ((i % 4) * 2)) & 1) << 8
+        if x >= 256:
+            x -= 512
+        size = 16 if ((hi >> ((i % 4) * 2 + 1)) & 1) else 8
+        if y >= 224 or ((attr >> 1) & 7) != 7:
             continue
-        xs.append(x)
-        ys.append(y)
-    if not xs:
+        for group in groups:
+            if any(abs(x - gx) < 40 and abs(y - gy) < 64
+                   for gx, gy, _s in group):
+                group.append((x, y, size))
+                break
+        else:
+            groups.append([(x, y, size)])
+    if not groups:
         return None
-    return (sum(xs) / len(xs), sum(ys) / len(ys))
+    best = max(groups, key=len)
+    min_x = min(x for x, _y, _s in best)
+    max_x = max(x + s for x, _y, s in best)
+    max_y = max(y + s for _x, y, s in best)
+    return ((min_x + max_x) / 2.0, float(max_y))
 
 
 def run_species(args, species: int, save: Path, rom: Path) -> dict | None:
@@ -172,12 +192,18 @@ def run_species(args, species: int, save: Path, rom: Path) -> dict | None:
             return None
         offset = (player[0] - span[0], player[1] - span[1])
 
+        # Keep the injected object inside the 256px viewport. At the old
+        # fixed +72, a player near the right edge put the object off-screen,
+        # so the extractor captured whatever ambient sprite was at the
+        # projected location instead.
+        player_screen_x = player[0] - offset[0]
+        side = 72.0 if player_screen_x < 160.0 else -72.0
         rec = bytearray(0x50)
         rec[0x00] = 0x01
         rec[0x02] = species
         rec[0x0A] = 0x30
         rec[0x26] = 0x40
-        rec[0x30:0x33] = fx(player[0] + 72.0)
+        rec[0x30:0x33] = fx(player[0] + side)
         rec[0x33:0x36] = fx(player[1] - 16.0)
         rec[0x37] = 0x1F
         client.write(0x1080, bytes(rec))
@@ -211,7 +237,8 @@ def run_species(args, species: int, save: Path, rom: Path) -> dict | None:
         print(f"  species {species:#04x}: {len(frames)} frames "
               f"(object at {world_pos(bytes([slot[0x30], slot[0x31], slot[0x32], slot[0x33], slot[0x34], slot[0x35]]))})")
         return {"species": species, "frames": frames,
-                "offset": list(offset), "player": list(player)}
+                "offset": list(offset), "offset_v2": True,
+                "player": list(player)}
     finally:
         proc.terminate()
         try:

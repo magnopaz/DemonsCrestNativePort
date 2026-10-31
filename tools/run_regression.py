@@ -127,6 +127,17 @@ def main() -> int:
     base = wrapper(binary)
     failures: list[str] = []
 
+    # Sprite gate: structural checks catch the "tilemap fragment baked as an
+    # enemy" class of regression before the game draws it.
+    audit = Path(__file__).with_name("audit_sprites.py")
+    if audit.is_file() and (assets / "species_anim.json").is_file():
+        print("regression: auditing generated sprites", flush=True)
+        audit_proc = subprocess.run(
+            [sys.executable, str(audit), "--assets", str(assets), "--strict"],
+            cwd=ROOT, text=True)
+        if audit_proc.returncode != 0:
+            failures.append("sprite audit failed (see output above)")
+
     def check(ok: bool, message: str):
         if not ok:
             failures.append(message)

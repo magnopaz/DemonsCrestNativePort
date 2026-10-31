@@ -50,12 +50,16 @@ def cgram_colors(cgram):
 
 
 def sc_map_base_words(sc: int) -> int:
-    return ((sc >> 2) * 0x400) // 2
+    # BGnSC bits 2..7 are the tilemap base in 1 KB units. The old code
+    # divided by two as if this were a byte address, reading half a map early.
+    return (sc & 0xFC) << 8
 
 
 def chr_base_words(tile_adr: int, layer: int) -> int:
+    # BGnNBA selects the character base in 4 KB units; tile_rows() consumes
+    # 16-bit VRAM words, so the byte base is divided by two.
     nib = (tile_adr & 0x0F) if layer in (1, 3) else ((tile_adr >> 4) & 0x0F)
-    return nib * 0x1000 // 2
+    return nib << 11
 
 
 def render_layer(vram, colors, sc, chr_base, bpp, hscroll, vscroll):

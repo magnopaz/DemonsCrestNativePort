@@ -329,7 +329,12 @@ void Player_Animate(Player *player, const PlayerAnim *anim) {
         return;
 
     AnimClipId clip;
-    if (player->special_timer > 0) {
+    if (player->hp <= 0 || player->knockback_timer > 0) {
+        /* Hurt/death are data-driven when the sheet provides a clip; the base
+         * captured sheet does not yet have one, so the fallback below keeps
+         * the old behaviour instead of freezing. */
+        clip = ANIM_HURT;
+    } else if (player->special_timer > 0) {
         clip = ANIM_SPELL;
     } else if (player->shot_timer > 0) {
         clip = ANIM_ATTACK;
@@ -345,8 +350,16 @@ void Player_Animate(Player *player, const PlayerAnim *anim) {
             clip = player->vy_fx < 0 ? ANIM_JUMP : ANIM_FALL;
             break;
         case PLAYER_HOVER:
-        case PLAYER_FLY:
             clip = ANIM_HOVER;
+            break;
+        case PLAYER_FLY:
+            clip = anim->clips[ANIM_FLYING].step_count > 0
+                       ? ANIM_FLYING
+                       : ANIM_HOVER;
+            break;
+        case PLAYER_HURT:
+        case PLAYER_DEAD:
+            clip = ANIM_HURT;
             break;
         case PLAYER_WALL_CLING:
             clip = ANIM_JUMP;
@@ -361,8 +374,21 @@ void Player_Animate(Player *player, const PlayerAnim *anim) {
     }
 
     const AnimClip *c = &anim->clips[clip];
+    /* A form sheet may be missing a clip (for example the ripped form sheets
+     * have no spell row). Fall through to the closest available animation
+     * instead of silently showing idle. */
     if (c->step_count <= 0) {
-        clip = ANIM_IDLE;
+        if (clip == ANIM_SPELL &&
+            anim->clips[ANIM_ATTACK].step_count > 0)
+            clip = ANIM_ATTACK;
+        else if (clip == ANIM_FLYING &&
+                 anim->clips[ANIM_HOVER].step_count > 0)
+            clip = ANIM_HOVER;
+        else if (clip == ANIM_HURT &&
+                 anim->clips[ANIM_IDLE].step_count > 0)
+            clip = ANIM_IDLE;
+        else
+            clip = ANIM_IDLE;
         c = &anim->clips[clip];
     }
     if (!anim->ready || c->step_count <= 0)
@@ -373,8 +399,17 @@ void Player_Animate(Player *player, const PlayerAnim *anim) {
         player->anim_step = 0;
         player->anim_timer = 0;
     }
-    if (c->step_count <= 1)
+    if (c->step_count <= 1) {
+        player->anim_step = 0;
         return;
+    }
+
+    /* Switching form/animation can leave a step index from the previous
+     * clip; clamp before indexing the steps array. */
+    if (player->anim_step < 0)
+        player->anim_step = 0;
+    if (player->anim_step >= c->step_count)
+        player->anim_step = c->step_count - 1;
 
     const AnimStep *step = &anim->steps[c->first_step + player->anim_step];
     player->anim_timer++;

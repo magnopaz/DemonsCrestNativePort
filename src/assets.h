@@ -18,6 +18,7 @@ typedef struct SpeciesFrame {
                          * in raylib, so the flip is baked at load time. */
     int anchor_x;       /* whole pixels: fractional anchors truncated when drawn */
     int anchor_y;
+    int duration;       /* game frames this pose is shown */
 } SpeciesFrame;
 
 #define DC_ENDING_VARIANTS 4

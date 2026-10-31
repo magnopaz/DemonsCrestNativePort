@@ -637,7 +637,12 @@ def parse_oam(oam: bytes, obsel: int) -> list[OamSprite]:
         if x >= 256:
             x -= 512
         size = large if ((hi >> ((i % 4) * 2 + 1)) & 1) else small
-        out.append(OamSprite(i, x, y, size, oam1 & 0xFF,
+        tile = oam1 & 0xFF
+        # Attribute bit 0 is the ninth tile-number bit for 16x16 and larger
+        # sprites. 8x8 entries have an 8-bit tile number and ignore it.
+        if size >= 16:
+            tile |= (oam1 & 1) << 8
+        out.append(OamSprite(i, x, y, size, tile,
                              (oam1 >> 9) & 7, bool(oam1 & 0x4000),
                              bool(oam1 & 0x8000)))
     return out

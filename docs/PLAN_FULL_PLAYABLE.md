@@ -57,24 +57,24 @@ table, rather than only as systems:
 
 Ordered by player-visible value per unit of work.
 
-### A1. Firebrand form sprites — **reverted (opt-in only)**
+### A1. Firebrand form sprites — **done (clean component pass)**
 
-The first pass made the animation *worse*, so the captured `player_anim` is the
-default again and the ripped sheets are behind `DC_PLAYER_FORMS=1`. Why it failed:
-the sheets' rows are irregular, the caption detection was unreliable, and the
-band split merged or sliced frames (normal walk 3 steps, attack 2, ground clips
-captured captions and half-sprites). A clean pass needs per-sheet frame boxes
-measured by hand (or a proper caption-based clip detector), then per-frame anchors
-verified against a floor line. The sprites themselves are correct and 1:1 — the
-problem is only the cutting.
-All six sheets are baked and wired: `bake_player_forms.py` cuts the sprites out
-of the opaque sheets (dominant-colour key, transparent background) into
-`fb_<form>_<clip>_<i>.png`, and `player_forms.json` holds one animation per form
-(idle/walk/attack/jump/fall/land/hover/flying). `Assets_PlayerAnimForForm` picks
-the sheet from `crest_form`, so every form now animates with the ripped art.
-**Remaining polish:** the band split merges a few touching frames, so idle has
-3–5 frames instead of 5–6, and some clips carry a stray sliver; a per-sheet band
-table would fix it. **Outcome:** the player looks like the game in every form.
+The first band-split pass made the animation worse, so the captured
+`player_anim` became the default while the cutting was fixed. The current baker
+uses measured per-sheet clip regions and takes **connected pose components**, so
+captions, merged poses and half-sprites are gone. All six forms now have clean
+clips and are the default; `DC_PLAYER_FORMS=0` restores the captured base sheet
+for comparison.
+
+The sprites themselves are correct and 1:1; the remaining polish is animation
+cadence against the original (the baker currently uses 8 frames per pose).
+`bake_player_forms.py` now finds connected pose components inside measured
+per-sheet clip regions, keys the sheet background to transparency and writes
+`fb_<form>_<clip>_<i>.png`; `player_forms.json` holds the clips, and
+`Assets_PlayerAnimForForm` selects them from `crest_form`. The form rows include
+the white/gold hurt palette pose, and missing clips (for example the form sheets
+have no spell row) use attack/hover/idle fallbacks. **Outcome:** the player
+looks like the game in every form, with no captions or slivers.
 
 ### A2. Enemy sprite coverage from the two enemy sheets
 `Enemies 1.gif` / `Enemies 2.gif` cover most regular enemies. Match their entries

@@ -1,119 +1,201 @@
 #!/usr/bin/env python3
-"""Bake Firebrand's form sheets into per-form player animations.
+"""Bake Firebrand's six form sheets into per-form player animations.
 
-The sheets use one layout: caption, sprite run, next caption. The runs were
-measured once on the normal sheet with a coordinate grid; the five other sheets
-share that layout (the ground sheet is compressed vertically, so it uses its own
-bands). Each band is split into frames by narrow column gaps, then written as
-`fb_<form>_<clip>_<i>.png` with `player_forms.json`.
+The earlier version split each band on empty columns. That produced captions,
+merged touching poses and half-sprites. This version uses the sheet's
+connected components instead: every pose is one connected body, so a component
+whose bounding box lives inside a measured clip region is a frame. The clip
+regions are per sheet because their layouts differ.
+
+The resulting frames are keyed to transparency, foot-centred with the opaque
+pixels in the lower part of the pose, and written as
+``fb_<form>_<clip>_<i>.png`` + ``player_forms.json``.
 """
 
 from __future__ import annotations
 
 import json
-from collections import Counter
+from collections import Counter, deque
 from pathlib import Path
 
 from PIL import Image
 
-ROOT = Path(r"M:\Opencode\DemonsCrestNativePort")
+ROOT = Path(__file__).resolve().parents[2]
 SPRITES = ROOT / "docs/sprites"
 GEN = ROOT / "assets/generated"
 
-# (x0, x1, y0, y1) in sheet pixels, measured on the normal sheet.
-BANDS = {
-    "idle": (2, 80, 18, 62),
-    "walk": (82, 180, 18, 62),
-    "attack": (181, 262, 18, 62),
-    "jump": (2, 150, 100, 150),
-    "fall": (192, 264, 100, 150),
-    "land": (266, 316, 100, 150),
-    "hover": (2, 220, 198, 252),
-    "flying": (222, 442, 198, 252),
-    "hurt": (0, 66, 276, 334),
+# (x0, x1, y0, y1), exclusive. The ranges isolate one clip; the frame splitter
+# then takes the connected pose components inside the range.
+NORMAL = {
+    "idle": (0, 125, 20, 64),
+    "walk": (125, 320, 20, 64),
+    "attack": (320, 395, 20, 64),
+    "jump": (0, 165, 95, 151),
+    "fall": (165, 325, 95, 151),
+    "land": (325, 390, 95, 151),
+    "hover": (0, 195, 184, 246),
+    "flying": (195, 555, 184, 246),
+    "hurt": (130, 220, 286, 329),
 }
-GROUND_BANDS = {
-    "idle": (2, 80, 12, 58),
-    "walk": (82, 180, 12, 58),
-    "attack": (181, 262, 12, 58),
-    "jump": (2, 150, 64, 116),
-    "fall": (192, 264, 64, 116),
-    "land": (266, 316, 64, 116),
-    "hover": (2, 220, 122, 182),
-    "flying": (222, 442, 122, 182),
-    "hurt": (0, 66, 190, 258),
+GROUND = {
+    "idle": (0, 125, 40, 80),
+    "walk": (125, 305, 40, 80),
+    "attack": (305, 395, 40, 80),
+    "jump": (0, 120, 114, 169),
+    "fall": (120, 270, 114, 169),
+    "land": (270, 320, 114, 169),
+    "hurt": (0, 90, 182, 246),
+}
+AERIAL = {
+    "idle": (0, 145, 20, 75),
+    "walk": (145, 400, 20, 75),
+    "attack": (400, 515, 20, 75),
+    "jump": (0, 170, 124, 178),
+    "fall": (240, 515, 124, 178),
+    "land": (180, 240, 124, 178),
+    "hover": (240, 515, 124, 178),
+    "flying": (20, 365, 208, 295),
+    "hurt": (0, 100, 320, 368),
+}
+TIDAL = {
+    "idle": (0, 120, 29, 72),
+    "walk": (120, 300, 29, 72),
+    "attack": (300, 340, 29, 72),
+    "jump": (0, 145, 108, 160),
+    "fall": (145, 252, 108, 160),
+    "land": (252, 340, 108, 160),
+    "hover": (0, 195, 194, 244),
+    "flying": (195, 250, 194, 244),
+    "hurt": (0, 90, 275, 317),
+}
+LEGENDARY = {
+    "idle": (0, 130, 26, 73),
+    "walk": (130, 325, 26, 73),
+    "attack": (325, 405, 26, 73),
+    "jump": (0, 185, 107, 158),
+    "fall": (185, 350, 107, 158),
+    "land": (350, 390, 107, 158),
+    "hover": (0, 220, 191, 253),
+    "flying": (220, 540, 191, 253),
+    "hurt": (0, 110, 297, 342),
+}
+ULTIMATE = {
+    "idle": (0, 130, 22, 67),
+    "walk": (130, 330, 22, 67),
+    "attack": (330, 405, 22, 67),
+    "jump": (0, 185, 105, 156),
+    "fall": (185, 345, 105, 156),
+    "land": (345, 390, 105, 156),
+    "hover": (0, 220, 189, 251),
+    "flying": (220, 540, 189, 251),
+    "hurt": (160, 250, 293, 339),
 }
 SHEETS = [
-    (0, "normal", "Playable Characters - Firebrand.gif", BANDS),
-    (1, "ground", "Playable Characters - Firebrand (Ground).gif", GROUND_BANDS),
-    (2, "aerial", "Playable Characters - Firebrand (Aerial).gif", BANDS),
-    (3, "tidal", "Playable Characters - Firebrand (Tidal).gif", BANDS),
-    (4, "legendary", "Playable Characters - Firebrand (Legendary).gif", BANDS),
-    (5, "ultimate", "Playable Characters - Firebrand (Ultimate).gif", BANDS),
+    (0, "normal", "Playable Characters - Firebrand.gif", NORMAL),
+    (1, "ground", "Playable Characters - Firebrand (Ground).gif", GROUND),
+    (2, "aerial", "Playable Characters - Firebrand (Aerial).gif", AERIAL),
+    (3, "tidal", "Playable Characters - Firebrand (Tidal).gif", TIDAL),
+    (4, "legendary", "Playable Characters - Firebrand (Legendary).gif",
+     LEGENDARY),
+    (5, "ultimate", "Playable Characters - Firebrand (Ultimate).gif",
+     ULTIMATE),
 ]
 
 
-def background_colour(im):
-    small = im.convert("RGB").resize((max(1, im.width // 4),
-                                      max(1, im.height // 4)))
+def background_colour(im: Image.Image) -> tuple[int, int, int]:
+    small = im.resize((max(1, im.width // 4), max(1, im.height // 4)))
     return Counter(small.getdata()).most_common(1)[0][0]
 
 
-def split_frames(im, box):
-    x0, x1, y0, y1 = box
-    x1 = min(x1, im.width - 1)
-    y1 = min(y1, im.height - 1)
+def is_bg(pixel, bg) -> bool:
+    return abs(pixel[0] - bg[0]) + abs(pixel[1] - bg[1]) + \
+        abs(pixel[2] - bg[2]) <= 30
+
+
+def connected_boxes(im: Image.Image, bg) -> list[tuple[int, int, int, int, int]]:
+    w, h = im.size
     px = im.load()
-    # Background is the sheet's dominant colour; anything else is sprite.
-    bg = background_colour(im)
-    cols = []
-    for x in range(x0, x1 + 1):
-        hit = False
-        for y in range(y0, y1 + 1):
-            r, g, b = px[x, y][:3]
-            if abs(r - bg[0]) + abs(g - bg[1]) + abs(b - bg[2]) > 30:
-                hit = True
-                break
-        cols.append(hit)
-    runs = []
-    start = None
-    for i, c in enumerate(cols):
-        if c and start is None:
-            start = i
-        elif not c and start is not None:
-            runs.append((x0 + start, x0 + i - 1))
-            start = None
-    if start is not None:
-        runs.append((x0 + start, x0 + len(cols) - 1))
-    if not runs:
-        return []
-    merged = [runs[0]]
-    for r in runs[1:]:
-        if r[0] - merged[-1][1] - 1 <= 1:
-            merged[-1] = (merged[-1][0], r[1])
-        else:
-            merged.append(r)
-    frames = []
-    for fx0, fx1 in merged:
-        ys = [y for y in range(y0, y1 + 1)
-              if any(abs(px[x, y][0] - bg[0]) + abs(px[x, y][1] - bg[1]) +
-                     abs(px[x, y][2] - bg[2]) > 30
-                     for x in range(fx0, fx1 + 1))]
-        if not ys:
-            continue
-        width = fx1 + 1 - fx0
-        height = max(ys) + 1 - min(ys)
-        if width < 12 or height < 24:
-            continue  # a slice of a sprite, not a frame
-        crop = im.crop((fx0, min(ys), fx1 + 1, max(ys) + 1)).convert("RGBA")
-        cp = crop.load()
-        for cy in range(crop.height):
-            for cx in range(crop.width):
-                r, g, b, a = cp[cx, cy]
-                if abs(r - bg[0]) + abs(g - bg[1]) + abs(b - bg[2]) <= 30:
-                    cp[cx, cy] = (0, 0, 0, 0)
-        frames.append((crop, fx1 + 1 - fx0, max(ys) + 1 - min(ys)))
-    return frames
+    seen = bytearray(w * h)
+    boxes = []
+    for y in range(h):
+        for x in range(w):
+            i = y * w + x
+            if seen[i] or is_bg(px[x, y], bg):
+                continue
+            q = deque([(x, y)])
+            seen[i] = 1
+            minx = maxx = x
+            miny = maxy = y
+            area = 0
+            while q:
+                cx, cy = q.popleft()
+                area += 1
+                minx = min(minx, cx)
+                maxx = max(maxx, cx)
+                miny = min(miny, cy)
+                maxy = max(maxy, cy)
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        nx, ny = cx + dx, cy + dy
+                        if 0 <= nx < w and 0 <= ny < h:
+                            j = ny * w + nx
+                            if not seen[j] and not is_bg(px[nx, ny], bg):
+                                seen[j] = 1
+                                q.append((nx, ny))
+            if area >= 40 and maxy - miny + 1 >= 16:
+                boxes.append((minx, miny, maxx + 1, maxy + 1, area))
+    return boxes
+
+
+def frame_from_box(im: Image.Image, box, bg) -> Image.Image | None:
+    x0, y0, x1, y1, _area = box
+    crop = im.crop((x0, y0, x1, y1)).convert("RGBA")
+    px = crop.load()
+    for y in range(crop.height):
+        for x in range(crop.width):
+            r, g, b, _a = px[x, y]
+            if is_bg((r, g, b), bg):
+                px[x, y] = (0, 0, 0, 0)
+    bbox = crop.getbbox()
+    if bbox is None:
+        return None
+    return crop.crop(bbox)
+
+
+def pose_brightness(img: Image.Image) -> float:
+    """Mean brightness of opaque pixels; used to pick the white hurt palette."""
+    px = img.load()
+    total = 0
+    bright = 0
+    for y in range(img.height):
+        for x in range(img.width):
+            value = px[x, y]
+            if len(value) == 4:
+                r, g, b, a = value
+            else:
+                r, g, b = value
+                a = 255
+            if a:
+                total += 1
+                bright += (r + g + b) / 3.0
+    return bright / total if total else 0.0
+
+
+def foot_anchor_x(img: Image.Image) -> int:
+    """Body/feet centre from the opaque pixels in the lower part of the pose."""
+    px = img.load()
+    w, h = img.size
+    start = max(0, int(h * 0.55))
+    total = 0
+    weighted = 0
+    for y in range(start, h):
+        for x in range(w):
+            if px[x, y][3]:
+                total += 1
+                weighted += x
+    if total == 0:
+        return w // 2
+    return max(0, min(w, round(weighted / total)))
 
 
 def main() -> int:
@@ -122,24 +204,47 @@ def main() -> int:
     forms = []
     for form, name, sheet, bands in SHEETS:
         im = Image.open(SPRITES / f"SNES - Demon's Crest - {sheet}").convert(
-            "RGBA")
+            "RGB")
+        bg = background_colour(im)
+        boxes = connected_boxes(im, bg)
         clips = {}
-        for clip, box in bands.items():
-            frames = split_frames(im, box)
-            if not frames:
-                continue
+        for clip, (x0, x1, y0, y1) in bands.items():
+            selected = [
+                box for box in boxes
+                if box[0] >= x0 - 2 and box[2] <= x1 + 2 and
+                box[1] >= y0 - 2 and box[3] <= y1 + 2
+            ]
+            selected.sort(key=lambda box: (box[0], box[1]))
+            if clip == "hurt" and selected:
+                # The hurt row also contains a palette swatch/dark body. The
+                # real hurt palette is the bright white/gold pose.
+                selected = [max(
+                    selected,
+                    key=lambda box: pose_brightness(
+                        im.crop((box[0], box[1], box[2], box[3])))
+                )]
             steps = []
-            for i, (crop, w, h) in enumerate(frames):
-                tex = f"fb_{name}_{clip}_{i}.png"
+            for box in selected:
+                crop = frame_from_box(im, box, bg)
+                if crop is None or crop.width < 8 or crop.height < 16:
+                    continue
+                tex = f"fb_{name}_{clip}_{len(steps)}.png"
                 crop.save(GEN / tex)
-                steps.append({"texture": tex, "anchor_x": w // 2,
-                              "anchor_y": h, "duration": 8})
-            loop = clip not in ("attack", "land", "hurt")
+                steps.append({
+                    "texture": tex,
+                    "anchor_x": foot_anchor_x(crop),
+                    "anchor_y": crop.height,
+                    "duration": 8,
+                })
+            if not steps:
+                print(f"  {name}/{clip}: no frames")
+                continue
+            loop = clip not in ("attack", "land", "hurt", "jump", "fall")
             clips[clip] = {"loop": loop, "steps": steps}
         forms.append({"form": form, "name": name, "clips": clips})
-        print(f"{name}: "
-              f"{ {k: len(v['steps']) for k, v in clips.items()} }")
-    (GEN / "player_forms.json").write_text(json.dumps({"forms": forms}, indent=1))
+        print(f"{name}: { {k: len(v['steps']) for k, v in clips.items()} }")
+    (GEN / "player_forms.json").write_text(json.dumps({"forms": forms},
+                                                      indent=1))
     print("wrote player_forms.json")
     return 0
 

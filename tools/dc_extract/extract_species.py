@@ -40,6 +40,9 @@ def parse_args() -> argparse.Namespace:
                     help="half-height of the object sprite window")
     ap.add_argument("--pose-frames", type=int, default=6,
                     help="frames each baked pose is shown (default 6)")
+    ap.add_argument("--prune", action="store_true",
+                    help="replace species_anim.json instead of merging; the "
+                         "default preserves hand-baked entries such as bosses")
     return ap.parse_args()
 
 
@@ -101,7 +104,9 @@ def main() -> int:
     total_png = 0
     for key, entry in sorted(manifest.get("species", {}).items()):
         species = int(key, 16)
-        offset = entry["offset"]
+        manifest_offset = entry.get("offset")
+        use_manifest_offset = bool(entry.get("offset_v2")) and \
+            manifest_offset is not None
         frames = []
         seen: list[bytes] = []
         for frame_no in entry["frames"]:
@@ -112,12 +117,20 @@ def main() -> int:
             sprites = parse_oam(oam, obsel)
             obj_world = state["object_world"]
             player_world = state["player_world"]
-            derived = player_anchor(sprites, player_world)
-            if derived is None:
-                continue
-            offset, anchor = derived
+            if use_manifest_offset:
+                # The pre-injection capture measured the player anchor while
+                # only the player was present. Re-deriving it from the
+                # post-injection frame is what let a palette-7 species become
+                # the "player" anchor in the old pipeline.
+                offset = tuple(manifest_offset)
+                player_screen = (player_world[0] - offset[0],
+                                 player_world[1] - offset[1])
+            else:
+                derived = player_anchor(sprites, player_world)
+                if derived is None:
+                    continue
+                offset, player_screen = derived
             obj_screen = (obj_world[0] - offset[0], obj_world[1] - offset[1])
-            player_screen = anchor
             player_box = (player_screen[0] - 24, player_screen[1] - 56,
                           player_screen[0] + 24, player_screen[1] + 10)
             window = (obj_screen[0] - args.radius_x,
@@ -213,12 +226,25 @@ def main() -> int:
             out_species.pop(key, None)
         print(f"extract_species: dropped ambiguous sheets {sorted(ambiguous)}")
 
-    (args.out / "species_anim.json").write_text(
-        json.dumps({"species": out_species}, indent=1))
+    anim_path = args.out / "species_anim.json"
+    existing: dict[str, dict] = {}
+    if not args.prune and anim_path.is_file():
+        try:
+            old = json.loads(anim_path.read_text())
+            if isinstance(old.get("species"), dict):
+                existing = old["species"]
+        except (OSError, ValueError):
+            existing = {}
+    # Preserve hand-baked boss/form entries unless --prune was requested. The
+    # capture pass only owns the species it actually re-baked this run.
+    merged = dict(existing)
+    merged.update(out_species)
+    anim_path.write_text(json.dumps({"species": merged}, indent=1))
     if skipped_player:
         print(f"extract_species: skipped player-lookalikes {skipped_player}")
-    print(f"extract_species: {len(out_species)} species, {total_png} PNGs "
-          f"-> {args.out}")
+    print(f"extract_species: {len(out_species)} baked species, "
+          f"{total_png} PNGs -> {args.out} "
+          f"({len(merged)} entries in {anim_path.name})")
     return 0
 
 
