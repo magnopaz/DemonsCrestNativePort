@@ -382,7 +382,7 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             }
             const SpeciesSheet *sheet =
                 (o->type == OBJECT_BOSS)
-                    ? Assets_BossSheet(assets, o->species)
+                    ? Assets_BossSheet(assets, o->species, o->flags)
                     : NULL;
             if (!sheet)
                 sheet = Assets_SpeciesSheet(assets, o->species);

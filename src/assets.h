@@ -45,6 +45,7 @@ typedef struct StateClip {
 
 typedef struct SpeciesSheet {
     int species;
+    int flags;        /* object flags selecting a palette/encounter variant */
     int frame_count;
     int duration;
     bool has_states;
@@ -113,7 +114,8 @@ Texture2D Assets_AreaBg(const Assets *assets, int area, int pal);
 Texture2D Assets_AreaBg2(const Assets *assets, int pal);
 bool Assets_HasAreaBg2(const Assets *assets);
 const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species);
-const SpeciesSheet *Assets_BossSheet(const Assets *assets, int species);
+const SpeciesSheet *Assets_BossSheet(const Assets *assets, int species,
+                                     int flags);
 /* Per-crest-form player animation; falls back to player_anim. */
 const PlayerAnim *Assets_PlayerAnimForForm(const Assets *assets, int form);
 int Assets_RoomKind(const Assets *assets, int area);

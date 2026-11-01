@@ -24,11 +24,18 @@ keeps the white/gold hurt pose and writes `fb_<form>_<clip>_<i>.png` plus
 `player_forms.json`. The forms are the default; `DC_PLAYER_FORMS=0` restores the
 captured base animation.
 
-## Baking Arma's first fight
+## Baking Arma's encounter palettes
 
-`tools/dc_extract/bake_arma.py` uses individually measured pose boxes. Do not
-replace them with whole sheet rows: the rows contain captions and several
-poses, which is what produced the earlier multi-sprite PNGs.
+`tools/dc_extract/bake_arma.py` uses individually measured pose boxes for all
+three Arma sheets. Do not replace them with whole sheet rows: the rows contain
+captions and several poses, which is what produced the earlier multi-sprite
+PNGs. The script writes the base `$A5` art plus two boss variants:
+
+- `flags=2`: green second-fight palette from `Arma.gif`;
+- `flags=4`: `Ultimate Arma.gif`.
+
+`Assets_BossSheet(assets, species, flags)` picks the exact object-flag variant;
+areas 3/23/36/67 use flags 0/2/4/4 respectively.
 
 ## Baking one labelled sheet row
 
@@ -61,6 +68,7 @@ mappings recovered from their live object pools:
 | Crawler (ice palace) | `$82` (plus `$83/$84/$85` parts) |
 | Belth (boneyard) | `$68` |
 | Phalanx (84) | `$86` first form + `$88`; `$8D` second-form body |
+| Arma (3/23/36/67) | `$A5` + flags `0/2/4` palette variants |
 | demon realm (86) | `$58`, `$5C`, `$5D`, `$5E`, `$5F` |
 | final second form (90) | `$BC` (plus `$8A`) |
 
@@ -87,7 +95,20 @@ full body at the floor; `bake_npc96.py` keeps the area-8 town NPC on
 `fix_room_boss_species.py --room room_area52.json --old 150 --new 111` patches
 the boss object when the ROM room list names the wrong species.
 `add_room_boss.py --room room_area26.json --bosses "123:1320:154,124:1380:154"`
-adds the two Scula boss objects from the save positions.
+adds the two Scula boss objects from the save positions. The other measured
+placements are:
+
+```text
+python tools/dc_extract/add_room_boss.py \
+  --room assets/generated/room_area68.json --bosses "130:1808:160"
+python tools/dc_extract/add_room_boss.py \
+  --room assets/generated/room_area86.json --bosses "88:128:120"
+python tools/dc_extract/add_room_boss.py \
+  --room assets/generated/room_area90.json --bosses "188:128:120"
+```
+
+Crawler uses `y=160` rather than the save's `y=72`: the original position is
+almost entirely above the camera at area 68 and cannot be fought.
 
 Some species ids are reused by different object kinds; `species_anim.json`
 also supports an optional `"variant": "boss"` entry, used only for

@@ -60,6 +60,7 @@ static void LoadSpeciesSheets(Assets *assets, const char *dir) {
                                    : &assets->species[*count];
         memset(sheet, 0, sizeof(*sheet));
         sheet->species = JsonNum(entry, "species", -1);
+        sheet->flags = JsonNum(entry, "flags", 0);
         sheet->duration = 6;
         const cJSON *frame = NULL;
         cJSON_ArrayForEach(frame, frames) {
@@ -252,12 +253,19 @@ const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species) {
     return NULL;
 }
 
-const SpeciesSheet *Assets_BossSheet(const Assets *assets, int species) {
+const SpeciesSheet *Assets_BossSheet(const Assets *assets, int species,
+                                     int flags) {
+    const SpeciesSheet *fallback = NULL;
     for (int i = 0; i < assets->boss_sheet_count; i++) {
-        if (assets->boss_sheets[i].species == species)
-            return &assets->boss_sheets[i];
+        const SpeciesSheet *sheet = &assets->boss_sheets[i];
+        if (sheet->species != species)
+            continue;
+        if (sheet->flags == flags)
+            return sheet;
+        if (sheet->flags == 0)
+            fallback = sheet;
     }
-    return NULL;
+    return fallback;
 }
 
 /* room_names.json: { "<area>": { "map": "...", "level": "III" } } */
