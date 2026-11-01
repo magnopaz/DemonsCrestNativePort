@@ -82,9 +82,18 @@ static void DrawLayer(const Assets *assets, const BgLayer *layer,
                       const Level *level, const GameCamera *camera) {
     /* Each layer keeps the relative scroll it had in the captured frame
      * (`layer->scroll_x - level->camera_x`); the runtime camera then scrolls
-     * all layers together. */
-    float offset_x = (float)layer->scroll_x - level->camera_x;
-    float offset_y = (float)layer->scroll_y - level->camera_y;
+     * all layers together.
+     *
+     * BG1 is the room's own tilemap and lives in world coordinates, so it must
+     * not subtract the level camera again: for a room whose reference camera y
+     * is 240 the old formula drew the world from y=32 and every tall room
+     * (Phalanx fortress, ice palace) came out as a black void with the player
+     * floating in it. Only captured backdrops (BG2) are camera-relative. */
+    bool world_space = layer == &level->bg[1];
+    float offset_x = world_space ? 0.0f
+                                 : (float)layer->scroll_x - (float)level->camera_x;
+    float offset_y = world_space ? 0.0f
+                                 : (float)layer->scroll_y - (float)level->camera_y;
     bool wrap_x = layer->map_w < level->bg[1].map_w ||
                   layer == &level->bg[0];
     /* A captured backdrop is one screen of a much larger room: tile it in both
