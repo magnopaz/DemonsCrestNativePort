@@ -64,6 +64,16 @@ mappings recovered from their live object pools:
 | demon realm (86) | `$58`, `$5C`, `$5D`, `$5E`, `$5F` |
 | final second form (90) | `$BC` (plus `$8A`) |
 
+The demon-realm `$58` object uses `Flame Lord.gif`; the final second form `$BC`
+uses `Dark Demon.gif`. Boss sheets can be baked directly from measured full-body
+boxes with the generic tool:
+
+```text
+python tools/dc_extract/bake_boss_rows.py \
+  --sheet "docs/sprites/...Dark Demon.gif" --species 0xBC \
+  --boxes "6,50,132,148;140,52,272,148;280,52,400,148"
+```
+
 `bake_holothurion.py` writes `$6F` from `Holothurion.gif`;
 `bake_scula.py` writes `$7B/$7C` from `Scula.gif` (the boss save has two
 enemies at the same arena position); `bake_ovnunu.py` writes the temple boss
