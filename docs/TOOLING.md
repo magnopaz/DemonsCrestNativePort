@@ -58,6 +58,8 @@ mappings recovered from their live object pools:
 | Holothurion (52) | `$6F` (parts `$90`, `$92`) |
 | Scula (26) | `$7B`, `$7C` (plus `$7F`) |
 | Ovnunu (54) | `$16`, `$17`, `$18` |
+| Crawler (ice palace) | `$82` (plus `$83/$84/$85` parts) |
+| Belth (boneyard) | `$68` |
 | Phalanx (84) | `$86` + `$88` / `$8D` parts |
 | demon realm (86) | `$58`, `$5C`, `$5D`, `$5E`, `$5F` |
 | final second form (90) | `$BC` (plus `$8A`) |
@@ -65,8 +67,9 @@ mappings recovered from their live object pools:
 `bake_holothurion.py` writes `$6F` from `Holothurion.gif`;
 `bake_scula.py` writes `$7B/$7C` from `Scula.gif` (the boss save has two
 enemies at the same arena position); `bake_ovnunu.py` writes the temple boss
-`$16` from `Ovnunu.gif`; `bake_npc96.py` keeps the area-8 town NPC on
-`NPCs.png`.
+`$16` from `Ovnunu.gif`; `bake_boss_rows.py` bakes measured full-body boxes
+for Crawler (`$82`) and Belth (`$68`); `bake_npc96.py` keeps the area-8 town
+NPC on `NPCs.png`.
 `fix_room_boss_species.py --room room_area52.json --old 150 --new 111` patches
 the boss object when the ROM room list names the wrong species.
 `add_room_boss.py --room room_area26.json --bosses "123:1320:154,124:1380:154"`
