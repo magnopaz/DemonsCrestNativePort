@@ -42,3 +42,19 @@ the trigger position from the `<from>_before_door` save when one exists.
 | poseidonia-underwater-grotto | right (holothurion door) | poseidonia-lair-of-holothurion |  |
 | poseidonia-lair-of-holothurion | right (boss door) | boss | boss leaves a life up |
 | dark-forest-scula-cave | up (limestone door) | dark-forest-limestone-cave |  |
+
+## Applying the observed doors
+
+The runtime only sees doors that are present in the generated room JSONs, so
+after re-running `tools/dc_extract/extract.py` apply the save-observed table:
+
+```
+python3 tools/dc_extract/apply_door_table.py --rooms assets/generated
+```
+
+The tool inserts each door at the front of the room's transition list (a saved
+door must win over an extracted door that overlaps it), leaves every extracted
+transition untouched, and is idempotent: doors it wrote carry
+`"source": "door_table"` and are replaced on every run. The trigger rectangle
+covers both the saved coordinate and the position `Player_Init()` actually
+places the player at (it snaps spawns out of solid tiles and onto the floor).

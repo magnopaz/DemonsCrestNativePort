@@ -197,9 +197,17 @@ def apply(rooms: Path, dry_run: bool = False) -> int:
                        if tr.get("source") != "door_table"]
         room = Room(data)
         cx, cy, half_w, half_h = trigger_box(room, x, y)
-        if not (cx - half_w <= x <= cx + half_w and
-                cy - half_h <= y <= cy + half_h):
-            print(f"warn {src}->{dst}: saved point ({x},{y}) outside trigger")
+        px, py = room.place_spawn(x, y)
+        inside = (cx - half_w <= px <= cx + half_w and
+                  cy - half_h <= py <= cy + half_h and
+                  cx - half_w <= x <= cx + half_w and
+                  cy - half_h <= y <= cy + half_h)
+        if not inside:
+            raise SystemExit(
+                f"{src}->{dst}: trigger ({cx},{cy} +/- {half_w},{half_h}) "
+                f"misses saved ({x},{y}) or placed ({px},{py})")
+        if not (rooms / f"room_area{dst}.json").is_file():
+            raise SystemExit(f"{src}->{dst}: destination room missing")
         transitions.insert(0, {
             "next_area": dst,
             "spawn_id": 0,
@@ -213,7 +221,6 @@ def apply(rooms: Path, dry_run: bool = False) -> int:
             "door": provenance,
         })
         data["transitions"] = transitions
-        px, py = room.place_spawn(x, y)
         print(f"{src}->{dst}: saved ({x:g},{y:g}) placed ({px:g},{py:g}) "
               f"trigger c=({cx:g},{cy:g}) half=({half_w:g},{half_h:g})")
         if not dry_run:
