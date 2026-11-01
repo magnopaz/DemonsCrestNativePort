@@ -1389,13 +1389,30 @@ These were already discovered the hard way; do not rediscover them.
     The extractor therefore takes BG2 from an oracle frame per area via
     `tools/dc_extract/bg2_captures.json`.
 
-22. **WRAM `$008D` is not a "load this room" switch.**
+22. **WRAM `$008D` is not a "load this room" switch - but it retargets a load
+    that is already in progress.**
     `$84:F0DA..F0EF` advances it by 2 (`$008D` is the room-sequence/stage id and
     the old value is copied to `$0E56`), but writing `$008D` through the debug
-    server's `write_ram` does not load a room: 120 frames after
-    `write_ram 8d <next>`, VRAM was byte-identical and the camera did not move.
-    Per-area oracle captures must go through the game's transition/script path,
-    not a raw area-id poke.
+    server's `write_ram` from a standing game does not load a room: 120 frames
+    after `write_ram 8d <next>`, VRAM was byte-identical and the camera did not
+    move. The reason is that only the *room-load task* consumes `$008D`, and the
+    game only starts that task from its own transition code:
+
+    ```
+    80:BB58  lda $008D      ; current area, byte offset into $81:A291
+    80:BB69  sta $0E56      ; remember the room being left
+    80:BB6C  lsr / tax
+    80:BB6E  lda $97DA,X    ; sequential "next area" table
+    80:BB75  sta $008D      ; the only writer of $008D during a transition
+    80:BB7F  jmp $BAB7      ; $BAB7 -> "lda #4 / jmp $829B": current task = id 4
+    82:C3+4  id 4 -> $80:B71A  (the room loader; ids are byte offsets, not indices)
+    ```
+
+    The loader does not read `$008D` again until after the fade-out, so writing
+    `$008D = 2*N` while a transition is in flight *does* load area N - see
+    `tools/oracle/load_area.py`, which walks a door save through its door, pins
+    `$008D` for 30 frames and then verifies the live BG1 against
+    `room_area<N>.json`. A raw poke from a standing game still does nothing.
 
 23. **The `$82:8300` species table holds `JSL` stubs, not full handlers.**
     All four object tables are 0xC0 entries (0x180 bytes) apart: `$82:8000`

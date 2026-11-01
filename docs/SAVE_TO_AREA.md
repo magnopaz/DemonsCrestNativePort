@@ -133,4 +133,100 @@ tools/oracle/probe_saves_batch.py   probe a whole saves dir (parallel)
 tools/oracle/room_match.py          live BG layer -> ROM screen -> areas
 tools/oracle/identify_area.py       one capture dir -> area + ties (fast path)
 tools/oracle/map_saves_to_areas.py  the mapping (writes captures/save_to_area.json)
+tools/oracle/load_area.py           force the guest to load any area id and capture it
 ```
+
+## Forcing an arbitrary area (no save state needed)
+
+`tools/oracle/load_area.py --area N` makes the guest load area `N` on demand and
+captures it into `captures/area<N>/` (`fNNNNNN.json` + `fNNNNNN.vram.bin`, the
+same format `capture_area_frame.py` writes). 64 of the 113 rooms had no
+capture directory (49 did, from the 219 save states); this is how the rest are
+captured without owning a save for the room.
+
+`$008D` is not a load switch (trap 22), because only the *room-load task* reads
+it. That task is id 4 (`$80:B71A`), and the game only starts it from its own
+transition code - which is also the only writer of `$008D` during a screen
+change:
+
+```
+80:BB58  lda $008D      ; current area, byte offset into $81:A291
+80:BB69  sta $0E56      ; remember the room being left
+80:BB6C  lsr / tax
+80:BB6E  lda $97DA,X    ; sequential "next area" table
+80:BB75  sta $008D      ; <-- the only writer during a transition
+80:BB7F  jmp $BAB7      ; $BAB7: lda #4 / jmp $829B -> current task = id 4
+```
+
+`$829B` writes the id into the task slot and re-dispatches it through
+`jmp ($82C3,X)`; the ids are **byte offsets**, so id 4 selects table entry 2 =
+`$80:B71A`. The loader reads `$008D` for music at entry but does not consume it
+for the room build until after the fade-out, so overwriting `$008D` in the
+window between the transition starting and the build retargets the load:
+
+1. resume a save that stands in front of a door and hold the walk button until
+   `$008D` changes (the cemetery right door is the default; several others are
+   tried in turn);
+2. write `$008D = 2*N` every frame for ~30 frames;
+3. sample the frames after the build and keep the one whose live BG1 matches
+   `room_area<N>.json` at >= 0.9, then delete the other frames.
+
+### Verified loads
+
+`room_match`'s row-vote score, restricted to the screens that belong to the
+target area (so a window from another room cannot score). `rows` is how many
+content-bearing rows of the winning window are rows of that area (blank rows
+are not counted, which is why a 27/32 window still scores 1.000 - the other 5
+rows are empty sky):
+
+| area | world | trigger | score | matched screen | rows | frame | lit |
+|---|---|---|---|---|---|---|---|
+| 16 | 256x256 | cemetery door | 1.000 | (set 0, screen 129) | 32/32 | 474011 | yes |
+| 35 | 768x1024 | cemetery door | 1.000 | (2, 92) | 27/32 | 474024 | yes |
+| 53 | 256x256 | cemetery door | 1.000 | (0, 231) | 32/32 | 473998 | yes |
+| 54 | 256x256 | cemetery door | 1.000 | (0, 231) | 32/32 | 473998 | yes |
+| 56 | 256x256 | cemetery door | 1.000 | (2, 1) | 30/32 | 473998 | yes |
+| 60 | 256x768 | cemetery door | 1.000 | (1, 18) | 32/32 | 473985 | yes |
+| 81 | 256x256 | cemetery door | 1.000 | (2, 2) | 32/32 | 473998 | yes |
+| 82 | 256x256 | cemetery door | 1.000 | (2, 2) | 32/32 | 473998 | yes |
+| 99 | 1024x1024 | cemetery door | 1.000 | (2, 149) | 32/32 | 474066 | yes |
+| 100 | 1024x1024 | cemetery door | 1.000 | (2, 149) | 32/32 | 473933 | no |
+| 107 | 1024x1024 | cemetery door | 1.000 | (2, 23) | 32/32 | 473946 | no |
+| 108 | 1024x1024 | cemetery door | 1.000 | (2, 23) | 32/32 | 474066 | yes |
+
+All twelve had no capture before (`captures/` went from 49 to 61 areas).
+`$008D` stayed at `2*N` for the whole capture and the target tilemap was in
+VRAM. `captures/area<N>/` holds exactly one `fNNNNNN.json` + `fNNNNNN.vram.bin`
+pair plus `capture.json` and `capture.log`.
+
+Areas that do not verify are reported, not silently written: the tool prints
+`not verified: best areas by BG1 = [...]`. Observed failure modes:
+
+- **right room, nothing to match** - the room is mostly empty where the camera
+  lands (61, 76: their ROM BG1 is 25% non-zero) or the guest has only partly
+  rewritten the VRAM ring (wide rooms 68/71, which score 0.56/0.63 = the half
+  of the window that is one screen);
+- **build did not run** - 72/74 leave VRAM blank although `$008D` holds `2*N`,
+  i.e. the loader was started but never uploaded; 51/99-on-the-first-run left
+  the display blanked. Re-running 99 with the sampling window widened fixed it,
+  so at least part of this class is "the build lands later than the old sample
+  window", not a hard failure.
+
+
+### Limits
+
+- The player is placed at the *target* room's spawn point - the spawn comes
+  from the room data, not from the door that was used - so for rooms entered
+  from a different side it can land in mid-air. The room still builds and the
+  capture is valid, but it can fade to black right after; `capture.json`'s
+  `visible` records whether a lit frame was among the samples.
+- Verification is a *content* test, so rooms that are mostly empty where the
+  camera lands cannot reach 1.0. Sparse rooms (e.g. 61/76, whose ROM BG1 is 25%
+  non-zero) score their best screen row count, and rooms whose VRAM ring is
+  only partly rewritten (wide rooms: the guest aligns the ring to the camera)
+  score the best half. The tool then prints `not verified: best areas by BG1 =
+  [...]` - the areas the frame *does* look like - which is the diagnostic that
+  separates "wrong room" from "right room, nothing to match".
+- `--walk-chunk 1` polls the transition frame by frame; the default 4 is enough
+  for the cemetery door.
+
