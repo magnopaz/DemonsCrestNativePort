@@ -375,7 +375,7 @@ endings. A full sweep before each release:
 |---|---|---|
 | Regression suite | `python tools/run_regression.py --binary ... --assets ...` | **PASS** (demos 6/7/9/10/11/12/13, boss clears, area subset, playthrough, endings, save/password) |
 | All rooms load | `python tools/check_areas.py --binary ... --assets ...` | **113/113 ok** |
-| Boss stage clears | `python tools/check_campaign.py --binary ... --assets ...` | **7/7 boss entries clear** (59 traversal stages) |
+| Boss stage clears | `python tools/check_campaign.py --binary ... --assets ...` | **11 boss entries clear** (55 rooms have no boss) |
 | Campaign flow | `python tools/check_playthrough.py --binary ... --assets ...` | **6/6 steps** (title → clear → map → stage travel → boss clear → ending) |
 
 Known fidelity gaps (tracked in `docs/PROJECT_STATE.md`): enemy/boss AI beyond
