@@ -66,8 +66,9 @@ captions, merged poses and half-sprites are gone. All six forms now have clean
 clips and are the default; `DC_PLAYER_FORMS=0` restores the captured base sheet
 for comparison.
 
-The sprites themselves are correct and 1:1; the remaining polish is animation
-cadence against the original (the baker currently uses 8 frames per pose).
+The sprites themselves are correct and 1:1. Their cadence now follows the
+captured base animation (walk 7/7/9/7/7/9, plus the jump/fall/land/attack
+patterns), sampled across the available form poses.
 `bake_player_forms.py` now finds connected pose components inside measured
 per-sheet clip regions, keys the sheet background to transparency and writes
 `fb_<form>_<clip>_<i>.png`; `player_forms.json` holds the clips, and
