@@ -9,164 +9,229 @@
  ],
  "areas": {
   "3": {
-   "dir": "captures/anim",
-   "frame": 20614,
-   "note": "save0 gameplay (area 3 ruins), capture_anim.py default route"
+   "dir": "captures/area3",
+   "frame": 46712,
+   "note": "auto: save4.sav (score 1.000, stage_id+bg1)"
   },
   "2": {
-   "dir": "captures/save10",
-   "frame": 6685,
-   "note": "save10 (late-game, Area 2 forest); frames 0..105 stapled for coverage"
+   "dir": "captures/area2",
+   "frame": 306386,
+   "note": "auto: save_lvl_I_room1.sav (score 1.000, stage_id+bg1)"
   },
   "48": {
-   "dir": "captures/save7",
-   "frame": 7403,
-   "note": "save7 boss room (area 48)"
-  },
-  "74": {
-   "dir": "captures/save8",
-   "frame": 6412,
-   "note": "save8 (area 74)"
-  },
-  "58": {
-   "dir": "captures/save9",
-   "frame": 6249,
-   "note": "save9 (area 58)"
+   "dir": "captures/area48",
+   "frame": 112844,
+   "note": "auto: save1c.sav (score 1.000, stage_id+bg1)"
   },
   "0": {
-   "dir": "captures/save0a",
+   "dir": "captures/area0",
    "frame": 6480,
-   "note": "area 0 colosseum (Somulo save 0a)"
+   "note": "auto: save0a.sav (score 1.000, stage_id+bg1)"
   },
   "4": {
-   "dir": "captures/save6a",
-   "frame": 34993,
-   "note": "area 4 (save 6a)"
+   "dir": "captures/area4",
+   "frame": 61116,
+   "note": "auto: save0.sav (score 1.000, stage_id+bg1)"
   },
   "6": {
-   "dir": "captures/save8a",
-   "frame": 41795,
-   "note": "area 6 Arma (save 8a)"
+   "dir": "captures/area6",
+   "frame": 72468,
+   "note": "auto: save5b.sav (score 1.000, stage_id+bg1)"
   },
   "34": {
-   "dir": "captures/save1a",
-   "frame": 8645,
-   "note": "area 34 (save 1a)"
+   "dir": "captures/area34",
+   "frame": 461745,
+   "note": "auto: lvl_VI_mountains-ice-palace-corridor_inside_door.sav (score 1.000, stage_id+bg1)"
   },
   "8": {
-   "dir": "captures/save1b",
-   "frame": 55658,
-   "note": "area 8 city (save 1b)"
+   "dir": "captures/area8",
+   "frame": 83987,
+   "note": "auto: save9b.sav (score 1.000, stage_id+bg1)"
   },
   "10": {
-   "dir": "captures/save3b",
-   "frame": 71929,
-   "note": "area 10 enemies (save 3b)"
-  },
-  "12": {
-   "dir": "captures/save5b",
-   "frame": 72470,
-   "note": "area 12 (save 5b)"
-  },
-  "14": {
-   "dir": "captures/save7b",
-   "frame": 78579,
-   "note": "area 14 dark candle (save 7b)"
-  },
-  "16": {
-   "dir": "captures/save9b",
-   "frame": 83987,
-   "note": "area 16 boss (save 9b)"
+   "dir": "captures/area10",
+   "frame": 320002,
+   "note": "auto: lvl_III_dark-forest-thorn-grove.sav (score 1.000, stage_id+bg1)"
   },
   "18": {
-   "dir": "captures/save5c",
-   "frame": 128090,
-   "note": "area 18 skull piles (save 5c)"
+   "dir": "captures/area18",
+   "frame": 236307,
+   "note": "auto: save0e.sav (score 1.000, stage_id+bg1)"
   },
   "20": {
-   "dir": "captures/save0d",
-   "frame": 90000,
-   "note": "area 20 (save 0d)"
+   "dir": "captures/area20",
+   "frame": 255732,
+   "note": "auto: save6e.sav (score 1.000, stage_id+bg1)"
   },
   "24": {
-   "dir": "captures/save1d",
-   "frame": 210846,
-   "note": "area 24 (save 1d)"
-  },
-  "28": {
-   "dir": "captures/save2d",
-   "frame": 214562,
-   "note": "area 28 burning forest (save 2d)"
+   "dir": "captures/area24",
+   "frame": 374606,
+   "note": "auto: lvl_V_poseidonia-aquatica_before_door.sav (score 1.000, stage_id+bg1)"
   },
   "32": {
-   "dir": "captures/save5d",
-   "frame": 225922,
-   "note": "area 32 hidden room (save 5d)"
-  },
-  "96": {
-   "dir": "captures/save1c",
-   "frame": 112844,
-   "note": "area 96 potion store (save 1c)"
-  },
-  "100": {
-   "dir": "captures/save7d",
-   "frame": 232744,
-   "note": "area 100 burned state (save 7d)"
-  },
-  "102": {
-   "dir": "captures/save6d",
-   "frame": 231074,
-   "note": "area 102 boss (save 6d)"
-  },
-  "36": {
-   "dir": "captures/nb/save1e",
-   "frame": 237677,
-   "note": "area 36 (save 1e)"
+   "dir": "captures/area32",
+   "frame": 424389,
+   "note": "auto: lvl_VI_mountains-ice-spire_inside_door_1.sav (score 1.000, stage_id+bg1)"
   },
   "38": {
-   "dir": "captures/nb/save3e",
-   "frame": 244642,
-   "note": "area 38 wind room (save 3e)"
+   "dir": "captures/area38",
+   "frame": 32358,
+   "note": "auto: lvl_VII_phalanxs-fortress-western-bell-tower.sav (score 1.000, stage_id+bg1)"
   },
   "40": {
-   "dir": "captures/nb/save7e",
-   "frame": 256565,
-   "note": "area 40 mid boss (save 7e)"
+   "dir": "captures/area40",
+   "frame": 37305,
+   "note": "auto: lvl_VII_phalanxs-fortress-eastern-bell-tower.sav (score 1.000, stage_id+bg1)"
   },
   "42": {
-   "dir": "captures/nb/save8e",
-   "frame": 262582,
-   "note": "area 42 (save 8e)"
+   "dir": "captures/area42",
+   "frame": 293697,
+   "note": "auto: save7ee.sav (score 1.000, stage_id+bg1)"
   },
   "46": {
-   "dir": "captures/nb/save11e",
-   "frame": 269793,
-   "note": "area 46 lake (save 11e)"
+   "dir": "captures/area46",
+   "frame": 231074,
+   "note": "auto: save6d.sav (score 1.000, stage_id+bg1)"
   },
   "84": {
-   "dir": "captures/nb/save7ee",
-   "frame": 293697,
-   "note": "area 84 final boss (save 7ee)"
+   "dir": "captures/area84",
+   "frame": 4695,
+   "note": "auto: initial_cutscene.sav (score 1.000, stage_id+bg1)"
   },
-  "92": {
-   "dir": "captures/nb/save6d",
-   "frame": 231074,
-   "note": "area 92 library (save 6d)"
+  "1": {
+   "dir": "captures/area1",
+   "frame": 24433,
+   "note": "auto: save3.sav (score 1.000, stage_id+bg1)"
   },
-  "98": {
-   "dir": "captures/nb/save5d",
+  "5": {
+   "dir": "captures/area5",
+   "frame": 69029,
+   "note": "auto: save4b.sav (score 1.000, stage_id+bg1)"
+  },
+  "7": {
+   "dir": "captures/area7",
+   "frame": 79833,
+   "note": "auto: save8b.sav (score 1.000, stage_id+bg1)"
+  },
+  "9": {
+   "dir": "captures/area9",
+   "frame": 501461,
+   "note": "auto: lvl_II_ruined-city-boneyard.sav (score 1.000, stage_id+bg1)"
+  },
+  "11": {
+   "dir": "captures/area11",
+   "frame": 341131,
+   "note": "auto: lvl_III_dark-forest-underground-dyk_before_door.sav (score 1.000, stage_id+bg1)"
+  },
+  "13": {
+   "dir": "captures/area13",
+   "frame": 351271,
+   "note": "auto: lvl_III_dark-forest-scula-cave_boss_dead.sav (score 1.000, stage_id+bg1)"
+  },
+  "15": {
+   "dir": "captures/area15",
+   "frame": 594760,
+   "note": "auto: lvl_III_dark-forest-limestone-cave.sav (score 1.000, stage_id+bg1)"
+  },
+  "17": {
+   "dir": "captures/area17",
+   "frame": 8645,
+   "note": "auto: save1a.sav (score 1.000, stage_id+bg1)"
+  },
+  "19": {
+   "dir": "captures/area19",
+   "frame": 242128,
+   "note": "auto: save2e.sav (score 1.000, stage_id+bg1)"
+  },
+  "22": {
+   "dir": "captures/area22",
+   "frame": 267156,
+   "note": "auto: save10e.sav (score 1.000, stage_id+bg1)"
+  },
+  "23": {
+   "dir": "captures/area23",
+   "frame": 269793,
+   "note": "auto: save11e.sav (score 1.000, stage_id+bg1)"
+  },
+  "26": {
+   "dir": "captures/area26",
+   "frame": 561458,
+   "note": "auto: lvl_V_poseidonia-lair-of-holothurion.sav (score 1.000, stage_id+bg1)"
+  },
+  "27": {
+   "dir": "captures/area27",
+   "frame": 380445,
+   "note": "auto: lvl_V_poseidonia-temple-and-hidden-chamber.sav (score 1.000, stage_id+bg1)"
+  },
+  "29": {
+   "dir": "captures/area29",
+   "frame": 6249,
+   "note": "auto: save9.sav (score 1.000, stage_id+bg1)"
+  },
+  "30": {
+   "dir": "captures/area30",
+   "frame": 603203,
+   "note": "auto: lvl_VI_mountains-valley-of-the-grewon.sav (score 1.000, stage_id+bg1)"
+  },
+  "31": {
+   "dir": "captures/area31",
+   "frame": 417272,
+   "note": "auto: lvl_VI_mountains-ice-spire.sav (score 1.000, stage_id+bg1)"
+  },
+  "33": {
+   "dir": "captures/area33",
+   "frame": 442105,
+   "note": "auto: lvl_VI_mountains-ice-palace-corridor.sav (score 1.000, stage_id+bg1)"
+  },
+  "37": {
+   "dir": "captures/area37",
+   "frame": 6412,
+   "note": "auto: save8.sav (score 1.000, stage_id+bg1)"
+  },
+  "39": {
+   "dir": "captures/area39",
+   "frame": 656587,
+   "note": "auto: lvl_VII_phalanxs-fortress-spiny-balcony_fang.sav (score 1.000, stage_id+bg1)"
+  },
+  "41": {
+   "dir": "captures/area41",
+   "frame": 38084,
+   "note": "auto: lvl_VII_phalanxs-fortress-hall-of-agonized-souls.sav (score 1.000, stage_id+bg1)"
+  },
+  "43": {
+   "dir": "captures/area43",
+   "frame": 56249,
+   "note": "auto: lvl_VII_phalanxs-fortress-demon-realm.sav (score 1.000, stage_id+bg1)"
+  },
+  "44": {
+   "dir": "captures/area44",
+   "frame": 6127,
+   "note": "auto: lvl_VIII_demons-hideout-tunnel.sav (score 1.000, stage_id+bg1)"
+  },
+  "45": {
+   "dir": "captures/area45",
+   "frame": 10384,
+   "note": "auto: lvl_VIII_demons-hideout-the-dark_final_boss_second.sav (score 1.000, stage_id+bg1)"
+  },
+  "47": {
+   "dir": "captures/area47",
+   "frame": 570389,
+   "note": "auto: lvl_II_wise_man.sav (score 1.000, stage_id+bg1)"
+  },
+  "49": {
+   "dir": "captures/area49",
    "frame": 225922,
-   "note": "area 98 spell shop (save 5d)"
+   "note": "auto: save5d.sav (score 1.000, stage_id+bg1)"
   },
-  "104": {
-   "dir": "captures/nb/save2d",
+  "52": {
+   "dir": "captures/area52",
    "frame": 214562,
-   "note": "area 104 minigame (save 2d)"
+   "note": "auto: save2d.sav (score 1.000, stage_id+bg1)"
   },
-  "110": {
-   "dir": "captures/nb/save1d",
+  "55": {
+   "dir": "captures/area55",
    "frame": 210846,
-   "note": "area 110 Black Lotus 2 (save 1d)"
+   "note": "auto: save1d.sav (score 1.000, stage_id+bg1)"
   }
  }
 }
