@@ -120,6 +120,13 @@ def main() -> int:
     bg1 = render_layer(vram, colors, bgsc[0], chr_base_words(tile_adr, 1), 4,
                        hs[0], vs[0])
 
+    # Keep the layers separate as well: stitching a room backdrop needs each
+    # layer at its own scroll, not the flattened composite.
+    bg2_path = out.with_name(out.stem + "_bg2.png")
+    bg1_path = out.with_name(out.stem + "_bg1.png")
+    bg2.convert("RGB").save(bg2_path)
+    bg1.convert("RGB").save(bg1_path)
+
     comp = Image.new("RGBA", (W, H), (0, 0, 0, 255))
     comp.alpha_composite(bg2)
     comp.alpha_composite(bg1)
@@ -140,7 +147,7 @@ def main() -> int:
         d.text((i * (W + 8) + 2, 1), label, fill=(255, 255, 0))
     side = out.with_name("bg_recompose_side.png")
     sheet.save(side)
-    print("wrote", out, "and", side)
+    print("wrote", out, bg2_path.name, bg1_path.name, "and", side.name)
     return 0
 
 

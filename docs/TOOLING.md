@@ -48,6 +48,15 @@ detached caption letters/sparks, and writes/merges the species entry. It is
 deliberately not a whole-sheet auto-detector: the caller must give the correct
 sprite band.
 
+## Diagnosing background layers
+
+`tools/dc_extract/bg_recompose.py <dump_dir> --frame <reference.png>` renders
+BG1/BG2 from the same VRAM/CGRAM/registers and writes the flattened result plus
+separate `<out>_bg1.png` / `<out>_bg2.png` layers. Compare the result with the
+reference frame before touching the room data; the area-2 investigation showed
+that the extracted BG1 tilemap itself was wrong (~47% tile agreement), so an
+atlas rebake alone cannot fix that room.
+
 ## Replaying a recomp recording
 
 `tools/oracle/replay_capture.py` converts a recorder `input_log.jsonl` into the

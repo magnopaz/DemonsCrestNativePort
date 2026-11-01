@@ -3770,6 +3770,12 @@ reference for the cemetery: replaying frame 7002 reproduces Firebrand, the
 flame spirit and the urn through the fixed compositor, while OAM-only Somulo
 parts remain scattered.
 
+A direct comparison of the live BG1 tilemap at frame 7002 with
+`room_area2.json` found only **~47% tile-index agreement** even after sliding
+the window in 2D. This proves the area-2 room's BG1 tilemap is wrong, not just
+its palette/atlas. `bg_recompose.py` now also writes `*_bg1.png` and `*_bg2.png`
+so the next pass can stitch/rebuild the room background from reference frames.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
