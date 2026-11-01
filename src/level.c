@@ -128,6 +128,8 @@ static bool Level_LoadFile(Level *level, const Assets *assets,
     level->area_id = 1;
     level->gate_next_area = -1;
     level->backdrop = (Color){8, 8, 16, 255};
+    level->backdrop_parallax = 0.5f;
+    level->backdrop_y = 0;
     FILE *f = fopen(path, "rb");
     if (!f) {
         fprintf(stderr, "level: cannot open %s\n", path);
@@ -180,6 +182,10 @@ static bool Level_LoadFile(Level *level, const Assets *assets,
                                   (unsigned char)rgb[1],
                                   (unsigned char)rgb[2], 255};
     }
+    ReadFloat(root, "backdrop_parallax", &level->backdrop_parallax);
+    ReadInt(root, "backdrop_y", &level->backdrop_y);
+    if (level->backdrop_parallax < 0.0f)
+        level->backdrop_parallax = 0.0f;
 
     if (!ReadInt(world, "width", &level->world_w) ||
         !ReadInt(world, "height", &level->world_h) ||

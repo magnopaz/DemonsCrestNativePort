@@ -82,6 +82,8 @@ typedef struct Level {
     int world_w;
     int world_h;
     Color backdrop;
+    float backdrop_parallax; /* 1.0 = world-locked, 0.5 = half-speed */
+    int backdrop_y;          /* screen-space y of the image layer */
 
     BgLayer bg[2];
     int bg_count;

@@ -48,6 +48,26 @@ detached caption letters/sparks, and writes/merges the species entry. It is
 deliberately not a whole-sheet auto-detector: the caller must give the correct
 sprite band.
 
+## Full-stage map fallback
+
+When a room's ROM BG tilemap is demonstrably wrong, install a community
+full-stage map as a world-locked backdrop and leave collision/object data
+untouched:
+
+```
+python tools/dc_extract/install_full_map_backdrop.py \
+  --area 2 \
+  --map "docs/FullMaps/images/demons-crest-murkland-cemetery-snes-map.webp" \
+  --parallax 1.0 --y -70
+```
+
+The tool writes `bg_backdrop_area<N>.png`, replaces the BG tile layers with a
+transparent one-cell layer (tile 0 in the baked atlases is transparent), and
+sets `backdrop_parallax`/`backdrop_y` in the room JSON. This is the deliberate
+fallback for areas whose tilemap/CHR cannot be trusted; the image is expected
+to contain baked scenery (and possibly baked props), so it is not a substitute
+for a proper ROM/VRAM rebuild.
+
 ## Diagnosing background layers
 
 `tools/dc_extract/bg_recompose.py <dump_dir> --frame <reference.png>` renders

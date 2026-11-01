@@ -546,13 +546,16 @@ void Render_Game(const Assets *assets, const Level *level, const GameCamera *cam
     ClearBackground(level->backdrop);
 
     if (IsTextureValid(assets->backdrop) && assets->backdrop_w > 0) {
-        /* Half-speed parallax, tiled horizontally, pinned to the room's top. */
-        float off = -fmodf(camera->x * 0.5f, (float)assets->backdrop_w);
+        /* A captured strip is normally half-speed and pinned to the top; a
+         * full-stage map can opt into world-locked parallax and a y offset. */
+        float parallax = level->backdrop_parallax;
+        float off = -fmodf(camera->x * parallax, (float)assets->backdrop_w);
         if (off > 0)
             off -= (float)assets->backdrop_w;
         for (float x = off; x < 256.0f;
              x += (float)assets->backdrop_w) {
-            DrawTexture(assets->backdrop, (int)lroundf(x), 0, WHITE);
+            DrawTexture(assets->backdrop, (int)lroundf(x), level->backdrop_y,
+                        WHITE);
         }
     }
 

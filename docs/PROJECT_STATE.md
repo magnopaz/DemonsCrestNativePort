@@ -3776,6 +3776,14 @@ the window in 2D. This proves the area-2 room's BG1 tilemap is wrong, not just
 its palette/atlas. `bg_recompose.py` now also writes `*_bg1.png` and `*_bg2.png`
 so the next pass can stitch/rebuild the room background from reference frames.
 
+As a deliberate interim fallback, `install_full_map_backdrop.py` can install a
+community full-stage map as a world-locked backdrop and disable the corrupt BG
+tile layers. Area 2 uses the 2048x276 Murkland cemetery map with
+`backdrop_parallax=1.0` and `backdrop_y=-70`; collision and object data remain
+the extracted room data. This fixes the broken/duplicated BG visually, but the
+image contains baked scenery/props and is not a replacement for the real
+VRAM/HDMA room rebuild.
+
 ## 11. Long-term roadmap
 
 | Phase | Goal | Status |
