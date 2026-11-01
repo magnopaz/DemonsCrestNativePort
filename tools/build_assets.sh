@@ -68,13 +68,21 @@ else
 fi
 python3 tools/dc_extract/build_endings.py --out "$OUT"
 
-echo "== 4/6 boss objects from the check table =="
+echo "== 4/7 boss objects from the check table =="
 python3 tools/dc_extract/apply_boss_table.py --rooms "$OUT"
 
-echo "== 5/6 talkable city NPCs =="
+echo "== 5/7 room names (needs the save->area mapping) =="
+if [ -f "$ROOT/captures/save_to_area.json" ]; then
+  python3 tools/dc_extract/build_room_names.py \
+      --areas "$ROOT/captures/save_to_area.json" --out "$OUT/room_names.json"
+else
+  echo "   captures/save_to_area.json missing; the banner falls back to STAGE <n>"
+fi
+
+echo "== 6/7 talkable city NPCs =="
 python3 tools/dc_extract/apply_npc_table.py --rooms "$OUT"
 
-echo "== 6/6 save-observed doors (optional) =="
+echo "== 7/7 save-observed doors (optional) =="
 if [ -f tools/dc_extract/apply_door_table.py ]; then
   python3 tools/dc_extract/apply_door_table.py --rooms "$OUT"
 else
