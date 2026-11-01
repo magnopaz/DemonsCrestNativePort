@@ -187,6 +187,38 @@ def pose_brightness(img: Image.Image) -> float:
     return bright / total if total else 0.0
 
 
+def clip_durations(clip: str, count: int) -> list[int]:
+    """Frame cadence for a form clip.
+
+    The captured base sheet is the timing reference (walk 7/7/9/7/7/9,
+    jump/fall/land/attack from save0). Form sheets have fewer or more poses, so
+    sample that pattern as closely as possible instead of showing every pose
+    for the same arbitrary 8 frames.
+    """
+    patterns = {
+        "walk": [7, 7, 9, 7, 7, 9],
+        "jump": [1, 2, 2, 1],
+        "fall": [3, 2, 3, 2],
+        "land": [3, 5],
+        "attack": [1, 6, 10],
+        "hurt": [8],
+        "death": [8],
+        "idle": [8],
+        "hover": [8],
+        "flying": [8],
+    }
+    pattern = patterns.get(clip, [8])
+    if count <= 0:
+        return []
+    if clip == "attack" and count == 2:
+        return [1, 16]
+    if clip == "attack" and count == 1:
+        return [17]
+    if clip == "land" and count == 1:
+        return [pattern[-1]]
+    return [pattern[i % len(pattern)] for i in range(count)]
+
+
 def foot_anchor_x(img: Image.Image) -> int:
     """Body/feet centre from the opaque pixels in the lower part of the pose."""
     px = img.load()
@@ -240,8 +272,11 @@ def main() -> int:
                     "texture": tex,
                     "anchor_x": foot_anchor_x(crop),
                     "anchor_y": crop.height,
-                    "duration": 8,
+                    "duration": 8,  # replaced below with clip cadence
                 })
+            durations = clip_durations(clip, len(steps))
+            for step, duration in zip(steps, durations):
+                step["duration"] = max(1, duration)
             if not steps:
                 print(f"  {name}/{clip}: no frames")
                 continue
