@@ -372,6 +372,111 @@
    "dir": "captures/area70",
    "frame": 474037,
    "note": "auto: load_area.py (score 1.000)"
+  },
+  "75": {
+   "dir": "captures/area75",
+   "frame": 474050,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "85": {
+   "dir": "captures/area85",
+   "frame": 474011,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "87": {
+   "dir": "captures/area87",
+   "frame": 494500,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "88": {
+   "dir": "captures/area88",
+   "frame": 474011,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "89": {
+   "dir": "captures/area89",
+   "frame": 474011,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "91": {
+   "dir": "captures/area91",
+   "frame": 474000,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "92": {
+   "dir": "captures/area92",
+   "frame": 473933,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "93": {
+   "dir": "captures/area93",
+   "frame": 473933,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "94": {
+   "dir": "captures/area94",
+   "frame": 474011,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "95": {
+   "dir": "captures/area95",
+   "frame": 473933,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "96": {
+   "dir": "captures/area96",
+   "frame": 473933,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "97": {
+   "dir": "captures/area97",
+   "frame": 474024,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "98": {
+   "dir": "captures/area98",
+   "frame": 473985,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "101": {
+   "dir": "captures/area101",
+   "frame": 473998,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "102": {
+   "dir": "captures/area102",
+   "frame": 473933,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "103": {
+   "dir": "captures/area103",
+   "frame": 474011,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "104": {
+   "dir": "captures/area104",
+   "frame": 473933,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "105": {
+   "dir": "captures/area105",
+   "frame": 473933,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "106": {
+   "dir": "captures/area106",
+   "frame": 474011,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "110": {
+   "dir": "captures/area110",
+   "frame": 474037,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "112": {
+   "dir": "captures/area112",
+   "frame": 473933,
+   "note": "auto: load_area.py (score 1.000)"
   }
  }
 }
