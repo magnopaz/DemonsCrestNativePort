@@ -66,10 +66,16 @@ def main() -> int:
         print(f"[{i + 1}/{len(wanted)}] area {area} ...", flush=True)
         if args.dry_run:
             continue
-        proc = subprocess.run(
-            [sys.executable, str(ROOT / "tools" / "oracle" / "load_area.py"),
-             "--area", str(area), "--port", str(args.port + i)],
-            cwd=str(ROOT), capture_output=True, text=True, timeout=args.timeout)
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(ROOT / "tools" / "oracle" / "load_area.py"),
+                 "--area", str(area), "--port", str(args.port + i)],
+                cwd=str(ROOT), capture_output=True, text=True, timeout=args.timeout)
+            tail_lines = (proc.stdout or proc.stderr or "").strip().splitlines()
+        except subprocess.TimeoutExpired:
+            failed.append((area, None))
+            print(f"    timed out after {args.timeout}s", flush=True)
+            continue
         score = capture_score(out)
         if score is not None and score >= args.min_score:
             frames = json.loads((out / "capture.json").read_text())["frames"]
@@ -83,7 +89,7 @@ def main() -> int:
             print(f"    ok score={score:.3f}", flush=True)
         else:
             failed.append((area, score))
-            tail = (proc.stdout or proc.stderr or "").strip().splitlines()[-2:]
+            tail = tail_lines[-2:]
             print(f"    failed score={score} :: {' | '.join(tail)}", flush=True)
 
     print(f"\nsweep: ok={len(ok)} failed={len(failed)} skipped={len(skipped)}")
