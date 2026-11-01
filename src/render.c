@@ -380,7 +380,12 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                     printed++;
                 }
             }
-            const SpeciesSheet *sheet = Assets_SpeciesSheet(assets, o->species);
+            const SpeciesSheet *sheet =
+                (o->type == OBJECT_BOSS)
+                    ? Assets_BossSheet(assets, o->species)
+                    : NULL;
+            if (!sheet)
+                sheet = Assets_SpeciesSheet(assets, o->species);
             if (sheet && sheet->frame_count > 0) {
                 int frame = SpeciesDefaultFrame(sheet, o->timer);
                 /* Pose selection is data (review P1): `hurt` for the hit

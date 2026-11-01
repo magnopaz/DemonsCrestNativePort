@@ -46,12 +46,18 @@ static void LoadSpeciesSheets(Assets *assets, const char *dir) {
     const cJSON *species = cJSON_GetObjectItemCaseSensitive(root, "species");
     const cJSON *entry = NULL;
     cJSON_ArrayForEach(entry, species) {
-        if (assets->species_count >= DC_SPECIES_MAX)
-            break;
+        const cJSON *variant =
+            cJSON_GetObjectItemCaseSensitive(entry, "variant");
+        bool boss = cJSON_IsString(variant) &&
+                    strcmp(variant->valuestring, "boss") == 0;
+        int *count = boss ? &assets->boss_sheet_count : &assets->species_count;
+        if (*count >= DC_SPECIES_MAX)
+            continue;
         const cJSON *frames = cJSON_GetObjectItemCaseSensitive(entry, "frames");
         if (!cJSON_IsArray(frames))
             continue;
-        SpeciesSheet *sheet = &assets->species[assets->species_count];
+        SpeciesSheet *sheet = boss ? &assets->boss_sheets[*count]
+                                   : &assets->species[*count];
         memset(sheet, 0, sizeof(*sheet));
         sheet->species = JsonNum(entry, "species", -1);
         sheet->duration = 6;
@@ -121,7 +127,7 @@ static void LoadSpeciesSheets(Assets *assets, const char *dir) {
              sheet->default_frame >= sheet->frame_count))
             sheet->has_default = false;
         if (sheet->frame_count > 0)
-            assets->species_count++;
+            (*count)++;
         else
             memset(sheet, 0, sizeof(*sheet));
     }
@@ -242,6 +248,14 @@ const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species) {
     for (int i = 0; i < assets->species_count; i++) {
         if (assets->species[i].species == species)
             return &assets->species[i];
+    }
+    return NULL;
+}
+
+const SpeciesSheet *Assets_BossSheet(const Assets *assets, int species) {
+    for (int i = 0; i < assets->boss_sheet_count; i++) {
+        if (assets->boss_sheets[i].species == species)
+            return &assets->boss_sheets[i];
     }
     return NULL;
 }
@@ -451,6 +465,14 @@ void Assets_Unload(Assets *assets) {
                 UnloadTexture(assets->species[i].frames[f].texture);
             if (IsTextureValid(assets->species[i].frames[f].flipped))
                 UnloadTexture(assets->species[i].frames[f].flipped);
+        }
+    }
+    for (int i = 0; i < assets->boss_sheet_count; i++) {
+        for (int f = 0; f < assets->boss_sheets[i].frame_count; f++) {
+            if (IsTextureValid(assets->boss_sheets[i].frames[f].texture))
+                UnloadTexture(assets->boss_sheets[i].frames[f].texture);
+            if (IsTextureValid(assets->boss_sheets[i].frames[f].flipped))
+                UnloadTexture(assets->boss_sheets[i].frames[f].flipped);
         }
     }
     if (IsTextureValid(assets->hud_bar))

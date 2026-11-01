@@ -3748,6 +3748,10 @@ Applied the highest-impact items from the sprite review:
   `species_anim.json` was quarantined from 34 to 21 species; the removed entries
   were duplicates/shared clusters (`28/29/2a`, `41/87`) and fragmented captures.
   A clean `$23` ghost was then recovered from reference frame 8000 (22 species).
+- **Boss sheet variants:** species `$96` is reused by the town NPC (area 8)
+  and Holothurion (area 52). `species_anim.json` now supports a `"boss"`
+  variant (`96_boss`), so the town NPC uses the NPC sheet and the boss uses
+  the three full Holothurion examples from `docs/sprites/Holothurion.gif`.
 - **Arma:** `bake_arma.py` now uses individual measured pose boxes, producing
   eight clean frames instead of row crops containing captions and multiple
   dragons.

@@ -77,6 +77,9 @@ typedef struct Assets {
     int enemy_frames;
     SpeciesSheet species[DC_SPECIES_MAX];
     int species_count;
+    /* Optional per-species boss variants (same species id, different art). */
+    SpeciesSheet boss_sheets[DC_SPECIES_MAX];
+    int boss_sheet_count;
     EndingData endings;
     uint8_t room_kind[DC_CAMPAIGN_AREAS]; /* 0 unknown, 1 playable, 2 partial, 3 empty */
     int stage_entries[80]; /* rooms no other room targets (stage select) */
@@ -110,6 +113,7 @@ Texture2D Assets_AreaBg(const Assets *assets, int area, int pal);
 Texture2D Assets_AreaBg2(const Assets *assets, int pal);
 bool Assets_HasAreaBg2(const Assets *assets);
 const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species);
+const SpeciesSheet *Assets_BossSheet(const Assets *assets, int species);
 /* Per-crest-form player animation; falls back to player_anim. */
 const PlayerAnim *Assets_PlayerAnimForForm(const Assets *assets, int form);
 int Assets_RoomKind(const Assets *assets, int area);

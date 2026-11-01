@@ -48,6 +48,14 @@ detached caption letters/sparks, and writes/merges the species entry. It is
 deliberately not a whole-sheet auto-detector: the caller must give the correct
 sprite band.
 
+## Boss sheet variants
+
+Some species ids are reused by different object kinds. `species_anim.json`
+supports an optional `"variant": "boss"` entry (keyed separately, e.g.
+`96_boss`); `render.c` uses it only for `OBJECT_BOSS`. Run
+`tools/dc_extract/bake_holothurion.py` (boss) and
+`tools/dc_extract/bake_npc96.py` (town NPC) to regenerate the current pair.
+
 ## Full-stage map fallback
 
 When a room's ROM BG tilemap is demonstrably wrong, install a community
