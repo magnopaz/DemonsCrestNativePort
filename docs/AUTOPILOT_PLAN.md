@@ -16,7 +16,13 @@ Environment (this machine):
 - [x] Graveyard capture `captures/graveyard/stage_600.*` from the oracle.
 - [x] `extract.py` → 113 `room_areaN.json`, 573 asset files, 55 MB.
 - [x] `capture_anim.py` + `extract_anim.py` → player/fireball/HUD clips.
-- [x] `tools/run_regression.py` green under `DISPLAY=:99`.
+- [x] `tools/run_regression.py` **PASS** under `DISPLAY=:99` (exit 0):
+      demos 6/7/9/10/11/12/13, boss data + runtime, boss defeat, multi-area loads.
+      The suite started this session with 14 failures; the fixes that closed it
+      are recorded in `docs/PROJECT_STATE.md` and the commits of 2026-11-01.
+- [x] Post-extraction pipeline made reproducible: `tools/build_assets.sh`
+      (extract → anim → font/endings → `apply_boss_table` → `apply_npc_table`
+      → `apply_door_table`).
 
 ## M2 — BG2 backdrop for every mapped area
 
