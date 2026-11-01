@@ -21,7 +21,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ROM="${ROM:-$ROOT/../roms/Demon's Crest (USA).sfc}"
+# Note: the ROM file name contains an apostrophe and parentheses, which bash
+# mis-parses inside a `${VAR:-default}` expansion. Keep it in its own variable.
+DEFAULT_ROM="$ROOT/../roms/Demon's Crest (USA).sfc"
+ROM="${ROM:-$DEFAULT_ROM}"
 OUT="${OUT:-$ROOT/assets/generated}"
 DUMP="${DUMP:-$ROOT/captures/graveyard}"
 PREFIX="${PREFIX:-stage_600}"
