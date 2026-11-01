@@ -3739,7 +3739,9 @@ Applied the highest-impact items from the sprite review:
   form baker now takes connected pose components from measured per-sheet clip
   regions instead of splitting raw bands on empty columns, so captions and
   slivers are gone; the form sheets are the default (`DC_PLAYER_FORMS=0`
-  restores the captured base sheet).
+  restores the captured base sheet). The form sheets also provide `death`
+  clips now (normal 7 poses, ground 6, aerial 6, tidal 6, legendary 7,
+  ultimate 7).
 - **Data gate:** new `tools/audit_sprites.py` rejects missing textures, anchors
   outside the image, duplicate images assigned to different species, and
   fragmented tilemap-like captures. It runs in `run_regression.py`.

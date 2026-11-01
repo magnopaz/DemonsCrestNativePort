@@ -329,7 +329,9 @@ void Player_Animate(Player *player, const PlayerAnim *anim) {
         return;
 
     AnimClipId clip;
-    if (player->hp <= 0 || player->knockback_timer > 0) {
+    if (player->hp <= 0) {
+        clip = ANIM_DIE;
+    } else if (player->knockback_timer > 0) {
         /* Hurt/death are data-driven when the sheet provides a clip; the base
          * captured sheet does not yet have one, so the fallback below keeps
          * the old behaviour instead of freezing. */
@@ -358,8 +360,10 @@ void Player_Animate(Player *player, const PlayerAnim *anim) {
                        : ANIM_HOVER;
             break;
         case PLAYER_HURT:
-        case PLAYER_DEAD:
             clip = ANIM_HURT;
+            break;
+        case PLAYER_DEAD:
+            clip = ANIM_DIE;
             break;
         case PLAYER_WALL_CLING:
             clip = ANIM_JUMP;
@@ -384,8 +388,12 @@ void Player_Animate(Player *player, const PlayerAnim *anim) {
         else if (clip == ANIM_FLYING &&
                  anim->clips[ANIM_HOVER].step_count > 0)
             clip = ANIM_HOVER;
-        else if (clip == ANIM_HURT &&
-                 anim->clips[ANIM_IDLE].step_count > 0)
+        else if (clip == ANIM_DIE) {
+            clip = anim->clips[ANIM_HURT].step_count > 0
+                       ? ANIM_HURT
+                       : ANIM_IDLE;
+        } else if (clip == ANIM_HURT &&
+                   anim->clips[ANIM_IDLE].step_count > 0)
             clip = ANIM_IDLE;
         else
             clip = ANIM_IDLE;

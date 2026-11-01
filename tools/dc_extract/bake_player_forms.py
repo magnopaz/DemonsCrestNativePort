@@ -36,6 +36,7 @@ NORMAL = {
     "hover": (0, 195, 184, 246),
     "flying": (195, 555, 184, 246),
     "hurt": (130, 220, 286, 329),
+    "death": (180, 490, 286, 329),
 }
 GROUND = {
     "idle": (0, 125, 40, 80),
@@ -45,6 +46,7 @@ GROUND = {
     "fall": (120, 270, 114, 169),
     "land": (270, 320, 114, 169),
     "hurt": (0, 90, 182, 246),
+    "death": (100, 360, 182, 246),
 }
 AERIAL = {
     "idle": (0, 145, 20, 75),
@@ -56,6 +58,7 @@ AERIAL = {
     "hover": (240, 515, 124, 178),
     "flying": (20, 365, 208, 295),
     "hurt": (0, 100, 320, 368),
+    "death": (110, 380, 320, 368),
 }
 TIDAL = {
     "idle": (0, 120, 29, 72),
@@ -67,6 +70,7 @@ TIDAL = {
     "hover": (0, 195, 194, 244),
     "flying": (195, 250, 194, 244),
     "hurt": (0, 90, 275, 317),
+    "death": (95, 350, 275, 317),
 }
 LEGENDARY = {
     "idle": (0, 130, 26, 73),
@@ -78,6 +82,7 @@ LEGENDARY = {
     "hover": (0, 220, 191, 253),
     "flying": (220, 540, 191, 253),
     "hurt": (0, 110, 297, 342),
+    "death": (110, 445, 297, 342),
 }
 ULTIMATE = {
     "idle": (0, 130, 22, 67),
@@ -89,6 +94,7 @@ ULTIMATE = {
     "hover": (0, 220, 189, 251),
     "flying": (220, 540, 189, 251),
     "hurt": (160, 250, 293, 339),
+    "death": (275, 585, 293, 339),
 }
 SHEETS = [
     (0, "normal", "Playable Characters - Firebrand.gif", NORMAL),
@@ -239,7 +245,8 @@ def main() -> int:
             if not steps:
                 print(f"  {name}/{clip}: no frames")
                 continue
-            loop = clip not in ("attack", "land", "hurt", "jump", "fall")
+            loop = clip not in ("attack", "land", "hurt", "death", "jump",
+                                "fall")
             clips[clip] = {"loop": loop, "steps": steps}
         forms.append({"form": form, "name": name, "clips": clips})
         print(f"{name}: { {k: len(v['steps']) for k, v in clips.items()} }")

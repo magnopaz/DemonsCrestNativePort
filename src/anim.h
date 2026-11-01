@@ -18,6 +18,7 @@ typedef enum AnimClipId {
     ANIM_SPELL,
     ANIM_FLYING,
     ANIM_HURT,
+    ANIM_DIE,
     ANIM_CLIP_COUNT
 } AnimClipId;
 

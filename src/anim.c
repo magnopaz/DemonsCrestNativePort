@@ -8,7 +8,7 @@
 
 static const char *const kClipNames[ANIM_CLIP_COUNT] = {
     "idle", "walk", "jump", "hover", "fall", "land", "attack", "spell",
-    "flying", "hurt"
+    "flying", "hurt", "death"
 };
 
 static char *ReadText(const char *path) {
