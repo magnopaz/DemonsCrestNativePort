@@ -96,8 +96,14 @@ python tools/dc_extract/bake_boss_rows.py \
 `bake_holothurion.py` writes `$6F` from `Holothurion.gif`;
 `bake_scula.py` writes `$7B/$7C` from `Scula.gif` (the boss save has two
 enemies at the same arena position); `bake_ovnunu.py` writes the temple boss
-`$16` from `Ovnunu.gif`; `bake_boss_rows.py` bakes measured full-body boxes
-for Crawler (`$82`) and Belth (`$68`); `clean_somulo.py` removes the two
+`$16` from `Ovnunu.gif`; `bake_boss_sheets.py` bakes the five measured boss
+rows in one pass — Crawler `$82` (Crawler.gif "Moving" row), Phalanx `$86`
+(Phalanx.gif First Fight idle row), the `$8D` second form (Ultimate
+Phalanx.gif "Examples" row, written as the `flags=0` boss variant), Flame Lord
+`$58` (Flame Lord.gif "Idle" group; the left of that row is the teleport
+flame, not the boss) and Dark Demon `$BC` (Dark Demon.gif top body row);
+`bake_boss_rows.py` bakes measured full-body boxes
+for Belth (`$68`); `clean_somulo.py` removes the two
 measured gate-bar columns from the native Somulo reference and re-anchors the
 full body at the floor; `bake_npc96.py` keeps the area-8 town NPC on
 `NPCs.png`.
