@@ -43,6 +43,21 @@ Environment (this machine):
       matches area 1 at 1.000). `identify_area.py` matches BG1 exactly but ties
       on areas that share screen data (1 vs 73). Until a tie-break exists, the
       curated `bg2_captures.json` mapping cannot be extended safely.
+- [x] **Area identification solved for 45 rooms.** `tools/oracle/map_saves_to_areas.py`
+      matches each save's live BG1 against the extracted rooms (with `$008D`'s
+      stage id as a hint); 45 areas land on an exact 1.000 match. A curated
+      guess list was not enough — the new mapping disagrees with several of the
+      old manifest entries (e.g. area 48 is `save1c`, not `save7`).
+      `tools/oracle/bake_area_captures.py` turns the mapping into per-area
+      captures and rewrites the manifest; only scores ≥0.99 are captured,
+      because a wrong backdrop is worse than a black one.
+- [x] 45 area captures baked; extraction now reports **40 rooms with a
+      non-empty BG2** (was 28). Measured effect: area 20 went from 91.1% to
+      39.1% black pixels, area 34 from 80.5% to 12.7% — area 34 now renders the
+      starry sky, mountain silhouettes, mist and the icy ledge with icicles.
+      Area 84 (Phalanx arena) stays dark by design.
+- [ ] 68 areas still have no verified save; they need either a save state from
+      a fresh playthrough or a decoded runtime BG2 generator.
 - [ ] Screenshot spot-checks: area 48 renders with a backdrop, but BG1 shows
       black bands and misaligned bricks (separate extraction defect).
 - [x] Screenshot audit (30 areas, `/tmp/shots/shot_<area>.png`): black-pixel
