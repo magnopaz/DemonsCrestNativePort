@@ -252,6 +252,66 @@
    "dir": "captures/area50",
    "frame": 197242,
    "note": "auto: save0d.sav (score 0.938, stage_id+bg1-partial)"
+  },
+  "16": {
+   "dir": "captures/area16",
+   "frame": 474011,
+   "note": "auto: load_area.py forced room load"
+  },
+  "35": {
+   "dir": "captures/area35",
+   "frame": 474024,
+   "note": "auto: load_area.py forced room load"
+  },
+  "53": {
+   "dir": "captures/area53",
+   "frame": 473998,
+   "note": "auto: load_area.py forced room load"
+  },
+  "54": {
+   "dir": "captures/area54",
+   "frame": 473998,
+   "note": "auto: load_area.py forced room load"
+  },
+  "56": {
+   "dir": "captures/area56",
+   "frame": 473998,
+   "note": "auto: load_area.py forced room load"
+  },
+  "60": {
+   "dir": "captures/area60",
+   "frame": 473985,
+   "note": "auto: load_area.py forced room load"
+  },
+  "81": {
+   "dir": "captures/area81",
+   "frame": 473998,
+   "note": "auto: load_area.py forced room load"
+  },
+  "82": {
+   "dir": "captures/area82",
+   "frame": 473998,
+   "note": "auto: load_area.py forced room load"
+  },
+  "99": {
+   "dir": "captures/area99",
+   "frame": 474066,
+   "note": "auto: load_area.py forced room load"
+  },
+  "100": {
+   "dir": "captures/area100",
+   "frame": 473933,
+   "note": "auto: load_area.py forced room load"
+  },
+  "107": {
+   "dir": "captures/area107",
+   "frame": 473946,
+   "note": "auto: load_area.py forced room load"
+  },
+  "108": {
+   "dir": "captures/area108",
+   "frame": 474066,
+   "note": "auto: load_area.py forced room load"
   }
  }
 }
