@@ -126,14 +126,17 @@ fireball duel.
 Known defects, all from the frames being cut out of gameplay:
 
 - thin **wall/gate remnants** survive behind his back (the bars are only slightly
-  bluer than the bronze, so a cold-key keeps them);
-- the ground strip from the arena sits at the bottom of each frame;
-- his **feet sit below the room's floor** in the port because the colosseum
-  background is still missing tiles - the same background problem as before.
+  bluer than the bronze, so a cold-key keeps them); `clean_somulo.py` now clears
+  the two measured gate columns from the native standing pose;
+- the ground strip from the arena sits at the bottom of each walk frame;
+- the walk frames' feet still sit below the room's floor because the colosseum
+  background is missing tiles - the same background problem as before.
 
 The three walk frames remain in the asset folder for a future clean cut, but
-states 7/8 now use the clean native standing pose; a gate-bar walk is not shown
-while the multi-part attribution remains unresolved.
+states 7/8 use the clean native standing pose. That pose is now bottom-anchored
+(`79,174`) instead of `120,70`, so the full 158x174 body stands on the floor
+rather than sinking below it. A gate-bar walk is not shown while the multi-part
+attribution remains unresolved.
 
 The clean fix for all three is the same one the sprite plan calls for: rebuild the
 room's background from VRAM, then cut the boss against a known backdrop.

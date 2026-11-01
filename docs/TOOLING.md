@@ -80,8 +80,10 @@ python tools/dc_extract/bake_boss_rows.py \
 `bake_scula.py` writes `$7B/$7C` from `Scula.gif` (the boss save has two
 enemies at the same arena position); `bake_ovnunu.py` writes the temple boss
 `$16` from `Ovnunu.gif`; `bake_boss_rows.py` bakes measured full-body boxes
-for Crawler (`$82`) and Belth (`$68`); `bake_npc96.py` keeps the area-8 town
-NPC on `NPCs.png`.
+for Crawler (`$82`) and Belth (`$68`); `clean_somulo.py` removes the two
+measured gate-bar columns from the native Somulo reference and re-anchors the
+full body at the floor; `bake_npc96.py` keeps the area-8 town NPC on
+`NPCs.png`.
 `fix_room_boss_species.py --room room_area52.json --old 150 --new 111` patches
 the boss object when the ROM room list names the wrong species.
 `add_room_boss.py --room room_area26.json --bosses "123:1320:154,124:1380:154"`

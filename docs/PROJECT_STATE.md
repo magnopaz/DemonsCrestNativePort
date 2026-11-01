@@ -3764,6 +3764,10 @@ Applied the highest-impact items from the sprite review:
   area 52's boss object from `$96` to `$6F` and area 54's from `$96` to `$16`;
   `add_room_boss.py` added the two Scula objects to area 26 and the Flame
   Lord/Dark Demon objects to areas 86/90.
+- **Somulo:** `clean_somulo.py` clears the two measured gate-bar columns from
+  the native reference and re-anchors the 158x174 pose at the bottom centre
+  (`79,174` instead of `120,70`), so the old states 7/8 now show the whole
+  dragon standing on the colosseum floor rather than only the head above it.
 - **Arma:** `bake_arma.py` now uses individual measured pose boxes, producing
   eight clean frames instead of row crops containing captions and multiple
   dragons.
