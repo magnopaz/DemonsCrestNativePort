@@ -29,26 +29,27 @@ from extract import tilemap_linear  # noqa: E402
 MASK = 0x1FFF  # priority/flip bits are rewritten by the guest on load
 
 
-def load_capture(capture_dir: Path, frame: int | None) -> tuple[int, int, list[int], int]:
-    vrams = sorted(capture_dir.glob("f*.vram.bin"))
-    if not vrams:
-        raise SystemExit(f"no f*.vram.bin in {capture_dir}")
-    if frame is None:
-        vram_path = vrams[-1]
-        frame = int(vram_path.name[1:7])
+def iter_capture_frames(capture_dir: Path, frame: int | None):
+    """Yield (w, h, tiles, frame) for every frame dumped in the directory."""
+    if frame is not None:
+        frames = [frame]
     else:
-        vram_path = capture_dir / f"f{frame:06d}.vram.bin"
-    state_path = capture_dir / f"f{frame:06d}.json"
-    state = json.loads(state_path.read_text())
-    ppu = state["ppu"]
-    raw = vram_path.read_bytes()
-    vram = [int.from_bytes(raw[i * 2:i * 2 + 2], "little") for i in range(0x8000)]
-    bgsc = ppu["bgXsc"]
-    if isinstance(bgsc, (list, tuple)):
-        bgsc = bgsc[0]
-    bgsc = int(bgsc, 16) if isinstance(bgsc, str) else int(bgsc)
-    w, h, tiles = tilemap_linear(vram, bgsc)
-    return w, h, tiles, frame
+        frames = sorted(int(p.name[1:7]) for p in capture_dir.glob("f*.vram.bin"))
+    for n in frames:
+        vram_path = capture_dir / f"f{n:06d}.vram.bin"
+        state_path = capture_dir / f"f{n:06d}.json"
+        if not vram_path.is_file() or not state_path.is_file():
+            continue
+        state = json.loads(state_path.read_text())
+        ppu = state["ppu"]
+        raw = vram_path.read_bytes()
+        vram = [int.from_bytes(raw[i * 2:i * 2 + 2], "little") for i in range(0x8000)]
+        bgsc = ppu["bgXsc"]
+        if isinstance(bgsc, (list, tuple)):
+            bgsc = bgsc[0]
+        bgsc = int(bgsc, 16) if isinstance(bgsc, str) else int(bgsc)
+        w, h, tiles = tilemap_linear(vram, bgsc)
+        yield w, h, tiles, n
 
 
 def main() -> int:
@@ -71,37 +72,36 @@ def main() -> int:
 
     total_filled = 0
     for cap_path in args.capture:
-        cap_w, cap_h, cap, frame = load_capture(cap_path, args.frame)
+        for cap_w, cap_h, cap, frame in iter_capture_frames(cap_path, args.frame):
+            best = (0, 0, 0)  # matches, ox, oy
+            for oy in range(0, max(1, H - cap_h + 1), 4):
+                for ox in range(0, max(1, W - cap_w + 1), 4):
+                    agree = 0
+                    for y in range(cap_h):
+                        row = (oy + y) * W + ox
+                        for x in range(cap_w):
+                            a = tiles[row + x]
+                            b = cap[y * cap_w + x]
+                            if a and b and (a & MASK) == (b & MASK):
+                                agree += 1
+                    if agree > best[0]:
+                        best = (agree, ox, oy)
+            agree, ox, oy = best
+            if agree < args.min_overlap:
+                print(f"area {args.area}: {cap_path.name} frame {frame} skipped "
+                      f"({agree} < {args.min_overlap} agreeing cells)")
+                continue
 
-        best = (0, 0, 0)  # matches, ox, oy
-        for oy in range(0, max(1, H - cap_h + 1), 4):
-            for ox in range(0, max(1, W - cap_w + 1), 4):
-                agree = 0
-                for y in range(cap_h):
-                    row = (oy + y) * W + ox
-                    for x in range(cap_w):
-                        a = tiles[row + x]
-                        b = cap[y * cap_w + x]
-                        if a and b and (a & MASK) == (b & MASK):
-                            agree += 1
-                if agree > best[0]:
-                    best = (agree, ox, oy)
-        agree, ox, oy = best
-        print(f"area {args.area}: {cap_path.name} {cap_w}x{cap_h} aligns at "
-              f"({ox},{oy}) with {agree} agreeing cells")
-        if agree < args.min_overlap:
-            print(f"  alignment not trusted ({agree} < {args.min_overlap}); skipped")
-            continue
-
-        filled = 0
-        for y in range(cap_h):
-            for x in range(cap_w):
-                idx = (oy + y) * W + ox + x
-                if not (tiles[idx] & 0x3FF) and (cap[y * cap_w + x] & 0x3FF):
-                    tiles[idx] = cap[y * cap_w + x]
-                    filled += 1
-        total_filled += filled
-        print(f"  filled {filled} cells from frame {frame}")
+            filled = 0
+            for y in range(cap_h):
+                for x in range(cap_w):
+                    idx = (oy + y) * W + ox + x
+                    if not (tiles[idx] & 0x3FF) and (cap[y * cap_w + x] & 0x3FF):
+                        tiles[idx] = cap[y * cap_w + x]
+                        filled += 1
+            total_filled += filled
+            print(f"area {args.area}: frame {frame} at ({ox},{oy}) "
+                  f"agree={agree} filled={filled}")
 
     total = sum(1 for t in tiles if t & 0x3FF)
     print(f"area {args.area}: filled {total_filled} cells total "
