@@ -312,6 +312,66 @@
    "dir": "captures/area108",
    "frame": 474066,
    "note": "auto: load_area.py forced room load"
+  },
+  "14": {
+   "dir": "captures/area14",
+   "frame": 474076,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "28": {
+   "dir": "captures/area28",
+   "frame": 474024,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "36": {
+   "dir": "captures/area36",
+   "frame": 474037,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "51": {
+   "dir": "captures/area51",
+   "frame": 474076,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "57": {
+   "dir": "captures/area57",
+   "frame": 473998,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "58": {
+   "dir": "captures/area58",
+   "frame": 473998,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "59": {
+   "dir": "captures/area59",
+   "frame": 474050,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "61": {
+   "dir": "captures/area61",
+   "frame": 474089,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "62": {
+   "dir": "captures/area62",
+   "frame": 474089,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "63": {
+   "dir": "captures/area63",
+   "frame": 474089,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "65": {
+   "dir": "captures/area65",
+   "frame": 474037,
+   "note": "auto: load_area.py (score 1.000)"
+  },
+  "70": {
+   "dir": "captures/area70",
+   "frame": 474037,
+   "note": "auto: load_area.py (score 1.000)"
   }
  }
 }
