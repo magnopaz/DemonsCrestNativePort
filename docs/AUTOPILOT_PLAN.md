@@ -36,6 +36,13 @@ Environment (this machine):
       curated `bg2_captures.json` mapping cannot be extended safely.
 - [ ] Screenshot spot-checks: area 48 renders with a backdrop, but BG1 shows
       black bands and misaligned bricks (separate extraction defect).
+- [ ] Screenshot audit (30 areas, `/tmp/shots/shot_<area>.png`): black-pixel
+      fraction ranges from 0.7% (area 14) to 91% (area 20). Areas above ~75%
+      (20, 34, 38, 84, 98, 102, 104) render as a lone platform in a void —
+      exactly the areas whose BG2 tilemap came out empty. **The baked BG
+      atlases are NOT the problem**: only 4–10% of the tiles a room references
+      are blank in `bg_area<N>_pal<P>.png`, so the art exists; the missing
+      layer is BG2.
 - [ ] Screenshot spot-checks (`DC_AREA`, `DC_RUN_FRAMES`, `DC_SCREENSHOT`).
 
 ## M3 — Oracle screenshot comparison harness
