@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Read the current room/stage id out of a recomp save state, fast.
+"""Read the room-loader id out of a recomp save state, fast.
 
-The guest keeps a stage/room id in WRAM `$008D` once a room is settled.  It
-looks like the extractor's area id for several early rooms (save0a=0, save10=2,
-save6a=4, save1a=34, save7=48, save9=58, save8=74), but it is **not** the
-`$81:A291` area index: `lvl_I_murkland-cemetery.sav` reads 2 while its BG1
-matches area 1 at 1.000.  Treat the value as a save fingerprint / room id, and
-use `tools/oracle/identify_area.py` when the actual extracted area is needed.
+WRAM `$008D` holds the `Y` of the room loader's `LDA $81:A291,Y`, i.e. the
+*byte* offset into the area pointer table: **area = $008D / 2**.  The values are
+therefore always even (0, 2, 4, ... 192 across the save set).  Reading it as an
+area number is what produced the old "save7=48, save8=74, save9=58" mapping —
+those are 2x the real areas 24/37/29.
+
+Use `tools/oracle/map_saves_to_areas.py` for the verified save -> area map
+(it cross-checks this id against BG1/BG2 tilemap matching).
 
 Usage:
   python3 tools/oracle/probe_save_area.py --save <state.sav> [...]
@@ -47,9 +49,9 @@ def probe(save: Path, recomp: Path, rom: Path, port: int, settle: int) -> dict:
         client = connect(port, timeout=60)
         visible = wait_visible(client)
         client.run_to(client.frame() + settle)
-        area = client.read_ram(AREA_ADDR, 1)[0]
-        return {"save": save.name, "area": area, "visible": visible,
-                "frame": client.frame()}
+        raw = client.read_ram(AREA_ADDR, 1)[0]
+        return {"save": save.name, "area": raw, "area_hint": raw // 2,
+                "visible": visible, "frame": client.frame()}
     except Exception as exc:  # noqa: BLE001 - report, keep the batch going
         return {"save": save.name, "error": str(exc)}
     finally:

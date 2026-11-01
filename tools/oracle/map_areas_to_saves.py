@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Pick one representative save state per area for BG2/backdrop captures.
 
-Input is `tools/oracle/probe_save_area.py --json` output (save name -> area).
+Input is `tools/oracle/probe_save_area.py --json` output (save name -> `$008D`).
+
+`$008D` is the *byte* offset into the `$81:A291` area pointer table, i.e.
+`2 * area`, so the plan is keyed by `$008D / 2` (see
+`tools/oracle/map_saves_to_areas.py` for the verified mapping).
 The chooser prefers a settled, decorated room over transitional states:
 
   1. skip `before_door` / `after_door` / `just_after_crossing` (mid-transition),
@@ -55,7 +59,8 @@ def main() -> int:
     for row in rows:
         if "area" not in row:
             continue
-        by_area.setdefault(int(row["area"]), []).append(row["save"])
+        raw = int(row["area"])
+        by_area.setdefault(raw // 2, []).append(row["save"])
 
     plan = {}
     for area, names in sorted(by_area.items()):
