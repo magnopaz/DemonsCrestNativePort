@@ -69,6 +69,14 @@ Environment (this machine):
       Area 84 (Phalanx arena) stays dark by design.
 - [ ] 68 areas still have no verified save; they need either a save state from
       a fresh playthrough or a decoded runtime BG2 generator.
+- [ ] Areas 43 / 42 / 30 / 29 still render dark (90%, 73%, 69%, 67% black).
+      Area 43 was investigated: BG1 has only 19% non-zero cells, BG2 50%, and
+      **both atlases are complete** (1/212 BG1 tiles and 0/17 BG2 tiles blank),
+      so it is not a missing-art problem. A speculative `wrap_y` change for tall
+      backdrops was tried and reverted (it did not help area 43 and moved area
+      24 from 5.1% to 11.1% black). Prime suspect: partial BG1 extraction
+      coverage for those rooms — the fix path is rebaking BG1 from the capture's
+      VRAM (`bg_recompose.py`), which is what the area-loader work enables.
 - [ ] Screenshot spot-checks: area 48 renders with a backdrop, but BG1 shows
       black bands and misaligned bricks (separate extraction defect).
 - [x] Screenshot audit (30 areas, `/tmp/shots/shot_<area>.png`): black-pixel
