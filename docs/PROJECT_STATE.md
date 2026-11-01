@@ -1,9 +1,40 @@
 # Demon's Crest Fan Game — Project State and Handoff
 
-Last updated: 2026-10-23
+Last updated: 2026-11-01
 Project root: `projetos/opencode/DemonsCrestNativePort`
 Reference recompilation: `projetos/opencode/DemonsCrestSNESRecomp`
 ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
+
+## Session 2026-11-01 — what changed (read this first)
+
+- **The regression suite is green**: `tools/run_regression.py` → PASS (exit 0),
+  demos 6/7/9/10/11/12/13, boss data + runtime, boss defeat, multi-area loads.
+  It started the session with 14 failures. Root causes fixed:
+  - boss objects for 11 rooms (table now applied by
+    `tools/dc_extract/apply_boss_table.py`, including `$96` placeholder removal
+    in areas 52/54 and the colosseum Somulo at `(380,170)`);
+  - the seven save-observed doors (`tools/dc_extract/apply_door_table.py`);
+  - town NPC dialogue: `Text_Find()` now normalises ROM punctuation (`[` is an
+    apostrophe), so `HAVEN'T SEEN YOU` matches `I HAVEN[T SEEN YOU`; and the
+    city room needed an `npc` object (`tools/dc_extract/apply_npc_table.py`);
+  - the passive Somulo duel (`DC_BOSS_NO_ATTACK`) now holds a hittable idle, so
+    the scripted six hits land and the gate to area 34 opens.
+- **Assets are reproducible from the ROM**: `tools/build_assets.sh` runs
+  extract → animations → font/endings → boss table → NPC table → door table,
+  and the regression passes on the freshly built tree. The old directory was a
+  chain of unscripted manual patches.
+- **Rendering bug fixed**: `DrawLayer()` double-subtracted the reference camera
+  from BG1. BG1 is world-space; every room whose reference camera y was not 0
+  (Phalanx fortress, ice palace, colosseum interior) drew its tilemap off-screen
+  — a black void with the player floating. Area 33 went from 95.2% to 59.4%
+  black against the original frame's 58.9%.
+- **Save → room identification**: `tools/oracle/map_saves_to_areas.py` matches a
+  save's live BG1 against every `room_areaN.json` (exact 32×32 comparison,
+  `$008D`'s stage id as a hint). 45 areas match at 1.000.
+  `tools/oracle/bake_area_captures.py` turns that into per-area BG2 captures
+  (score ≥ 0.99 only) — 40 rooms now have a non-empty BG2, up from 28.
+- Still open: 68 areas have no verified save (no backdrop), per-species AI,
+  ROM audio, retail password/SRAM. `docs/AUTOPILOT_PLAN.md` tracks the queue.
 
 This file is the authoritative handoff. It records the final objective, every
 implemented piece, every recovered technical detail, the traps already hit, and
@@ -377,7 +408,8 @@ the ROM block tables; without it the extractor keeps the older two-screen
 > **Important area index note:** The `stage_600` dump is ROM **Area 1**
 > (`screens 8, 9` = bottom-row `slots 9, 10`), not `--area 2` (`screens 33, 34`).
 > Earlier runs passed `--area 2` because WRAM `$008D == 2` during active
-> gameplay, whereas the ROM table at `$81:A291` is 0-indexed (`0` = Somulo
+> gameplay — and `$008D` is `2 * area`, so `2` means area **1**. The ROM table
+> at `$81:A291` is 0-indexed (`0` = Somulo
 > colosseum intro, `1` = Graveyard forest `stage_600`, `2` = Graveyard section
 > 2, `3` = Graveyard ruins `save0`). Using `--area 1 --screens 9,10` aligns the
 > collision grid and ROM block tables with `stage_600` (`1957/2048` exact u16
@@ -805,10 +837,11 @@ Stage 1 area table (`$81:A291` / `$81:A6D8`, 0-indexed):
   47, 46, 44, 45, 67]`) — **Graveyard vertical ruins (`save0` is at `screens
   52, 53`, scroll `x=448, y=48`)**.
 
-> **Note:** WRAM `$008D` holds `2` during active Stage 1 gameplay across
-> sub-areas, which originally caused `stage_600` to be extracted with
-> `--area 2` instead of `--area 1`. Always use `--area 1 --screens 9,10` for
-> `stage_600`.
+> **Note:** WRAM `$008D` holds `2 * area` (it is the byte offset the loader
+> adds to `$81:A291`), so `2` during active Stage 1 gameplay means **area 1**.
+> That was originally misread as area `2`, which caused `stage_600` to be
+> extracted with `--area 2` instead of `--area 1`. Always use
+> `--area 1 --screens 9,10` for `stage_600`.
 
 ### Graphics decoder
 
@@ -1318,17 +1351,23 @@ These were already discovered the hard way; do not rediscover them.
     `set_controller 128` is parsed as an unknown button and the command fails;
     capture tools must check the JSON error field instead of ignoring it.
 
-18. **WRAM `$008D` is NOT the area index — the apparent matches were coincidence.**
-    It first looked like the `$81:A291` area id: `save0a`=0, `save10`=2, `save6a`=4,
-    `save8a`=6, `save1a`=34, `save7`=48, `save9`=58, `save8`=74 all matched the
-    curated `bg2_captures.json` mapping. That mapping is itself unverified.
-    The decisive counter-example: `lvl_I_murkland-cemetery.sav` reads `$008D == 2`,
-    but its live BG1 tilemap matches **area 1** cell-for-cell (1.000) and area 2
-    only at 0.38. `$008D` is therefore a stage/room id, not the extracted area
-    index; the two number spaces merely coincide for several early rooms.
-    Do not use it to map saves to areas. `tools/oracle/identify_area.py` matches
-    BG1 instead, but needs a tie-break: some areas share identical screen data
-    (areas 1 and 73 tie at 1.000 for the same frame).
+18. **WRAM `$008D` IS the area table index — as a byte offset: `area = $008D / 2`.**
+    The room loader reads the pointer table with an indexed load,
+    `LDA $81:A291,Y`, and the guest keeps that `Y` in `$008D`. Table entries are
+    2 bytes, so `$008D` is the *byte* offset, not the entry number.
+    Every one of the 54 distinct `$008D` values in the save set is even
+    (0…192 -> areas 0…96), and dividing by two reproduces every room BG1 can
+    identify, including the ones that used to look like counter-examples:
+    cemetery `2 -> 1`, `save8` `74 -> 37`, `save9` `58 -> 29`, `save1a`
+    `34 -> 17`, `save6a` `4 -> 2`, `save8a` `6 -> 3`, `save7` `48 -> 24`.
+    The curated "save7=48, save8=74, save9=58" mapping in `bg2_captures.json`
+    was those raw bytes read as area numbers, i.e. every entry is 2x too high.
+    Verify with `tools/oracle/map_saves_to_areas.py`, which cross-checks the
+    loader id against BG1/BG2 tilemap matching (`tools/oracle/room_match.py`).
+    Areas that share both the info and the grid block in
+    `$81:A291`/`$81:A6D8` are byte-identical rooms (1/73, 0/72, 30/71, …):
+    content cannot separate them, so the mapper reports the tie explicitly and
+    picks the lowest id.
 
 19. **`$85:C1D4` is a bouncing heart pickup, not Firebrand's jump.**
     Firebrand's jump is at `$80:E160..E239` (`$1022 = 0x059C`, gravity
