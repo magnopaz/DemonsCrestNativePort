@@ -77,6 +77,11 @@ Environment (this machine):
       24 from 5.1% to 11.1% black). Prime suspect: partial BG1 extraction
       coverage for those rooms — the fix path is rebaking BG1 from the capture's
       VRAM (`bg_recompose.py`), which is what the area-loader work enables.
+      Later data point: area 43's BG2 content sits **only in tilemap rows
+      32..63** of a 32x64 map while the layer draws from `origin_y = 64`
+      (rows 8..36), and forcing `scroll_y = -192` changed nothing (still 90.5%
+      black) — so BG2 is not being drawn for this room at all, rather than being
+      merely offset. That needs a renderer-level debug session, not an asset fix.
 - [ ] Screenshot spot-checks: area 48 renders with a backdrop, but BG1 shows
       black bands and misaligned bricks (separate extraction defect).
 - [x] Screenshot audit (30 areas, `/tmp/shots/shot_<area>.png`): black-pixel
