@@ -29,6 +29,17 @@ Environment (this machine):
 
 ## M2 — BG2 backdrop for every mapped area
 
+- [x] **Rendering bug fixed: BG1 was offset by the reference camera again.**
+      `DrawLayer()` subtracted `level->camera_y` from BG1's scroll, but BG1's
+      tilemap is already in world coordinates. Any room whose reference camera
+      y was non-zero (the whole Phalanx fortress, ice palace, colosseum interior)
+      drew the world tens to hundreds of pixels off-screen: a black void with
+      the player floating in it. BG1 now uses world space; only captured
+      backdrops stay camera-relative. Measured: area 33 95.2% → 59.4% black
+      (the original frame is 58.9%), area 41 85% → 41.2%, and area 33 now shows
+      its columns, arches, brick walls and skeleton enemy. Mean over the 45
+      mapped rooms 44% → 39%.
+
 - [x] Cross-platform capture helpers:
   `tools/oracle/dump_save_wram.py`, `tools/oracle/capture_area_frame.py`.
   (The old `capture_save_frames.py` hard-codes `M:\Opencode` and integer saves;
