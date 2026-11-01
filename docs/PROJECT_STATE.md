@@ -725,6 +725,7 @@ The original SNES default mapping was verified from `$80:DB00..DB40` and `save0`
 | `DC_STATE=name` | render a menu state (`title`, `overworld`, `subscreen`, `shop`, `password`, `options`, `clear`, `gameover`, `ending`) |
 | `DC_BOSS_DEFEATED=1` | skip boss spawns (campaign flow testing) |
 | `DC_BOSS_HP=N` | override boss HP |
+| `DC_BOSS_PHASE=2` | boot Phalanx directly in its `$8D` second form (smoke test) |
 | `DC_GOLD=N` | starting gold for shop/subscreen testing |
 | `DC_POTIONS=N` / `DC_SCROLLS=N` | starting Urn/Spell counts |
 | `DC_UNLOCK_ALL=1` | unlock all six Gargoyle forms |
@@ -3267,8 +3268,8 @@ green state pending a hit), fang talisman in area 78, Phalanx in area 84.
   then the gate. Regression asserts HP `6→5→4→3→2→1` and that area 34 is
   reached.
 - `DC_BOSS_NO_ATTACK` is a test hook so the loop is checkable without dodging.
-- The object trace now carries `hp,flash,species`, which made the fight
-  assertable at all.
+- The object trace now carries `hp,flash,species,flags`, which made the fight
+  and the Arma palette variant assertable at all.
 - Spec: `docs/MVP_SOMULO.md` (definition of done + known gaps: intro roar,
   area 34 staging, mouth flame).
 
@@ -3748,9 +3749,10 @@ Applied the highest-impact items from the sprite review:
   fragmented tilemap-like captures. It runs in `run_regression.py`.
   `tools/check_bosses.py` adds the content contract the structural audit cannot
   see: expected species/flags/position per boss room, base/variant texture
-  presence, and a runtime object-trace smoke test for all eleven boss rooms.
-  This would catch the old `$96` placeholders, off-screen Crawler/Arma objects,
-  and missing Arma palette entries.
+  presence, and a runtime object-trace smoke test for all eleven boss rooms
+  plus the `$8D` Phalanx second form. This would catch the old `$96`
+  placeholders, off-screen Crawler/Arma objects, and missing Arma palette
+  entries.
   `species_anim.json` was quarantined from 34 to 21 species; the removed entries
   were duplicates/shared clusters (`28/29/2a`, `41/87`) and fragmented captures.
   A clean `$23` ghost was then recovered from reference frame 8000 (22 species).

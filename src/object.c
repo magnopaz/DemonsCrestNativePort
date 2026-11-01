@@ -191,6 +191,15 @@ static void SpawnBoss(ObjectPool *pool, const LevelObject *src) {
     pool->boss_present = true;
     o->species = src->species;
     o->flags = src->flags;
+    /* Test hook: boot the second Phalanx form directly so its art and AI can
+     * be smoke-tested without scripting the first form's death. */
+    const char *phase_env = getenv("DC_BOSS_PHASE");
+    bool forced_second =
+        phase_env && *phase_env && atoi(phase_env) == 2 && o->species == 0x86;
+    if (forced_second) {
+        o->species = 0x8D;
+        o->substate = 1;
+    }
     float bx = src->x;
     float by = src->y;
     if (src->species == 0x33 && bx < 120.0f) {
@@ -210,7 +219,7 @@ static void SpawnBoss(ObjectPool *pool, const LevelObject *src) {
     o->y_fx = (int32_t)lroundf(by * FX_ONE);
     o->origin_x_fx = o->x_fx;
     o->origin_y_fx = o->y_fx;
-    o->hp = (src->species == 0x33) ? 6 : 8;
+    o->hp = (src->species == 0x33) ? 6 : (forced_second ? 10 : 8);
     o->facing = 1; /* sheets face right; the AI updates this as it turns */
     const char *hp_env = getenv("DC_BOSS_HP");
     if (hp_env && *hp_env)

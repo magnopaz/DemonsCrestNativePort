@@ -186,58 +186,72 @@ def check_runtime(binary: Path, assets: Path, tmp: Path | None,
     if not binary.is_file():
         errors.append(f"runtime: missing binary {binary}")
         return
+
+    def run_case(area: int, suffix: str, expected: list,
+                 extra_env: dict[str, str] | None = None) -> None:
+        trace = Path(td) / f"area{area}{suffix}.csv"
+        env = dict(os.environ)
+        env.update({
+            "DC_AREA": str(area),
+            "DC_RUN_FRAMES": "30",
+            "DC_NO_AUDIO": "1",
+            "DC_NO_SAVE": "1",
+            "DC_BOSS_NO_ATTACK": "1",
+            "DC_BOSS_INTRO": "0",
+            "DC_NO_STORY": "1",
+            "DC_TRACE_OBJECTS": str(trace),
+        })
+        if extra_env:
+            env.update(extra_env)
+        for key in ("DC_BOSS_DEFEATED", "DC_BOSS_CLEAR", "DC_STATE",
+                    "DC_DEMO", "DC_START_X", "DC_START_Y", "DC_RESUME",
+                    "DC_STAGE_SELECT", "DC_BOSS_PHASE"):
+            env.pop(key, None)
+        if extra_env:
+            env.update(extra_env)
+        try:
+            proc = subprocess.run(
+                [str(binary), "--assets", str(assets)],
+                cwd=ROOT, env=env, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            errors.append(f"runtime area {area}{suffix}: timeout")
+            return
+        if proc.returncode != 0:
+            errors.append(
+                f"runtime area {area}{suffix}: exit {proc.returncode} "
+                f"{proc.stdout.strip()[-80:]}")
+            return
+        if not trace.is_file():
+            errors.append(f"runtime area {area}{suffix}: no object trace")
+            return
+        rows = list(csv.DictReader(trace.open(newline="")))
+        bosses = [r for r in rows if r.get("type") == "6"]
+        active = {int(r.get("species", -1)): r for r in bosses}
+        for name, species, flags, *_pos in expected:
+            if species not in active:
+                errors.append(
+                    f"runtime area {area}{suffix} ({name}): species "
+                    f"{species:02x} did not spawn")
+                continue
+            row = active[species]
+            if flags is not None and int(row.get("flags", 0)) != flags:
+                errors.append(
+                    f"runtime area {area}{suffix} ({name}): flags "
+                    f"{row.get('flags')} != {flags}")
+        report["runtime"].append(
+            {"area": area, "case": suffix or "default",
+             "species": sorted(active), "rows": len(rows)})
+
     tmp_parent = str(tmp) if tmp else None
     with tempfile.TemporaryDirectory(prefix="dc-boss-runtime-", dir=tmp_parent) as td:
         for area in sorted(BOSSES):
-            trace = Path(td) / f"area{area}.csv"
-            env = dict(os.environ)
-            env.update({
-                "DC_AREA": str(area),
-                "DC_RUN_FRAMES": "30",
-                "DC_NO_AUDIO": "1",
-                "DC_NO_SAVE": "1",
-                "DC_BOSS_NO_ATTACK": "1",
-                "DC_BOSS_INTRO": "0",
-                "DC_NO_STORY": "1",
-                "DC_TRACE_OBJECTS": str(trace),
-            })
-            for key in ("DC_BOSS_DEFEATED", "DC_BOSS_CLEAR", "DC_STATE",
-                        "DC_DEMO", "DC_START_X", "DC_START_Y", "DC_RESUME",
-                        "DC_STAGE_SELECT"):
-                env.pop(key, None)
-            try:
-                proc = subprocess.run(
-                    [str(binary), "--assets", str(assets)],
-                    cwd=ROOT, env=env, stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT, text=True, timeout=60)
-            except subprocess.TimeoutExpired:
-                errors.append(f"runtime area {area}: timeout")
-                continue
-            if proc.returncode != 0:
-                errors.append(
-                    f"runtime area {area}: exit {proc.returncode} "
-                    f"{proc.stdout.strip()[-80:]}")
-                continue
-            if not trace.is_file():
-                errors.append(f"runtime area {area}: no object trace")
-                continue
-            rows = list(csv.DictReader(trace.open(newline="")))
-            bosses = [r for r in rows if r.get("type") == "6"]
-            active = {int(r.get("species", -1)): r for r in bosses}
-            for name, species, flags, _x, _y in BOSSES[area]:
-                if species not in active:
-                    errors.append(
-                        f"runtime area {area} ({name}): species "
-                        f"{species:02x} did not spawn")
-                    continue
-                row = active[species]
-                if flags is not None and int(row.get("flags", 0)) != flags:
-                    errors.append(
-                        f"runtime area {area} ({name}): flags "
-                        f"{row.get('flags')} != {flags}")
-            report["runtime"].append(
-                {"area": area, "species": sorted(active),
-                 "rows": len(rows)})
+            run_case(area, "", BOSSES[area])
+        # Second Phalanx form: test hook bypasses the first-form death only for
+        # this smoke run; the normal $86 path is covered above.
+        run_case(84, "_phase2",
+                 [("Phalanx second form", 0x8D, 0, 198, 173)],
+                 {"DC_BOSS_PHASE": "2"})
 
 
 def main() -> int:
