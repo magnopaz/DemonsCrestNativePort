@@ -3243,9 +3243,10 @@ until the second form is modelled.
   **fang** (`$50`) is placed in area 78 at (224,170), clamped from the save's
   level-space position.
 - **Phalanx has two forms**: killing `$86` once spawns the second form from the
-  pit (same species, `substate` 1, 10 HP) and keeps the exit shut; killing that
-  one opens the way to the normal ending. The `$8D` segment body art is still
-  missing, so the second form is currently the head alone.
+  pit and keeps the exit shut; killing that one opens the way to the normal
+  ending. The second form now spawns as `$8D` with the `Ultimate Phalanx.gif`
+  body art, still using the `$86` head AI. Only the head object is simulated;
+  the serpent's separate `$8D` segments remain cosmetic/background-only.
 
 Regression PASS. Verified by screenshot: Hippogriff, Grewon (normal and the
 green state pending a hit), fang talisman in area 78, Phalanx in area 84.
@@ -3751,15 +3752,15 @@ Applied the highest-impact items from the sprite review:
 - **Boss sheet mappings from the named saves:** the live object pools give the
   ids the ROM room lists missed. Holothurion is **`$6F`** (area 52), not the
   NPC `$96`; Scula's fight has `$7B/$7C` (plus `$7F` effects); Phalanx is
-  `$86` with `$88` and `$8D` parts; the demon-realm boss uses
-  `$58/$5C/$5D/$5E/$5F`; the final second form has `$BC` (and `$8A`).
+  `$86` (plus `$88` parts) and its second form is `$8D`; the demon-realm boss
+  uses `$58/$5C/$5D/$5E/$5F`; the final second form has `$BC` (and `$8A`).
   `bake_holothurion.py` now writes the three full Holothurion examples under
   `$6F`, `bake_scula.py` supplies `$7B/$7C` from `Scula.gif`,
   `bake_ovnunu.py` supplies the temple boss `$16` from `Ovnunu.gif`,
-  `bake_boss_rows.py` supplies Crawler `$82` and Belth `$68`, and
-  `bake_npc96.py` keeps the area-8 town NPC on the NPC sheet; the same generic
-  baker supplies the demon-realm `$58` from `Flame Lord.gif` and the final
-  second form `$BC` from `Dark Demon.gif`. `fix_room_boss_species.py` corrected
+  `bake_boss_rows.py` supplies Crawler `$82`, Belth `$68`, the `$8D` second
+  form from `Ultimate Phalanx.gif`, the demon-realm `$58` from `Flame Lord.gif`,
+  and the final second form `$BC` from `Dark Demon.gif`; `bake_npc96.py` keeps
+  the area-8 town NPC on the NPC sheet. `fix_room_boss_species.py` corrected
   area 52's boss object from `$96` to `$6F` and area 54's from `$96` to `$16`;
   `add_room_boss.py` added the two Scula objects to area 26 and the Flame
   Lord/Dark Demon objects to areas 86/90.

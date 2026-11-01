@@ -60,13 +60,15 @@ mappings recovered from their live object pools:
 | Ovnunu (54) | `$16`, `$17`, `$18` |
 | Crawler (ice palace) | `$82` (plus `$83/$84/$85` parts) |
 | Belth (boneyard) | `$68` |
-| Phalanx (84) | `$86` + `$88` / `$8D` parts |
+| Phalanx (84) | `$86` first form + `$88`; `$8D` second-form body |
 | demon realm (86) | `$58`, `$5C`, `$5D`, `$5E`, `$5F` |
 | final second form (90) | `$BC` (plus `$8A`) |
 
 The demon-realm `$58` object uses `Flame Lord.gif`; the final second form `$BC`
-uses `Dark Demon.gif`. Boss sheets can be baked directly from measured full-body
-boxes with the generic tool:
+uses `Dark Demon.gif`. Phalanx's second form uses `$8D` and the three full-body
+poses from `Ultimate Phalanx.gif`; the second-form object keeps the `$86` head
+AI. Boss sheets can be baked directly from measured full-body boxes with the
+generic tool:
 
 ```text
 python tools/dc_extract/bake_boss_rows.py \

@@ -646,9 +646,10 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                     o->y_fx = o->origin_y_fx +
                               (int32_t)(sinf(o->timer * 0.06f) * 14.0f *
                                         FX_ONE);
-            } else if (o->species == 0x86) {
+            } else if (o->species == 0x86 || o->species == 0x8D) {
                 /* Phalanx: the demon form hovers and lobs slow orbs. The
-                 * segmented second form uses the same object for its head. */
+                 * second form keeps the same head AI but uses the $8D body
+                 * sheet (the live boss2 save contains $86 + many $8D parts). */
                 if (o->hit_flash > 0 && o->state != 4) {
                     o->state = 4;
                     o->phase = 20;
@@ -1341,7 +1342,7 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                                 memset(n, 0, sizeof(*n));
                                 n->active = true;
                                 n->type = OBJECT_BOSS;
-                                n->species = 0x86;
+                                n->species = 0x8D;
                                 n->x_fx = o->x_fx;
                                 n->y_fx = o->y_fx + 40 * FX_ONE;
                                 n->origin_x_fx = n->x_fx;

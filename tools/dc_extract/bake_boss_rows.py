@@ -31,6 +31,8 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--boxes", required=True,
                     help="semicolon-separated x0,y0,x1,y1 boxes")
     ap.add_argument("--source", default="measured boss sheet row")
+    ap.add_argument("--variant", choices=("boss",), default=None,
+                    help="mark the entry as a boss variant for the same species")
     ap.add_argument("--out", type=Path, default=ROOT / "assets" / "generated")
     return ap.parse_args()
 
@@ -72,13 +74,16 @@ def main() -> int:
     path = args.out / "species_anim.json"
     anim = json.loads(path.read_text()) if path.is_file() else {"species": {}}
     key = f"{args.species:02x}"
-    anim.setdefault("species", {})[key] = {
+    entry = {
         "species": args.species,
         "frames": frames,
         "states": {"0": list(range(len(frames)))},
         "default": 0,
         "source": args.source,
     }
+    if args.variant:
+        entry["variant"] = args.variant
+    anim.setdefault("species", {})[key] = entry
     path.write_text(json.dumps(anim, indent=1))
     print(f"{key}: {len(frames)} frames -> {path}")
     return 0
