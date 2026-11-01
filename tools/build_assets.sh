@@ -68,6 +68,21 @@ else
 fi
 python3 tools/dc_extract/build_endings.py --out "$OUT"
 
+# Mode 7 overworld: bake from a capture of the map screen. `build_world_map.py`
+# wants the frame number, so take it from the capture's own filename.
+if [ -d "$ROOT/captures/map11" ]; then
+  frame_file=$(ls "$ROOT"/captures/map11/f*.json 2>/dev/null | head -1)
+  if [ -n "$frame_file" ]; then
+    frame_num=$(basename "$frame_file" .json)
+    frame_num=${frame_num#f}
+    frame_num=$((10#$frame_num))
+    python3 tools/dc_extract/build_world_map.py --capture "$ROOT/captures/map11" \
+        --frame "$frame_num" --out "$OUT/world_map.png"
+  fi
+else
+  echo "   captures/map11 missing; the overworld falls back to the procedural map"
+fi
+
 echo "== 4/7 boss objects from the check table =="
 python3 tools/dc_extract/apply_boss_table.py --rooms "$OUT"
 
