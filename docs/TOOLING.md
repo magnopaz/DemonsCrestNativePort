@@ -48,13 +48,27 @@ detached caption letters/sparks, and writes/merges the species entry. It is
 deliberately not a whole-sheet auto-detector: the caller must give the correct
 sprite band.
 
-## Boss sheet variants
+## Boss sheet mappings
 
-Some species ids are reused by different object kinds. `species_anim.json`
-supports an optional `"variant": "boss"` entry (keyed separately, e.g.
-`96_boss`); `render.c` uses it only for `OBJECT_BOSS`. Run
-`tools/dc_extract/bake_holothurion.py` (boss) and
-`tools/dc_extract/bake_npc96.py` (town NPC) to regenerate the current pair.
+The named boss saves are the authoritative source for species ids. Current
+mappings recovered from their live object pools:
+
+| boss/room | species |
+|---|---|
+| Holothurion (52) | `$6F` (parts `$90`, `$92`) |
+| Scula (26) | `$7B`, `$7C` (plus `$7F`) |
+| Phalanx (84) | `$86` + `$88` / `$8D` parts |
+| demon realm (86) | `$58`, `$5C`, `$5D`, `$5E`, `$5F` |
+| final second form (90) | `$BC` (plus `$8A`) |
+
+`bake_holothurion.py` writes `$6F` from `Holothurion.gif`;
+`bake_npc96.py` keeps the area-8 town NPC on `NPCs.png`.
+`fix_room_boss_species.py --room room_area52.json --old 150 --new 111` patches
+the boss object when the ROM room list names the wrong species.
+
+Some species ids are reused by different object kinds; `species_anim.json`
+also supports an optional `"variant": "boss"` entry, used only for
+`OBJECT_BOSS`.
 
 ## Full-stage map fallback
 

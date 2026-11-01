@@ -39,7 +39,7 @@ def main() -> int:
         if bbox is None:
             continue
         crop = crop.crop(bbox)
-        tex = f"enemy_96_boss_{i}.png"
+        tex = f"enemy_6f_{i}.png"
         crop.save(GEN / tex)
         frames.append({
             "texture": tex,
@@ -53,9 +53,9 @@ def main() -> int:
 
     path = GEN / "species_anim.json"
     anim = json.loads(path.read_text()) if path.is_file() else {"species": {}}
-    anim.setdefault("species", {})["96_boss"] = {
-        "species": 0x96,
-        "variant": "boss",
+    anim.setdefault("species", {}).pop("96_boss", None)
+    anim.setdefault("species", {})["6f"] = {
+        "species": 0x6F,
         "frames": frames,
         "states": {"0": list(range(len(frames)))},
         "default": 0,

@@ -3748,10 +3748,15 @@ Applied the highest-impact items from the sprite review:
   `species_anim.json` was quarantined from 34 to 21 species; the removed entries
   were duplicates/shared clusters (`28/29/2a`, `41/87`) and fragmented captures.
   A clean `$23` ghost was then recovered from reference frame 8000 (22 species).
-- **Boss sheet variants:** species `$96` is reused by the town NPC (area 8)
-  and Holothurion (area 52). `species_anim.json` now supports a `"boss"`
-  variant (`96_boss`), so the town NPC uses the NPC sheet and the boss uses
-  the three full Holothurion examples from `docs/sprites/Holothurion.gif`.
+- **Boss sheet mappings from the named saves:** the live object pools give the
+  ids the ROM room lists missed. Holothurion is **`$6F`** (area 52), not the
+  NPC `$96`; Scula's fight has `$7B/$7C` (plus `$7F` effects); Phalanx is
+  `$86` with `$88` and `$8D` parts; the demon-realm boss uses
+  `$58/$5C/$5D/$5E/$5F`; the final second form has `$BC` (and `$8A`).
+  `bake_holothurion.py` now writes the three full Holothurion examples under
+  `$6F`, `bake_npc96.py` keeps the area-8 town NPC on the NPC sheet, and
+  `fix_room_boss_species.py` corrected area 52's boss object from `$96` to
+  `$6F`.
 - **Arma:** `bake_arma.py` now uses individual measured pose boxes, producing
   eight clean frames instead of row crops containing captions and multiple
   dragons.
