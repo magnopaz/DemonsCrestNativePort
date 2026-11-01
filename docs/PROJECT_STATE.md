@@ -32,9 +32,20 @@ ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
   save's live BG1 against every `room_areaN.json` (exact 32×32 comparison,
   `$008D`'s stage id as a hint). 45 areas match at 1.000.
   `tools/oracle/bake_area_captures.py` turns that into per-area BG2 captures
-  (score ≥ 0.99 only) — 40 rooms now have a non-empty BG2, up from 28.
-- Still open: 68 areas have no verified save (no backdrop), per-species AI,
-  ROM audio, retail password/SRAM. `docs/AUTOPILOT_PLAN.md` tracks the queue.
+  (score ≥ 0.99 only).
+- **Forced area loading** (this session): `$008D` is only consumed by the
+  room-load task, and only *after the fade-out*, so writing `$008D = 2N` while a
+  transition is in flight loads area N. `tools/oracle/load_area.py` does that and
+  verifies the result against the target room's BG1; `tools/oracle/sweep_missing_
+  areas.py` walks the whole missing set and records the ones that verify.
+  **94 areas captured, 65 rooms with a non-empty BG2** (28 at session start).
+  29 of those captures contain zero BG2 cells in the raw VRAM, so their rooms
+  either have no BG2 or draw the backdrop by another mechanism — that is the
+  ceiling of this approach, not a capture bug.
+- Still open: 19 areas that the retarget cannot reach (the frame resolves to the
+  door's natural destination), per-species AI (the `$82:8300` species table holds
+  `JSL` stubs, so each species is code to port, not data to read), ROM audio, and
+  the retail password/SRAM algorithm. `docs/AUTOPILOT_PLAN.md` tracks the queue.
 
 This file is the authoritative handoff. It records the final objective, every
 implemented piece, every recovered technical detail, the traps already hit, and
