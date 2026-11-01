@@ -232,6 +232,26 @@
    "dir": "captures/area55",
    "frame": 210846,
    "note": "auto: save1d.sav (score 1.000, stage_id+bg1)"
+  },
+  "12": {
+   "dir": "captures/area12",
+   "frame": 595740,
+   "note": "auto: lvl_III_dark-forest-riverbank_limeston.sav (score 0.625, stage_id+bg1-partial)"
+  },
+  "21": {
+   "dir": "captures/area21",
+   "frame": 262582,
+   "note": "auto: save8e.sav (score 0.688, stage_id+bg1-partial)"
+  },
+  "25": {
+   "dir": "captures/area25",
+   "frame": 550306,
+   "note": "auto: lvl_V_poseidonia-underwater-grotto.sav (score 0.875, stage_id+bg1-partial)"
+  },
+  "50": {
+   "dir": "captures/area50",
+   "frame": 197242,
+   "note": "auto: save0d.sav (score 0.938, stage_id+bg1-partial)"
   }
  }
 }
