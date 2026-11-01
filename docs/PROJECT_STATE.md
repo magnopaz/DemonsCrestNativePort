@@ -3754,10 +3754,12 @@ Applied the highest-impact items from the sprite review:
   `$86` with `$88` and `$8D` parts; the demon-realm boss uses
   `$58/$5C/$5D/$5E/$5F`; the final second form has `$BC` (and `$8A`).
   `bake_holothurion.py` now writes the three full Holothurion examples under
-  `$6F`, `bake_scula.py` supplies `$7B/$7C` from `Scula.gif`, and
+  `$6F`, `bake_scula.py` supplies `$7B/$7C` from `Scula.gif`,
+  `bake_ovnunu.py` supplies the temple boss `$16` from `Ovnunu.gif`, and
   `bake_npc96.py` keeps the area-8 town NPC on the NPC sheet;
   `fix_room_boss_species.py` corrected area 52's boss object from `$96` to
-  `$6F`, and `add_room_boss.py` added the two Scula objects to area 26.
+  `$6F` and area 54's from `$96` to `$16`; `add_room_boss.py` added the two
+  Scula objects to area 26.
 - **Arma:** `bake_arma.py` now uses individual measured pose boxes, producing
   eight clean frames instead of row crops containing captions and multiple
   dragons.
