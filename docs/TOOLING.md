@@ -37,11 +37,32 @@ PNGs. The script writes the base `$A5` art plus two boss variants:
 `Assets_BossSheet(assets, species, flags)` picks the exact object-flag variant;
 areas 3/23/36/67 use flags 0/2/4/4 respectively.
 
-## Baking one labelled sheet row
+## Baking labelled enemy sheet rows
 
-For enemy sheets such as the labelled `Enemies 1.gif`, use
-`tools/sheet_row.py` after measuring the band that contains only the sprites
-(exclude the caption row):
+Regular enemies use `tools/dc_extract/bake_enemy_sheets.py`, the enemy
+counterpart of `bake_boss_sheets.py`: one measured box per pose, background
+flooded from the crop border (dark outlines survive), tiny detached specks
+dropped, frames mirrored to face right (the renderer mirrors for
+`o->facing < 0`), then merged into `species_anim.json` with `states` for object
+states 0/1. Re-running deletes its own stale PNGs, so the output is
+deterministic.
+
+Current mappings (see the script header for the measured boxes):
+
+| species | sheet row | poses |
+|---|---|---|
+| `$2C` skeleton walker | Enemies 1 "Scavenger Demon" | 4 walk |
+| `$26` armoured undead | Enemies 1 "Zombie Head / Armor Zombie" | 3 walk |
+| `$08` forest ogre | Enemies 2 "Ogre Demon" | 4 unarmed |
+| `$07` bat/watcher | Enemies 1 "Vampire Bat" | 3 flight |
+
+`$24/$2D/$2E` are `pickup_crest` objects in `SPECIES_KIND_MAP`, not enemies.
+
+For a one-off row, `tools/sheet_row.py` still works: give it the measured band
+(exclude the caption row) and it splits on background columns, keys the flat
+background and merges the entry. It is deliberately not a whole-sheet
+auto-detector, and its column split can cut a pose in two, so prefer the
+measured-box baker above.
 
 ```
 python tools/sheet_row.py \
@@ -49,11 +70,6 @@ python tools/sheet_row.py \
   --species 0x2c --x0 0 --x1 420 --y0 300 --y1 380 \
   --source "Scavenger Demon row" --state 0
 ```
-
-The tool splits on background columns, keys the flat background, removes small
-detached caption letters/sparks, and writes/merges the species entry. It is
-deliberately not a whole-sheet auto-detector: the caller must give the correct
-sprite band.
 
 ## Boss sheet mappings
 
