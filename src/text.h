@@ -27,6 +27,10 @@ void Text_UnloadScript(TextScript *script);
 /* Index of the first string containing `needle`, or -1. */
 int Text_Find(const TextScript *script, const char *needle);
 
+/* Normalised substring match ("HAVEN'T" matches "HAVEN[T"): the ROM script
+ * uses `[` for an apostrophe and `\` for a period/quote. */
+bool Text_ContainsLoose(const char *haystack, const char *needle);
+
 /* Draws one line with the baked BG3 ASCII font (8x8, white mask). */
 void Text_DrawString(const Assets *assets, const char *text, int x, int y,
                      Color tint);

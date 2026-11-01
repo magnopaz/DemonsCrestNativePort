@@ -41,18 +41,18 @@ need() { [ -e "$1" ] || { echo "build_assets: missing $1" >&2; exit 1; }; }
 need "$ROM"
 need "$DUMP/$PREFIX.vram.bin"
 
-echo "== 1/5 rooms, atlases, campaign =="
+echo "== 1/6 rooms, atlases, campaign =="
 python3 tools/dc_extract/extract.py --rom "$ROM" --dump "$DUMP" --prefix "$PREFIX" \
     --area 1 --screens 9,10 --full-room --out "$OUT"
 
-echo "== 2/5 player / fireball / HUD animations =="
+echo "== 2/6 player / fireball / HUD animations =="
 if [ -d "$ROOT/captures/anim" ]; then
   python3 tools/dc_extract/extract_anim.py --dump "$ROOT/captures/anim" --out "$OUT" --clean
 else
   echo "   captures/anim missing; animations fall back to player_idle.png"
 fi
 
-echo "== 3/5 font + endings =="
+echo "== 3/6 font + endings =="
 if [ -d "$ROOT/captures/font" ]; then
   python3 tools/dc_extract/extract_font.py --dump "$ROOT/captures/font" --out "$OUT"
 else
@@ -60,10 +60,13 @@ else
 fi
 python3 tools/dc_extract/build_endings.py --out "$OUT"
 
-echo "== 4/5 boss objects from the check table =="
+echo "== 4/6 boss objects from the check table =="
 python3 tools/dc_extract/apply_boss_table.py --rooms "$OUT"
 
-echo "== 5/5 save-observed doors (optional) =="
+echo "== 5/6 talkable city NPCs =="
+python3 tools/dc_extract/apply_npc_table.py --rooms "$OUT"
+
+echo "== 6/6 save-observed doors (optional) =="
 if [ -f tools/dc_extract/apply_door_table.py ]; then
   python3 tools/dc_extract/apply_door_table.py --rooms "$OUT"
 else

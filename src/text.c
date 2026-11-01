@@ -110,13 +110,53 @@ void Text_UnloadScript(TextScript *script) {
     memset(script, 0, sizeof(*script));
 }
 
+/* Loose substring match for script lookups.
+ *
+ * The ROM script is not plain ASCII: `[` stands for an apostrophe and `\` for a
+ * full stop/quote, so the extracted text contains `I HAVEN[T SEEN YOU` while
+ * the callers search for `HAVEN'T SEEN YOU`. A byte-for-byte strstr therefore
+ * silently failed and left `town_greet` at -1, which disabled the town NPC
+ * dialogue. Compare normalised forms instead: uppercase letters and digits
+ * only, every other character collapsed into a single space.
+ */
+static void NormalizeText(char *dst, size_t cap, const char *src) {
+    size_t n = 0;
+    int pending_space = 0;
+    for (const unsigned char *p = (const unsigned char *)src; *p && n + 1 < cap; p++) {
+        unsigned char c = *p;
+        if (c >= 'a' && c <= 'z')
+            c = (unsigned char)(c - 'a' + 'A');
+        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+            if (pending_space && n > 0 && n + 1 < cap)
+                dst[n++] = ' ';
+            pending_space = 0;
+            dst[n++] = (char)c;
+        } else {
+            pending_space = 1;
+        }
+    }
+    dst[n] = 0;
+}
+
+bool Text_ContainsLoose(const char *haystack, const char *needle) {
+    if (!haystack || !needle)
+        return false;
+    char hay[512];
+    char pin[256];
+    NormalizeText(hay, sizeof hay, haystack);
+    NormalizeText(pin, sizeof pin, needle);
+    if (!pin[0])
+        return false;
+    return strstr(hay, pin) != NULL;
+}
+
 int Text_Find(const TextScript *script, const char *needle) {
     if (!script || !needle || !*needle)
         return -1;
     for (int i = 0; i < script->count; i++) {
         for (int p = 0; p < script->page_count[i]; p++) {
             for (int l = 0; l < script->line_count[i][p]; l++) {
-                if (strstr(script->pages[i][p][l], needle))
+                if (Text_ContainsLoose(script->pages[i][p][l], needle))
                     return i;
             }
         }
