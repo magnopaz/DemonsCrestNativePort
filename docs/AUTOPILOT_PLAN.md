@@ -38,18 +38,29 @@ Environment (this machine):
       black bands and misaligned bricks (separate extraction defect).
 - [ ] Screenshot audit (30 areas, `/tmp/shots/shot_<area>.png`): black-pixel
       fraction ranges from 0.7% (area 14) to 91% (area 20). Areas above ~75%
-      (20, 34, 38, 84, 98, 102, 104) render as a lone platform in a void —
-      exactly the areas whose BG2 tilemap came out empty. **The baked BG
-      atlases are NOT the problem**: only 4–10% of the tiles a room references
-      are blank in `bg_area<N>_pal<P>.png`, so the art exists; the missing
-      layer is BG2.
+      (20, 34, 38, 84, 98, 102, 104) render as a lone platform in a void.
+      **Not an atlas problem** (only 4–10% of referenced tiles are blank) and
+      **not a BG2 problem alone**: `tools/oracle/compare_rooms.py` puts the
+      oracle frame beside `DC_AREA=1` and they are completely different rooms,
+      while the default `room.json` (same graveyard, hand-extracted from
+      `stage_600`) renders the full scene with trees, torches, water and the
+      green statue. So the campaign `room_areaN.json` BG1 data is only correct
+      for the screens the reference capture actually covered; the rest of the
+      grid is filler/zero. Both `room.json` and `room_area1.json` can be
+      "area 1"; only one of them is dressed.
+- [ ] `identify_area.py`: empty blocks made every area tie at 1.000. It now
+      ignores blocks that are <60% non-zero, but areas 1 and 73 still tie at
+      1.000 on real data — they appear to share identical screen blocks, so a
+      tie-break by world size or object list is still required.
 - [ ] Screenshot spot-checks (`DC_AREA`, `DC_RUN_FRAMES`, `DC_SCREENSHOT`).
 
 ## M3 — Oracle screenshot comparison harness
 
-- [ ] Script that renders a native room headless and a `cmd_screenshot` oracle
-      frame for the same save, then reports a pixel delta.
-- [ ] Use it to gate M2 and later AI/art work.
+- [x] `tools/oracle/compare_rooms.py`: oracle `screenshot` + native
+      `DC_AREA/DC_SCREENSHOT`, brute-force shift alignment, side-by-side PNG and
+      `compare.json` (mean abs diff). First result: area 1 native vs the
+      cemetery save = MAD 26.45 at a 94 px shift, and the images are different
+      rooms — see the M2 note.
 
 ## M4 — Enemies and bosses
 
