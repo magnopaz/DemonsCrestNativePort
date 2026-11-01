@@ -81,7 +81,14 @@ def native_screenshot(binary: Path, assets: Path, area: int, out: Path,
     path = out / "native_cmp.png"
     if not path.is_file():
         raise SystemExit(f"native screenshot missing ({path})")
-    return Image.open(path).convert("RGB")
+    img = Image.open(path).convert("RGB")
+    # raylib dumps the window, which is an integer multiple of the 256x224
+    # render target (1024x896 here). Comparing it against the oracle's 256x224
+    # frame without downscaling produced meaningless scores and a "different
+    # room" verdict for rooms that actually match.
+    if img.size != (256, 224):
+        img = img.resize((256, 224), Image.NEAREST)
+    return img
 
 
 def best_shift(a: Image.Image, b: Image.Image, max_dx: int = 96,

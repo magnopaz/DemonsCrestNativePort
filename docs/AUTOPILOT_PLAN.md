@@ -45,18 +45,21 @@ Environment (this machine):
       curated `bg2_captures.json` mapping cannot be extended safely.
 - [ ] Screenshot spot-checks: area 48 renders with a backdrop, but BG1 shows
       black bands and misaligned bricks (separate extraction defect).
-- [ ] Screenshot audit (30 areas, `/tmp/shots/shot_<area>.png`): black-pixel
-      fraction ranges from 0.7% (area 14) to 91% (area 20). Areas above ~75%
-      (20, 34, 38, 84, 98, 102, 104) render as a lone platform in a void.
-      **Not an atlas problem** (only 4–10% of referenced tiles are blank) and
-      **not a BG2 problem alone**: `tools/oracle/compare_rooms.py` puts the
-      oracle frame beside `DC_AREA=1` and they are completely different rooms,
-      while the default `room.json` (same graveyard, hand-extracted from
-      `stage_600`) renders the full scene with trees, torches, water and the
-      green statue. So the campaign `room_areaN.json` BG1 data is only correct
-      for the screens the reference capture actually covered; the rest of the
-      grid is filler/zero. Both `room.json` and `room_area1.json` can be
-      "area 1"; only one of them is dressed.
+- [x] Screenshot audit (30 areas, `/tmp/shots/shot_<area>.png`): black-pixel
+      fraction ranges from 0.7% (area 14) to 91% (area 20). That is a real
+      signal, but **the earlier "campaign BG1 is broken" conclusion was wrong**:
+      it came from `compare_rooms.py` scoring a 1024x896 window dump against a
+      256x224 oracle frame. With the native image downscaled to the render
+      target, the graveyard room is clearly the same scene as the original
+      (same trees, torches, water, green statue), MAD 27 mostly from camera
+      framing, the area banner overlay and the HUD.
+- [ ] `compare_rooms.py` fix applied: native screenshots are resized to
+      256x224 before scoring. Re-run it for a sample of areas before drawing
+      further conclusions about visual fidelity.
+- [ ] Area banner ("STAGE 01 / WORLD ...") shows up in every headless
+      screenshot and hides the top of the room; decide whether it should be
+      suppressed for `DC_RUN_FRAMES` captures (it is a gameplay overlay, not a
+      rendering defect).
 - [ ] `identify_area.py`: empty blocks made every area tie at 1.000. It now
       ignores blocks that are <60% non-zero, but areas 1 and 73 still tie at
       1.000 on real data — they appear to share identical screen blocks, so a
