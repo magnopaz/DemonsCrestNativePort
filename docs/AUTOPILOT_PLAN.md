@@ -22,7 +22,10 @@ Environment (this machine):
       are recorded in `docs/PROJECT_STATE.md` and the commits of 2026-11-01.
 - [x] Post-extraction pipeline made reproducible: `tools/build_assets.sh`
       (extract → anim → font/endings → `apply_boss_table` → `apply_npc_table`
-      → `apply_door_table`).
+      → `apply_door_table`). Verified end to end: wiped and rebuilt
+      `assets/generated` from ROM + `captures/graveyard` + `captures/anim`,
+      then `run_regression.py` → **PASS (exit 0)** on the rebuilt tree.
+      113 rooms, 28 with a non-empty BG2 after the rebuild.
 
 ## M2 — BG2 backdrop for every mapped area
 
