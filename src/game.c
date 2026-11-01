@@ -1995,10 +1995,14 @@ static void DrawAreaBanner(const Game *game) {
     else
         DrawCentered(TextFormat("%s %02d", tag, game->level.area_id), 34, 12,
                      (Color){240, 232, 200, a});
-    DrawCentered(TextFormat("%s %02d   WORLD %dx%d", tag,
-                            game->level.area_id, game->level.world_w,
-                            game->level.world_h), 52, 9,
-                 (Color){170, 180, 200, a});
+    /* The world dimensions are a development aid, not a player-facing caption:
+     * they used to be drawn unconditionally, so every room's banner read
+     * "STAGE 01 WORLD 768x256". Keep them behind an explicit opt-in. */
+    if (getenv("DC_DEBUG_BANNER"))
+        DrawCentered(TextFormat("%s %02d   WORLD %dx%d", tag,
+                                game->level.area_id, game->level.world_w,
+                                game->level.world_h), 52, 9,
+                     (Color){170, 180, 200, a});
 }
 
 static void DrawSubscreen(const Game *game) {

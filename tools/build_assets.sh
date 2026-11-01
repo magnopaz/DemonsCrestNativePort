@@ -56,10 +56,15 @@ else
 fi
 
 echo "== 3/6 font + endings =="
-if [ -d "$ROOT/captures/font" ]; then
+# The pause subscreen draws its labels with the BG3 ASCII font (tile index ==
+# ASCII code), so `captures/menu` is the authoritative source. The graveyard
+# frame also carries the HUD digits but not the whole printable set.
+if [ -d "$ROOT/captures/menu" ]; then
+  python3 tools/dc_extract/extract_font.py --dump "$ROOT/captures/menu" --out "$OUT"
+elif [ -d "$ROOT/captures/font" ]; then
   python3 tools/dc_extract/extract_font.py --dump "$ROOT/captures/font" --out "$OUT"
 else
-  echo "   captures/font missing; run tools/dc_extract/extract_font.py on a menu capture"
+  echo "   no menu capture; run tools/oracle/capture_menu.py for the BG3 font"
 fi
 python3 tools/dc_extract/build_endings.py --out "$OUT"
 
