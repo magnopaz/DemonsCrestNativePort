@@ -37,13 +37,13 @@ from pathlib import Path
 # crossing the door; the destination is the area the save pair shows on the
 # other side. The regression door checks assert these exact hops.
 DOORS: tuple[tuple[int, float, float, int, str], ...] = (
-    (2, 1706, 300, 4, "level I save pair, room 0 before_door"),
-    (0, 740, 190, 34, "colosseum after-boss save; second arena chunk"),
+    (2, 1706, 300, 4, "murkland cemetery before_door (save_lvl_I_room0)"),
+    (0, 740, 190, 34, "murkland colosseum after-boss save; second arena chunk"),
     (8, 32, 664, 10, "ruined city dark avenue before_door"),
     (10, 1264, 104, 18, "ruined city reservoir before_door"),
     (20, 440, 144, 22, "dark forest thorn grove before_door"),
-    (76, 226, 141, 78, "phalanx fortress spiny balcony before_door"),
-    (58, 224, 128, 60, "poseidonia aquatica before_door"),
+    (76, 226, 141, 78, "phalanx fortress western bell tower before_door"),
+    (58, 224, 128, 60, "mountains ice crevasse before_door -> Grewon valley"),
 )
 
 PLAYER_HALF_W = 6.0
