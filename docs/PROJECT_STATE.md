@@ -2501,9 +2501,13 @@ them and they are registered in `tools/dc_extract/bg2_captures.json`:
 
 | save | area | result |
 |---|---|---|
-| save7 | 48 | **excellent** — dungeon shelves, bottles, skulls, chains; the split BG1/BG2 atlases are clearly working |
-| save8 | 74 | **excellent** — forest cave with tree trunks, foliage and stalactites |
-| save9 | 58 | dark: a 256x256 room that is essentially black (likely colour-math driven), no visible backdrop |
+| save7 | **24** (raw `$008D` 48) | **excellent** — dungeon shelves, bottles, skulls, chains; the split BG1/BG2 atlases are clearly working |
+| save8 | **37** (raw 74) | **excellent** — forest cave with tree trunks, foliage and stalactites |
+| save9 | **29** (raw 58) | dark: a 256x256 room that is essentially black (likely colour-math driven), no visible backdrop |
+
+> The area numbers in this old table were the raw `$008D` bytes; the real area is
+> `$008D / 2`. Verified by `tools/oracle/map_saves_to_areas.py` (BG1 screen
+> matching + object-pool overlap), see `docs/SAVE_TO_AREA.md`.
 
 Area 48/74 screenshots show the room rendering as intended, which validates the
 BG1-from-ROM + BG2-from-capture atlas split introduced in Step 36.
