@@ -24,6 +24,16 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 from check_bosses import BOSSES  # noqa: E402
 
+# Bosses the checker does not assert (it covers the mid/end-game set).  Area 0's
+# Somulo comes from the ROM object list at (32, 88), which is behind the player
+# and outside the camera, so the colosseum duel never starts: shots fly right
+# into empty air and the six-hit check only lands one.  The arena's own save
+# (`lvl_0_murkland-colosseum`) puts the fight in the right half of the 768 px
+# room; 380 keeps him in view of the spawn at x=128.
+EXTRA: dict[int, list[tuple[str, int, int | None, int, int]]] = {
+    0: [("Somulo", 0x33, 128, 380, 170)],
+}
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
@@ -32,7 +42,8 @@ def main() -> int:
     args = ap.parse_args()
 
     changed = 0
-    for area, entries in sorted(BOSSES.items()):
+    table = {**BOSSES, **EXTRA}
+    for area, entries in sorted(table.items()):
         path = args.rooms / f"room_area{area}.json"
         if not path.is_file():
             print(f"area {area}: missing {path.name}, skipped")

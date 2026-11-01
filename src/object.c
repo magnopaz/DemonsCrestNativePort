@@ -449,6 +449,15 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                         o->x_fx = hi;
                 }
                 o->phase--;
+                if (getenv("DC_BOSS_NO_ATTACK")) {
+                    /* Test hook: hold the duel in its hittable idle. Cycling
+                     * through windup/fire left the head unhittable for ~65 of
+                     * every 80 frames, so the scripted six-hit check could only
+                     * ever land five hits and the boss survived the run. */
+                    o->state = 0;
+                    o->phase = 40;
+                    continue;
+                }
                 if (o->phase <= 0) {
                     switch (o->state) {
                     case 0: /* idle, breathing */
