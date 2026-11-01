@@ -62,8 +62,8 @@ Environment (this machine):
       `tools/oracle/bake_area_captures.py` turns the mapping into per-area
       captures and rewrites the manifest; only scores ≥0.99 are captured,
       because a wrong backdrop is worse than a black one.
-- [x] 45 area captures baked; extraction now reports **40 rooms with a
-      non-empty BG2** (was 28). Measured effect: area 20 went from 91.1% to
+- [x] 61 area captures baked; extraction now reports **50 rooms with a
+      non-empty BG2** (was 28 at the start of the session). Measured effect: area 20 went from 91.1% to
       39.1% black pixels, area 34 from 80.5% to 12.7% — area 34 now renders the
       starry sky, mountain silhouettes, mist and the icy ledge with icicles.
       Area 84 (Phalanx arena) stays dark by design.

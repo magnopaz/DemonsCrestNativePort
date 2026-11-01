@@ -137,7 +137,7 @@ exact password/save and ROM audio.
 
 ### Current limitations
 
-- All 113 areas load, and **44 of them now have a real BG2 backdrop** baked from
+- All 113 areas load, and **50 of them now have a real BG2 backdrop** baked from
   an oracle capture. The mapping from save states to extracted rooms is solved
   (`area = WRAM $008D / 2`, verified three ways in `docs/SAVE_TO_AREA.md`); the
   remaining rooms have no verified save yet, so their BG2 stays transparent
