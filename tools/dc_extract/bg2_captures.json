@@ -15,72 +15,72 @@
   },
   "2": {
    "dir": "captures/save10",
-   "frame": 61,
+   "frame": 6685,
    "note": "save10 (late-game, Area 2 forest); frames 0..105 stapled for coverage"
   },
   "48": {
    "dir": "captures/save7",
-   "frame": 61,
+   "frame": 7403,
    "note": "save7 boss room (area 48)"
   },
   "74": {
    "dir": "captures/save8",
-   "frame": 61,
+   "frame": 6412,
    "note": "save8 (area 74)"
   },
   "58": {
    "dir": "captures/save9",
-   "frame": 61,
+   "frame": 6249,
    "note": "save9 (area 58)"
   },
   "0": {
    "dir": "captures/save0a",
-   "frame": 90000,
+   "frame": 6480,
    "note": "area 0 colosseum (Somulo save 0a)"
   },
   "4": {
    "dir": "captures/save6a",
-   "frame": 90000,
+   "frame": 34993,
    "note": "area 4 (save 6a)"
   },
   "6": {
    "dir": "captures/save8a",
-   "frame": 90000,
+   "frame": 41795,
    "note": "area 6 Arma (save 8a)"
   },
   "34": {
    "dir": "captures/save1a",
-   "frame": 90000,
+   "frame": 8645,
    "note": "area 34 (save 1a)"
   },
   "8": {
    "dir": "captures/save1b",
-   "frame": 90000,
+   "frame": 55658,
    "note": "area 8 city (save 1b)"
   },
   "10": {
    "dir": "captures/save3b",
-   "frame": 90000,
+   "frame": 71929,
    "note": "area 10 enemies (save 3b)"
   },
   "12": {
    "dir": "captures/save5b",
-   "frame": 90000,
+   "frame": 72470,
    "note": "area 12 (save 5b)"
   },
   "14": {
    "dir": "captures/save7b",
-   "frame": 90000,
+   "frame": 78579,
    "note": "area 14 dark candle (save 7b)"
   },
   "16": {
    "dir": "captures/save9b",
-   "frame": 90000,
+   "frame": 83987,
    "note": "area 16 boss (save 9b)"
   },
   "18": {
    "dir": "captures/save5c",
-   "frame": 90000,
+   "frame": 128090,
    "note": "area 18 skull piles (save 5c)"
   },
   "20": {
@@ -90,82 +90,82 @@
   },
   "24": {
    "dir": "captures/save1d",
-   "frame": 90000,
+   "frame": 210846,
    "note": "area 24 (save 1d)"
   },
   "28": {
    "dir": "captures/save2d",
-   "frame": 90000,
+   "frame": 214562,
    "note": "area 28 burning forest (save 2d)"
   },
   "32": {
    "dir": "captures/save5d",
-   "frame": 90000,
+   "frame": 225922,
    "note": "area 32 hidden room (save 5d)"
   },
   "96": {
    "dir": "captures/save1c",
-   "frame": 90000,
+   "frame": 112844,
    "note": "area 96 potion store (save 1c)"
   },
   "100": {
    "dir": "captures/save7d",
-   "frame": 90000,
+   "frame": 232744,
    "note": "area 100 burned state (save 7d)"
   },
   "102": {
    "dir": "captures/save6d",
-   "frame": 90000,
+   "frame": 231074,
    "note": "area 102 boss (save 6d)"
   },
   "36": {
    "dir": "captures/nb/save1e",
-   "frame": 90000,
+   "frame": 237677,
    "note": "area 36 (save 1e)"
   },
   "38": {
    "dir": "captures/nb/save3e",
-   "frame": 90000,
+   "frame": 244642,
    "note": "area 38 wind room (save 3e)"
   },
   "40": {
    "dir": "captures/nb/save7e",
-   "frame": 90000,
+   "frame": 256565,
    "note": "area 40 mid boss (save 7e)"
   },
   "42": {
    "dir": "captures/nb/save8e",
-   "frame": 90000,
+   "frame": 262582,
    "note": "area 42 (save 8e)"
   },
   "46": {
    "dir": "captures/nb/save11e",
-   "frame": 90000,
+   "frame": 269793,
    "note": "area 46 lake (save 11e)"
   },
   "84": {
    "dir": "captures/nb/save7ee",
-   "frame": 90000,
+   "frame": 293697,
    "note": "area 84 final boss (save 7ee)"
   },
   "92": {
    "dir": "captures/nb/save6d",
-   "frame": 90000,
+   "frame": 231074,
    "note": "area 92 library (save 6d)"
   },
   "98": {
    "dir": "captures/nb/save5d",
-   "frame": 90000,
+   "frame": 225922,
    "note": "area 98 spell shop (save 5d)"
   },
   "104": {
    "dir": "captures/nb/save2d",
-   "frame": 90000,
+   "frame": 214562,
    "note": "area 104 minigame (save 2d)"
   },
   "110": {
    "dir": "captures/nb/save1d",
-   "frame": 90000,
+   "frame": 210846,
    "note": "area 110 Black Lotus 2 (save 1d)"
   }
  }

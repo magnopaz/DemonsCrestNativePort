@@ -1318,10 +1318,14 @@ These were already discovered the hard way; do not rediscover them.
     `set_controller 128` is parsed as an unknown button and the command fails;
     capture tools must check the JSON error field instead of ignoring it.
 
-18. **WRAM `$008D` is not the ROM `$81:A291` area index.**
-    `$008D == 2` indicates active gameplay mode, whereas `$81:A291` is 0-indexed
-    by sub-area (`0` = Somulo colosseum, `1` = Graveyard forest `stage_600`,
-    `2` = Graveyard catacombs, `3` = Graveyard ruins `save0`).
+18. **WRAM `$008D` is the area index once the room is settled — but not during a transition.**
+    On a settled gameplay frame `$008D` equals the ROM `$81:A291` area index
+    (verified against independently known saves: `save0a`=0 area 0, `save10`=2,
+    `save6a`=4, `save8a`=6, `save1a`=34, `save7`=48, `save9`=58, `save8`=74).
+    Mid-transition/forced-blank frames it instead carries the game-mode value
+    `2`, which is where the earlier "not the area index" reading came from.
+    Always settle the frame (first `inidisp & 0x0F >= 0x0C`, then ~45 more
+    frames) before reading it; `tools/oracle/probe_save_area.py` does this.
 
 19. **`$85:C1D4` is a bouncing heart pickup, not Firebrand's jump.**
     Firebrand's jump is at `$80:E160..E239` (`$1022 = 0x059C`, gravity

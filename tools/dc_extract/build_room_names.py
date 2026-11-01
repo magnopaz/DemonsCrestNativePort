@@ -40,7 +40,12 @@ PATTERN = re.compile(r"^(?:save_)?lvl_(?P<level>[0IVX]+)_(?P<rest>.+)$")
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--probes", type=Path, required=True)
+    ap.add_argument("--probes", type=Path,
+                    default=None,
+                    help="oracle_probe directory (omit when --areas is given)")
+    ap.add_argument("--areas", type=Path, default=None,
+                    help="JSON from tools/oracle/probe_save_area.py "
+                         "(save name -> area), instead of per-save probes")
     ap.add_argument("--maps", type=Path,
                     default=Path("docs/FullMaps/images"))
     ap.add_argument("--out", type=Path,
@@ -58,9 +63,23 @@ def main() -> int:
     unmatched: list[str] = []
 
     infos = sorted(set(args.probes.glob("save_lvl_*/info.json")) |
-                   set(args.probes.glob("lvl_*/info.json")))
-    for info in infos:
-        stem = info.parent.name
+                   set(args.probes.glob("lvl_*/info.json"))) if args.probes else []
+    # A probe directory is only needed when no area map is supplied. The area
+    # id in WRAM $008D can be read directly from every save
+    # (tools/oracle/probe_save_area.py), which makes this step independent of
+    # the old oracle_probe captures.
+    sources: list[tuple[str, int]] = []
+    if args.areas:
+        for row in json.loads(args.areas.read_text()):
+            if "area" not in row:
+                continue
+            stem = row["save"][:-4] if row["save"].endswith(".sav") else row["save"]
+            sources.append((stem, int(row["area"])))
+    else:
+        for info in infos:
+            data = json.loads(info.read_text())
+            sources.append((info.parent.name, int(data["area"])))
+    for stem, area in sorted(sources):
         m = PATTERN.match(stem)
         if not m:
             continue
@@ -79,8 +98,6 @@ def main() -> int:
             # but are still named rooms; keep the save's own name.
             map_name = raw
             in_maps = False
-        data = json.loads(info.read_text())
-        area = int(data["area"])
         if area > 112:
             print(f"skip {stem}: area {area} is outside the extracted set")
             continue
