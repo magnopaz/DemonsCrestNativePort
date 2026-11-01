@@ -1318,14 +1318,17 @@ These were already discovered the hard way; do not rediscover them.
     `set_controller 128` is parsed as an unknown button and the command fails;
     capture tools must check the JSON error field instead of ignoring it.
 
-18. **WRAM `$008D` is the area index once the room is settled — but not during a transition.**
-    On a settled gameplay frame `$008D` equals the ROM `$81:A291` area index
-    (verified against independently known saves: `save0a`=0 area 0, `save10`=2,
-    `save6a`=4, `save8a`=6, `save1a`=34, `save7`=48, `save9`=58, `save8`=74).
-    Mid-transition/forced-blank frames it instead carries the game-mode value
-    `2`, which is where the earlier "not the area index" reading came from.
-    Always settle the frame (first `inidisp & 0x0F >= 0x0C`, then ~45 more
-    frames) before reading it; `tools/oracle/probe_save_area.py` does this.
+18. **WRAM `$008D` is NOT the area index — the apparent matches were coincidence.**
+    It first looked like the `$81:A291` area id: `save0a`=0, `save10`=2, `save6a`=4,
+    `save8a`=6, `save1a`=34, `save7`=48, `save9`=58, `save8`=74 all matched the
+    curated `bg2_captures.json` mapping. That mapping is itself unverified.
+    The decisive counter-example: `lvl_I_murkland-cemetery.sav` reads `$008D == 2`,
+    but its live BG1 tilemap matches **area 1** cell-for-cell (1.000) and area 2
+    only at 0.38. `$008D` is therefore a stage/room id, not the extracted area
+    index; the two number spaces merely coincide for several early rooms.
+    Do not use it to map saves to areas. `tools/oracle/identify_area.py` matches
+    BG1 instead, but needs a tie-break: some areas share identical screen data
+    (areas 1 and 73 tie at 1.000 for the same frame).
 
 19. **`$85:C1D4` is a bouncing heart pickup, not Firebrand's jump.**
     Firebrand's jump is at `$80:E160..E239` (`$1022 = 0x059C`, gravity

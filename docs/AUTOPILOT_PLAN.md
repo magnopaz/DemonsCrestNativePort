@@ -25,9 +25,17 @@ Environment (this machine):
   (The old `capture_save_frames.py` hard-codes `M:\Opencode` and integer saves;
   a relative `--resume-state` is resolved against the recomp cwd and silently
   fails, so every path handed to the host must be absolute.)
-- [ ] Fresh `fNNNNNN.*` for all 31 manifest saves (`captures/save*`, `nb/save*`).
-- [ ] Rewrite `tools/dc_extract/bg2_captures.json` frames to the captured ones.
-- [ ] Re-extract; assert every entry has a non-empty BG2 tilemap.
+- [x] Fresh `fNNNNNN.*` for 30 of the 31 manifest saves, manifest frames rewritten.
+- [x] Re-extract with 30 captured backdrops (area 48 shows the night sky behind
+      the dungeon; area 20 captured separately after a transient debug-server
+      failure).
+- [ ] **Area identification is unsolved.** `WRAM $008D` is a stage/room id, not
+      the extractor's area index (`lvl_I_murkland-cemetery` reads 2 but its BG1
+      matches area 1 at 1.000). `identify_area.py` matches BG1 exactly but ties
+      on areas that share screen data (1 vs 73). Until a tie-break exists, the
+      curated `bg2_captures.json` mapping cannot be extended safely.
+- [ ] Screenshot spot-checks: area 48 renders with a backdrop, but BG1 shows
+      black bands and misaligned bricks (separate extraction defect).
 - [ ] Screenshot spot-checks (`DC_AREA`, `DC_RUN_FRAMES`, `DC_SCREENSHOT`).
 
 ## M3 — Oracle screenshot comparison harness

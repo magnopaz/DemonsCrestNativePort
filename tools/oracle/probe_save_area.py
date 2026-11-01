@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Read the current area id out of a recomp save state, fast.
+"""Read the current room/stage id out of a recomp save state, fast.
 
-The guest keeps the ROM area index (the `$81:A291` sub-area id the extractor
-calls `area_id`) in WRAM `$008D` once a room is settled.  This was verified on
-saves with independently known areas: save0a=0, save10=2, save6a=4, save8a=6,
-save1a=34, save7=48, save9=58, save8=74.
-
-(`docs/PROJECT_STATE.md` trap 18 says `$008D` is not the area index, but that
-observation was taken mid-transition, where the same word carries the game-mode
-value 2.  A settled frame always matches the mapped area.)
+The guest keeps a stage/room id in WRAM `$008D` once a room is settled.  It
+looks like the extractor's area id for several early rooms (save0a=0, save10=2,
+save6a=4, save1a=34, save7=48, save9=58, save8=74), but it is **not** the
+`$81:A291` area index: `lvl_I_murkland-cemetery.sav` reads 2 while its BG1
+matches area 1 at 1.000.  Treat the value as a save fingerprint / room id, and
+use `tools/oracle/identify_area.py` when the actual extracted area is needed.
 
 Usage:
   python3 tools/oracle/probe_save_area.py --save <state.sav> [...]
