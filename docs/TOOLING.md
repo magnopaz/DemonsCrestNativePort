@@ -75,8 +75,17 @@ mappings recovered from their live object pools:
 The demon-realm `$58` object uses `Flame Lord.gif`; the final second form `$BC`
 uses `Dark Demon.gif`. Phalanx's second form uses `$8D` and the three full-body
 poses from `Ultimate Phalanx.gif`; the second-form object keeps the `$86` head
-AI. Boss sheets can be baked directly from measured full-body boxes with the
-generic tool:
+AI. `tools/check_bosses.py` is the data/runtime gate for these mappings:
+
+```text
+python tools/check_bosses.py --binary build/demonscrest.exe \
+  --assets assets/generated --runtime
+```
+
+It checks the expected species/flags/positions, the base/variant textures, and
+boots each room briefly to confirm the boss object actually spawns. The object
+trace gained a `flags` column for the Arma palette variants. Boss sheets can be
+baked directly from measured full-body boxes with the generic tool:
 
 ```text
 python tools/dc_extract/bake_boss_rows.py \

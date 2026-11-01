@@ -145,6 +145,16 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="dc-regression-") as td:
         out = Path(td)
 
+        # ---- Boss data contract and runtime presence ----
+        boss_proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_bosses.py"),
+             "--binary", str(binary), "--assets", str(assets),
+             "--runtime", "--tmp", str(out)],
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=300)
+        check(boss_proc.returncode == 0,
+              "bosses: data/runtime check failed\n" + boss_proc.stdout[-800:])
+
         # ---- Step 3: walk / tap-jump / hold-jump / hover replay ----
         d6 = run_demo(base, out, 6, 603)
         rows = csv_rows(d6["player"])
@@ -493,7 +503,8 @@ def main() -> int:
         for message in failures:
             print(f"  - {message}")
         return 1
-    print("regression: PASS (demos 6,7,9,10,11,12,13, boss defeat + multi-area loads)")
+    print("regression: PASS (demos 6,7,9,10,11,12,13, boss data/runtime, "
+          "boss defeat + multi-area loads)")
     return 0
 
 

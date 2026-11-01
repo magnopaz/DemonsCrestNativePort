@@ -452,7 +452,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         game->object_trace = fopen(object_trace_path, "w");
         if (game->object_trace) {
             fprintf(game->object_trace,
-                    "frame,slot,type,x,y,vx,vy,state,hp,flash,species\n");
+                    "frame,slot,type,x,y,vx,vy,state,hp,flash,species,flags\n");
         } else {
             fprintf(stderr, "game: cannot open object trace %s\n",
                     object_trace_path);
@@ -717,11 +717,11 @@ static void Game_UpdateSimulation(Game *game) {
             if (!o->active)
                 continue;
             fprintf(game->object_trace,
-                    "%u,%d,%d,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d\n",
+                    "%u,%d,%d,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%d\n",
                     game->frame, i, (int)o->type,
                     (float)o->x_fx / 256.0f, (float)o->y_fx / 256.0f,
                     (float)o->vx_fx / 256.0f, (float)o->vy_fx / 256.0f,
-                    o->state, o->hp, o->hit_flash, o->species);
+                    o->state, o->hp, o->hit_flash, o->species, o->flags);
         }
     }
     game->frame++;

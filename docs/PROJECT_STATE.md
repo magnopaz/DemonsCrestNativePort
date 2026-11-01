@@ -756,7 +756,7 @@ frame,slot,x,y,vx,age
 Object trace CSV columns:
 
 ```
-frame,slot,type,x,y,vx,vy,state
+frame,slot,type,x,y,vx,vy,state,hp,flash,species,flags
 ```
 
 ---
@@ -3746,6 +3746,11 @@ Applied the highest-impact items from the sprite review:
 - **Data gate:** new `tools/audit_sprites.py` rejects missing textures, anchors
   outside the image, duplicate images assigned to different species, and
   fragmented tilemap-like captures. It runs in `run_regression.py`.
+  `tools/check_bosses.py` adds the content contract the structural audit cannot
+  see: expected species/flags/position per boss room, base/variant texture
+  presence, and a runtime object-trace smoke test for all eleven boss rooms.
+  This would catch the old `$96` placeholders, off-screen Crawler/Arma objects,
+  and missing Arma palette entries.
   `species_anim.json` was quarantined from 34 to 21 species; the removed entries
   were duplicates/shared clusters (`28/29/2a`, `41/87`) and fragmented captures.
   A clean `$23` ghost was then recovered from reference frame 8000 (22 species).
