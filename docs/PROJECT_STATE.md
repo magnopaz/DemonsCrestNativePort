@@ -3774,7 +3774,9 @@ Applied the highest-impact items from the sprite review:
   and multiple dragons. It also bakes the green second-fight palette
   (`flags=2`) and `Ultimate Arma` (`flags=4`) as boss variants; the renderer
   selects them from the object flags, so areas 23 and 36/67 no longer use the
-  base palette.
+  base palette. The area-3/23 boss objects had `y=0` while their cameras were
+  at 1040/1792; they are now at 1180/1932, inside the visible chunk, with the
+  flags preserved.
 - **Tooling:** `OAM` composition now reuses the verified `extract.py` metaspriter
   (whole-sprite flips); `extract_species.py` merges instead of overwriting
   hand-baked entries (with `--prune` to force a replacement); species captures

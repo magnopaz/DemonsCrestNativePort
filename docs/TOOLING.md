@@ -100,6 +100,10 @@ placements are:
 
 ```text
 python tools/dc_extract/add_room_boss.py \
+  --room assets/generated/room_area3.json --bosses "165:856:1180:0"
+python tools/dc_extract/add_room_boss.py \
+  --room assets/generated/room_area23.json --bosses "165:640:1932:2"
+python tools/dc_extract/add_room_boss.py \
   --room assets/generated/room_area68.json --bosses "130:1808:160"
 python tools/dc_extract/add_room_boss.py \
   --room assets/generated/room_area86.json --bosses "88:128:120"
@@ -107,8 +111,11 @@ python tools/dc_extract/add_room_boss.py \
   --room assets/generated/room_area90.json --bosses "188:128:120"
 ```
 
-Crawler uses `y=160` rather than the save's `y=72`: the original position is
-almost entirely above the camera at area 68 and cannot be fought.
+The fourth field is the object flags (Arma palette); omitted flags are preserved
+on a replacement. Crawler uses `y=160` rather than the save's `y=72`: the
+original position is almost entirely above the camera at area 68 and cannot be
+fought. Arma's area-3/23 objects also had `y=0` despite their cameras sitting at
+`y=1040`/`y=1792`; they are moved to `1180`/`1932` in the same chunk.
 
 Some species ids are reused by different object kinds; `species_anim.json`
 also supports an optional `"variant": "boss"` entry, used only for
