@@ -208,6 +208,13 @@ static void SpawnBoss(ObjectPool *pool, const LevelObject *src) {
     } else if (src->species == 0xA5 && by < 64.0f) {
         by = 140.0f;
     }
+    /* The ROM stores a boss's y at the centre of its hitbox, while the port
+     * anchors sprites at their feet. Somulo's box is 92 px tall (80x92), so his
+     * feet sit 23 px below the stored value -- exactly the colosseum floor
+     * (170 + 23 = 193 against a 192 floor line). Without this he stands in the
+     * air, which is how the fight shipped until now. */
+    if (src->species == 0x33)
+        by += 23.0f;
     /* Test hook: place the boss where a grounded demo can reach it. */
     const char *bx_env = getenv("DC_BOSS_X");
     const char *by_env = getenv("DC_BOSS_Y");
@@ -461,10 +468,18 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 if (o->phase <= 0) {
                     switch (o->state) {
                     case 0: /* idle, breathing */
-                        o->state = 1;
-                        o->phase = 34;
+                        /* Lore rule (Ghosts'n Goblins wiki): he only lowers his
+                         * head to shoot when Firebrand is on the ground, and
+                         * attacks from above if the player stays airborne. */
+                        if (player->on_ground) {
+                            o->state = 1;
+                            o->phase = 34;
+                        } else {
+                            o->state = 5;
+                            o->phase = 26;
+                        }
                         break;
-                    case 1: /* windup: jaw opens */
+                    case 1: /* windup: head lowered, jaws open */
                         o->state = 2;
                         o->phase = 10;
                         break;
@@ -480,12 +495,30 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                         float oy = (float)o->y_fx / FX_ONE;
                         float mouth_x = ox + ((dx > 0) ? 26.0f : -26.0f);
                         float mouth_y = oy + 10.0f;
-                        bool low = (o->hops++ & 1) == 0;
-                        o->substate = low ? 1 : 2;
-                        float target_y = low ? (player->y - 4.0f)
-                                             : (player->y - 26.0f);
+                        /* Grounded player: the shot goes low and spreads into a
+                         * fire wave when it lands (wiki). */
+                        o->substate = 1;
+                        float target_y = player->y - 2.0f;
                         float tx = player->x - mouth_x;
                         float ty = target_y - mouth_y;
+                        float len = sqrtf(tx * tx + ty * ty);
+                        if (len < 0.001f)
+                            len = 1.0f;
+                        SpawnBossFireball(pool, mouth_x, mouth_y,
+                                          (int32_t)(tx / len * 1.6f * FX_ONE),
+                                          (int32_t)(ty / len * 1.6f * FX_ONE));
+                        o->state = 3;
+                        o->phase = 20;
+                        break;
+                    }
+                    case 5: { /* airborne player: attack from above, no head dip */
+                        float ox = (float)o->x_fx / FX_ONE;
+                        float oy = (float)o->y_fx / FX_ONE;
+                        float mouth_x = ox;
+                        float mouth_y = oy - 40.0f;
+                        o->substate = 2;
+                        float tx = player->x - mouth_x;
+                        float ty = player->y - mouth_y;
                         float len = sqrtf(tx * tx + ty * ty);
                         if (len < 0.001f)
                             len = 1.0f;
@@ -510,14 +543,11 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                         break;
                     }
                 }
-                /* The head rises while breathing fire and sinks again after,
-                 * which is the window a grounded shot can reach. */
-                int32_t low_y = o->origin_y_fx + (int32_t)(86.0f * FX_ONE);
-                int32_t high_y = o->origin_y_fx;
-                if (o->state == 1 || o->state == 2)
-                    o->y_fx += (high_y - o->y_fx) / 4;
-                else
-                    o->y_fx += (low_y - o->y_fx) / 2;
+                /* The object stays planted: the head dip is a sprite state, not a
+                 * translation. Dragging y toward origin+86 used to sink him to
+                 * the world bottom (y=256) while idle, which is why the boss
+                 * looked like it slid instead of standing and animating. */
+                o->y_fx = o->origin_y_fx;
             } else if (o->species == 0x13) {
                 /* Grewon: a ground beast. It paces toward Firebrand, crouches,
                  * then charges across the arena, and is helpless while turning
