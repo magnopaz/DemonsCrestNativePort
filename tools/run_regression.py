@@ -363,6 +363,16 @@ def main() -> int:
             check(isinstance(data.get("area"), int),
                   "pause: save file has no area field")
 
+        # ---- Species $67: the ROM ghoul state machine ----
+        ghoul_proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_ghoul.py"),
+             "--binary", str(binary), "--assets", str(assets),
+             "--tmp", str(out)],
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=300)
+        check(ghoul_proc.returncode == 0,
+              "ghoul: state machine check failed\n" + ghoul_proc.stdout[-800:])
+
         # ---- Room transition: the console's 28+64+28 INIDISP fade ----
         fade_proc = subprocess.run(
             [sys.executable, str(ROOT / "tools" / "check_transition_fade.py"),
@@ -526,8 +536,10 @@ def main() -> int:
         check(seq4[-1] == (0, 5),
               f"MVP: the last three hits did not collapse him: {seq4}")
 
-        d10 = run_demo(base, out, 10, 260,
-                       {"DC_START_X": "900", "DC_START_Y": "160"})
+        # 420 frames: the authentic ghoul spends its first 256 in the volley
+        # (32 + 3x64 + 32) before the hop that takes it off the ledge.
+        d10 = run_demo(base, out, 10, 420,
+                       {"DC_START_X": "930", "DC_START_Y": "160"})
         rows10 = csv_rows(d10["player"])
         hp10 = [int(r["hp"]) for r in rows10]
         check(any(hp10[i] < hp10[i - 1] for i in range(1, len(hp10))),

@@ -5,6 +5,30 @@ Project root: `projetos/opencode/DemonsCrestNativePort`
 Reference recompilation: `projetos/opencode/DemonsCrestSNESRecomp`
 ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
 
+## Session 2026-11-02 (part 3) — the species `$67` ghoul runs its ROM machine
+
+- **`GhoulUpdate` in `src/object.c` replaces the hand-written approximation.**
+  It follows `$83:AF74` exactly: five states (`$AF89`, `$B065`, `$B0E4`, `$B1AF`,
+  `$B249`) with four substates each (the tables are indexed by even byte
+  offsets), the ROM's launch speeds (`0x0050` / `0x0398` / `0x04D0`, long hop
+  `0x0120` / `0x0540`), gravity `0x0040`, the `-9` lift and `+7` snap, the
+  32/64/32 volley cadence with three children, and the `$B2E8` range check.
+  Full table and provenance: `docs/GHOUL_AI.md`.
+- **The spit is a child, not a fireball.** `$B14F` allocates another `$67` with
+  `$05 = 6` (it dives at the player and despawns); the port reuses
+  `OBJECT_ENEMY_SHOT`, which already does that.
+- **Verified against the live oracle**: an injected `$67` in area 1 sampled for
+  300 frames shows `state 4 (32 -> 3x64 -> 32) -> state 0 (windup 3, airborne,
+  land 6)` with `vx = 0x50` and `vy` starting at `0x398` and gaining `0x40` per
+  frame. The port reproduces the same order in `DC_TRACE_OBJECTS`
+  (`4 until frame 257, 0 from 257, 2 from 401`) and its children damage the
+  player again (contact damage had to keep running after the species dispatch).
+- `DC_DEBUG_GHOUL=1` prints state/substate/phase/position per ghoul per frame.
+- Still approximate, and listed as such in `docs/GHOUL_AI.md`: the `$80F81D`
+  animation streams are mapped onto the baked poses, the `$DEA2` idle picker is
+  a deterministic rotation, and the `$DE8F/$DE93/$DE9B` pacing tables and
+  `$DEB2/$DEBA/$DEC2` distance bands are not transcribed byte for byte.
+
 ## Session 2026-11-02 (part 2) — MVP 2 starts: room-change fade (done)
 
 - **Room changes now fade like the console.** Measured on the oracle from
@@ -943,6 +967,7 @@ The original SNES default mapping was verified from `$80:DB00..DB40` and `save0`
 | `DC_SCREENSHOT=name.png` | save last presented frame |
 | `DC_TRACE_CSV=path` | per-frame player/camera CSV |
 | `DC_TRACE_FADE=path` | per-frame room-change fade CSV (`frame,phase,timer,fade,area`) |
+| `DC_DEBUG_GHOUL=1` | per-frame species `$67` state/substate/phase print |
 | `DC_DEMO=1` | long walk/jump/fly demo |
 | `DC_DEMO=2` | short walk/jump demo |
 | `DC_DEMO=3` | mirrors the area-2 physics probe timing |

@@ -326,7 +326,297 @@ static void DamagePlayer(Player *player, float ox, int amount) {
     player->hurt_event = true;
 }
 
+/* ------------------------------------------------------------------------- *
+ * Species $67 - Graveyard Ghoul
+ *
+ * Port of the ROM's own handler: init $83:AF19, update $83:AF74, which
+ * dispatches on $05 through the table at $AF7F and on $06 through per-state
+ * tables. States are even byte offsets, so each state has four substates
+ * (0/2/4/6):
+ *
+ *   0 $AF89  small hop loop        sub 0 decide, 2 windup, 4 airborne, 6 land
+ *   2 $B065  long hop              sub 0 face, 2 windup 32, 4 airborne, 6 land
+ *   4 $B0E4  stand and spit        sub 0 face, 2 windup 32, 4 three children
+ *                                  on a 64-frame cadence, 6 hold 32
+ *   6 $B1AF  leap / child flight   sub 0 aim, 2 fly, 4 impact, 6 despawn
+ *   8 $B249  cooldown              sub 0 wait $43, 2 re-check range
+ *
+ * The hop constants are the ROM's: launch `$22 = 0x0398` (`0x04D0` on odd
+ * hops), `$20 = 0x0050`, gravity `$26 = 0x0040`, `$34 -= 9` at launch and
+ * `+7` on landing. The long hop uses `$20 = 0x0120`, `$22 = 0x0540`.
+ * The live oracle trace (`/tmp/ghoul_trace`, 300 frames, area 1) confirms the
+ * observed order 4 -> 0(2,4,6) -> 0(2,...) with the 32/64/32 volley cadence.
+ * ------------------------------------------------------------------------- */
+#define GHOUL_GRAVITY 0x0040
+#define GHOUL_RANGE_X 0x00E0
+#define GHOUL_RANGE_Y 0x0050
+
+static void GhoulFace(Object *o, const Player *p) {
+    o->facing = (p->x_fx >= o->x_fx) ? 1 : -1;
+}
+
+/* $B2E8: |(x + 0x70) - player.x| < 0xE0, the $03 bit 6 flag set, and the
+ * player above the ghoul or no more than 0x50 below it. */
+static bool GhoulInRange(const Object *o, const Player *p) {
+    int32_t dx = (o->x_fx + 0x70 * FX_ONE) - p->x_fx;
+    if (labs((long)dx) >= GHOUL_RANGE_X * FX_ONE)
+        return false;
+    if (!(o->flags & 0x40))
+        return false;
+    int32_t dy = p->y_fx - o->y_fx;   /* y grows downward */
+    return dy < GHOUL_RANGE_Y * FX_ONE;
+}
+
+/* One applied step of the ROM's move + gravity, returning true on landing. */
+static bool GhoulMove(Object *o, const Level *level) {
+    o->x_fx += o->vx_fx;
+    o->y_fx += o->vy_fx;
+    o->vy_fx += GHOUL_GRAVITY;
+    float fx = (float)o->x_fx / FX_ONE;
+    float fy = (float)o->y_fx / FX_ONE;
+    float surf;
+    if (o->vy_fx > 0 && Level_FloorAt(level, fx, fy + 2.0f, &surf) &&
+        surf <= fy + 10.0f) {
+        o->y_fx = (int32_t)lroundf(surf * FX_ONE);
+        o->vx_fx = 0;
+        o->vy_fx = 0;
+        return true;
+    }
+    return false;
+}
+
+/* $B14F: the spit. The ROM spawns another $67 object at (+-0x13, -0x14) and
+ * sets its state to 6, so the "projectile" is a small diving ghoul. */
+static void GhoulSpit(ObjectPool *pool, const Object *o) {
+    float ox = (float)o->x_fx / FX_ONE + (float)(o->facing * 0x13);
+    float oy = (float)o->y_fx / FX_ONE - 0x14;
+    /* The child is aimed at its parent's own x ($3F is written from $31 at
+     * $B17C), so the distance band is the near one: vx = 0x80, vy = 0x03A0.
+     * It does not home across the room; it lobs and falls. */
+    SpawnEnemyShot(pool, ox, oy, o->facing * 0x0080, -0x03A0);
+}
+
+static void GhoulUpdate(Object *o, const Level *level, const Player *p,
+                        ObjectPool *pool) {
+    if (getenv("DC_DEBUG_GHOUL"))
+        fprintf(stderr, "ghoul t=%d st=%d sub=%d ph=%d x=%.1f y=%.1f\n",
+                o->timer, o->state, o->substate, o->phase,
+                (float)o->x_fx / FX_ONE, (float)o->y_fx / FX_ONE);
+    switch (o->state) {
+    case 0: /* $AF89 small hop loop */
+        switch (o->substate) {
+        case 0:
+            if (GhoulInRange(o, p)) {
+                GhoulFace(o, p);
+                o->hops = 0;
+                o->substate = 2;
+                o->phase = 3;          /* $3B = 3 */
+            } else {
+                /* $DEA2 picks at random; the port rotates deterministically so
+                 * a replay is reproducible: hop, volley, long hop. */
+                o->saved_state = (o->saved_state + 1) % 3;
+                if (o->saved_state == 1) {
+                    o->state = 4;
+                    o->substate = 0;
+                } else if (o->saved_state == 2) {
+                    o->state = 2;
+                    o->substate = 0;
+                } else {
+                    /* The rotation's third beat is the plain small hop. */
+                    GhoulFace(o, p);
+                    o->hops = 0;
+                    o->substate = 2;
+                    o->phase = 3;
+                }
+            }
+            break;
+        case 2:
+            GhoulFace(o, p);
+            if (--o->phase <= 0) {
+                o->y_fx -= 9 * FX_ONE;             /* $B2B1 */
+                o->vx_fx = o->facing * 0x0050;
+                o->vy_fx = -((o->hops & 1) ? 0x04D0 : 0x0398);
+                o->substate = 4;
+            }
+            break;
+        case 4:
+            if (GhoulMove(o, level)) {
+                o->y_fx += 7 * FX_ONE;             /* $B2C7 */
+                o->substate = 6;
+                o->phase = 6;
+            }
+            break;
+        case 6:
+            if (--o->phase <= 0) {
+                o->hops++;                          /* $B034 */
+                if (o->hops >= 3) {
+                    o->substate = 0;
+                } else {
+                    o->facing = -o->facing;
+                    o->substate = 2;
+                    o->phase = 3;
+                }
+            }
+            break;
+        default:
+            o->substate = 0;
+            break;
+        }
+        break;
+
+    case 2: /* $B065 long hop */
+        switch (o->substate) {
+        case 0:
+            GhoulFace(o, p);
+            o->substate = 2;
+            o->phase = 0x20;
+            break;
+        case 2:
+            if (--o->phase <= 0) {
+                o->y_fx -= 9 * FX_ONE;
+                o->vx_fx = o->facing * 0x0120;
+                o->vy_fx = -0x0540;
+                o->substate = 4;
+                o->landings = 0;
+            }
+            break;
+        case 4:
+            if (GhoulMove(o, level)) {
+                o->y_fx += 7 * FX_ONE;
+                o->substate = 6;
+                o->phase = 0x10;
+            }
+            break;
+        case 6:
+            if (--o->phase <= 0) {
+                o->state = 4;                       /* $B0DD */
+                o->substate = 0;
+            }
+            break;
+        default:
+            o->substate = 0;
+            break;
+        }
+        break;
+
+    case 4: /* $B0E4 stand and spit three children */
+        switch (o->substate) {
+        case 0:
+            GhoulFace(o, p);
+            o->substate = 2;
+            o->phase = 0x20;
+            break;
+        case 2:
+            if (--o->phase <= 0) {
+                o->substate = 4;
+                o->spit_left = 3;                   /* $3D = 3 */
+                o->spit_cd = 0x40;                  /* $3C = 0x40 */
+            }
+            break;
+        case 4:
+            if (--o->spit_cd <= 0) {
+                GhoulSpit(pool, o);
+                o->spit_left--;
+                o->spit_cd = 0x40;
+                if (o->spit_left <= 0) {
+                    o->substate = 6;
+                    o->phase = 0x20;
+                }
+            }
+            break;
+        case 6:
+            if (--o->phase <= 0) {
+                /* $B1AB jumps straight into the hop entry, not to the state
+                 * dispatcher, so a volley always ends in hops. */
+                GhoulFace(o, p);
+                o->state = 0;
+                o->hops = 0;
+                o->substate = 2;
+                o->phase = 3;
+            }
+            break;
+        default:
+            o->substate = 0;
+            break;
+        }
+        break;
+
+    case 6: /* $B1AF leap, and the child's flight */
+        switch (o->substate) {
+        case 0: {
+            GhoulFace(o, p);
+            o->target_x_fx = p->x_fx;
+            int32_t dx = o->target_x_fx - o->x_fx;
+            int32_t dist = labs((long)dx);
+            /* $DEB2/$DEBA/$DEC2: farther targets get more speed and lift. */
+            if (dist > 96 * FX_ONE) {
+                o->vx_fx = o->facing * 0x0120;
+                o->vy_fx = -0x0540;
+            } else if (dist > 48 * FX_ONE) {
+                o->vx_fx = o->facing * 0x00C0;
+                o->vy_fx = -0x0480;
+            } else {
+                o->vx_fx = o->facing * 0x0080;
+                o->vy_fx = -0x03A0;
+            }
+            o->substate = 2;
+            break;
+        }
+        case 2:
+            if (GhoulMove(o, level)) {
+                o->substate = 4;
+                o->phase = 8;
+                o->landings++;
+            }
+            break;
+        case 4:
+            if (--o->phase <= 0) {
+                o->substate = 6;
+                o->phase = 0x20;
+            }
+            break;
+        case 6:
+            if (--o->phase <= 0)
+                o->active = false;                  /* $828777 */
+            break;
+        default:
+            o->substate = 0;
+            break;
+        }
+        break;
+
+    case 8: /* $B249 cooldown */
+        switch (o->substate) {
+        case 0:
+            o->substate = 2;
+            o->hide_timer = 0x50;                   /* $43 = 0x50 */
+            break;
+        case 2:
+            if (--o->hide_timer <= 0) {
+                if (!GhoulInRange(o, p)) {
+                    o->state = 4;
+                    o->substate = 0;
+                } else {
+                    o->state = 0;
+                    o->substate = 0;
+                }
+            }
+            break;
+        default:
+            o->substate = 0;
+            break;
+        }
+        break;
+
+    default:
+        o->state = 0;
+        o->substate = 0;
+        break;
+    }
+}
+
 void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
+
     pool->boss_alive = false;
     for (int i = 0; i < OBJECT_POOL_SIZE; i++) {
         Object *o = &pool->slots[i];
@@ -926,203 +1216,9 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                               (int32_t)(sinf(o->timer * 0.08f) * 18.0f * FX_ONE);
                 }
             } else if (o->species == 0x67) {
-                /* Species $67 Graveyard Ghoul: authentic $83:AF74 state 0.
-                 *
-                 * The original dispatches on substate ($06):
-                 *   0  face the player, then wind up for 3 frames ($3B = 3)
-                 *   2  launch: $20 = 0x0050 ($0088 / $0070 variants),
-                 *      $22 = 0x0398 ($04D0 variant), $39 = 5
-                 *   4  airborne: gravity $26 = 0x0040 until ground contact
-                 *      ($04 bit 2), then $B2C7 snaps Y (+7) and sets $3B = 6
-                 *   6  landed: hold for 6 frames, then restart at 0
-                 * The remaining behaviour states (dispatch through $03 and the
-                 * random table $DEA2) are not ported yet; this is the hop.
-                 */
-                if (o->state == 0) {
-                    /* First-pass emergence: hold position, then hop-cycle. */
-                    if (o->timer >= 24) {
-                        o->state = 1;
-                        o->timer = 0;
-                        o->substate = 0;
-                    }
-                    continue;
-                }
-
-                if (o->state == 1) {
-                    /* $B2B1 lifts Y by 9 ($34 -= 9, y-down), sets $06 = 4 and
-                     * then $22 = 0x0398 with gravity $26 = 0x0040: a drop from
-                     * the perch these ghouls hang at. */
-                    if (o->substate == 0) {
-                        o->facing = (player->x_fx >= o->x_fx) ? 1 : -1;
-                        o->substate = 2;
-                        o->phase = 3; /* $3B = 3 windup */
-                    } else if (o->substate == 2) {
-                        if (--o->phase <= 0) {
-                            o->y_fx -= 9 * FX_ONE;
-                            o->vx_fx = o->facing * 0x0050; /* $20 */
-                            /* $22 = 0x0398, or 0x04D0 on odd $38 ($B019). */
-                            o->vy_fx = (o->hops & 1) ? 0x04D0 : 0x0398;
-                            o->substate = 4;
-                            o->phase = 90;
-                        }
-                    } else if (o->substate == 4) {
-                        o->x_fx += o->vx_fx;
-                        o->y_fx += o->vy_fx;
-                        o->vy_fx += 0x0040; /* $26 gravity */
-                        float fx = (float)o->x_fx / FX_ONE;
-                        float fy = (float)o->y_fx / FX_ONE;
-                        float surf;
-                        bool landed =
-                            Level_FloorAt(level, fx, fy + 2.0f, &surf) &&
-                            surf <= fy + 6.0f;
-                        if (landed || --o->phase <= 0) {
-                            if (landed)
-                                o->y_fx = (int32_t)lroundf(surf * FX_ONE);
-                            o->vx_fx = 0;
-                            o->vy_fx = 0;
-                            o->substate = 6;
-                            o->phase = 6; /* $3B = 6 */
-                        }
-                    } else if (--o->phase <= 0) {
-                        /* Landed ($B034): the original runs 3 hops ($38),
-                         * alternating facing each time ($0A bit 6 / $09 swap)
-                         * and restarting the hop at $AFBC, then returns to
-                         * substate 0 to re-decide. The behaviour states chosen
-                         * from $03/$DEA2 are not ported, so after the burst
-                         * the placeholder chase takes over. */
-                        o->hops++;
-                        if (o->hops >= 3) {
-                            o->state = 2;
-                            o->substate = 0;
-                        } else {
-                            o->facing = -o->facing; /* $0A ^= $40, $09 swapped */
-                            o->substate = 2;
-                            o->phase = 3;
-                        }
-                    }
-                } else if (o->state == 2) {
-                    /* $B0F1/$B102/$B120: face the player, then fire three
-                     * projectiles on a 64-frame cadence ($3C = 0x40, $3D = 3,
-                     * spawn at x +-0x13, y - 0x14), then hop again.
-                     * Outside firing range the $DEA2 behaviour states would
-                     * take over; until those are ported it closes distance with
-                     * the placeholder approach so the player can still engage. */
-                    int32_t dx = player->x_fx - o->x_fx;
-                    o->facing = dx >= 0 ? 1 : -1;
-                    if (labs((long)dx) > 200 * FX_ONE) {
-                        int32_t dy = (player->y_fx - 11 * FX_ONE) - o->y_fx;
-                        if (dx > 8 * FX_ONE)
-                            o->x_fx += 0x0099;
-                        else if (dx < -8 * FX_ONE)
-                            o->x_fx -= 0x0099;
-                        if (dy > 6 * FX_ONE)
-                            o->y_fx += 0x0066;
-                        else if (dy < -6 * FX_ONE)
-                            o->y_fx -= 0x0066;
-                    } else if (o->phase > 0) {
-                        o->phase--;
-                    } else if (o->burst < 3) {
-                        /* $82877B spawns at x +-0x13, y - 0x14 (pixels). The
-                         * child flies toward Firebrand here so the volley is a
-                         * real threat even though the child handler itself is
-                         * not ported yet. */
-                        float ox2 = (float)o->x_fx / FX_ONE +
-                                    (float)(o->facing * 19) / 1.0f;
-                        float oy2 = (float)o->y_fx / FX_ONE - 20.0f;
-                        float dxp = player->x - ox2;
-                        float dyp = (player->y - 10.0f) - oy2;
-                        float len = sqrtf(dxp * dxp + dyp * dyp);
-                        if (len < 0.001f)
-                            len = 1.0f;
-                        int32_t svx = (int32_t)(dxp / len * 1.5f * FX_ONE);
-                        int32_t svy = (int32_t)(dyp / len * 1.5f * FX_ONE);
-                        SpawnEnemyShot(pool, ox2, oy2, svx, svy);
-                        o->burst++;
-                        o->phase = 64; /* $3C = 0x40 */
-                    } else {
-                        o->state = 3; /* $B0DE: $05 = 4 (leap attack) */
-                        o->substate = 0;
-                        o->hops = 0;
-                        o->burst = 0;
-                    }
-                } else if (o->state == 3) {
-                    /* $B065 state 1: face the player, 32-frame windup, then a
-                     * big leap ($20 = 0x0120, $22 = 0x0540, collision $DE7F);
-                     * on landing ($B0AF) hold 16 frames and go back to firing
-                     * ($B0DD sets $05 = 4).
-                     * $B2E8 decides when to commit: only when the player is
-                     * above/beside the perch and $47 is set. Here the same
-                     * decision is expressed as "player is lower or close, and
-                     * outside firing range" so the ghoul leaves its ledge. */
-                    if (o->substate == 0) {
-                        int32_t dx = player->x_fx - o->x_fx;
-                        bool wants = (player->y_fx > o->y_fx + 6 * FX_ONE &&
-                                      labs((long)dx) < 200 * FX_ONE) ||
-                                     labs((long)dx) > 60 * FX_ONE;
-                        if (!wants) {
-                            o->state = 2; /* stay and fire */
-                            o->substate = 0;
-                            o->burst = 0;
-                            o->phase = 0;
-                        } else {
-                            o->facing = dx >= 0 ? 1 : -1;
-                            o->substate = 2;
-                            o->phase = 0x20; /* $3B = 0x20 */
-                        }
-                    } else if (o->substate == 2) {
-                        if (--o->phase <= 0) {
-                            o->vx_fx = o->facing * 0x0120; /* $20 */
-                            o->vy_fx = 0x0540; /* $22: 5.25 px/frame, y-down dive */
-                            o->substate = 4;
-                            o->phase = 120;
-                            o->timer = 0;   /* airborne frames */
-                            o->hops = 0;    /* reuse as launch Y (px*256) bucket */
-                        }
-                    } else if (o->substate == 4) {
-                        o->timer++;
-                        o->x_fx += o->vx_fx;
-                        o->y_fx += o->vy_fx;
-                        o->vy_fx += 0x0040; /* $26 gravity */
-                        float fx = (float)o->x_fx / FX_ONE;
-                        float fy = (float)o->y_fx / FX_ONE;
-                        float surf;
-                        /* Ignore the ledge the dive started from: require a few
-                         * airborne frames and a real drop before landing. */
-                        bool fell = o->timer > 5;
-                        bool landed = fell && o->vy_fx > 0 &&
-                                      Level_FloorAt(level, fx, fy + 2.0f,
-                                                    &surf) &&
-                                      surf <= fy + 6.0f;
-                        if (landed || --o->phase <= 0) {
-                            if (landed)
-                                o->y_fx = (int32_t)lroundf(surf * FX_ONE);
-                            o->vx_fx = 0;
-                            o->vy_fx = 0;
-                            o->substate = 6;
-                            o->phase = 0x10; /* $3B = 0x10 */
-                        }
-                    } else if (--o->phase <= 0) {
-                        o->state = 2;
-                        o->substate = 0;
-                        o->burst = 0;
-                        o->phase = 0;
-                    }
-                } else if (o->state >= 4) {
-                    /* Remaining $DEA2 behaviour states: approach fallback. */
-                    int32_t dx = player->x_fx - o->x_fx;
-                    int32_t dy = (player->y_fx - 11 * FX_ONE) - o->y_fx;
-                    o->facing = dx >= 0 ? 1 : -1;
-                    if (abs(dx) < 220 * FX_ONE) {
-                        if (dx > 8 * FX_ONE)
-                            o->x_fx += 0x0099;
-                        else if (dx < -8 * FX_ONE)
-                            o->x_fx -= 0x0099;
-                        if (dy > 6 * FX_ONE)
-                            o->y_fx += 0x0066;
-                        else if (dy < -6 * FX_ONE)
-                            o->y_fx -= 0x0066;
-                    }
-                }
+                /* Authentic $83:AF74 handler (see GhoulUpdate above). The
+                 * contact-damage tail below still runs for ghouls. */
+                GhoulUpdate(o, level, player, pool);
             } else {
                 /* Generic enemy for species whose ROM handler is not ported yet.
                  * Placement decides the style: enemies spawned well above a
@@ -1344,7 +1440,10 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                     SpawnPickup(pool, ox, oy + URN_HALF);
                     break;
                 }
-            } else if (o->type == OBJECT_ENEMY && o->state != 0) {
+            } else if (o->type == OBJECT_ENEMY &&
+                       (o->species == 0x67 || o->state != 0)) {
+                /* Ghouls are hittable in every state: the ROM's $05 values are
+                 * behaviour states, not an emerge phase. */
                 if (fabsf(px - ox) <= 12.0f && fabsf(py - oy) <= 12.0f) {
                     p->active = false;
                     o->hp -= dmg;

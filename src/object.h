@@ -42,9 +42,15 @@ typedef struct Object {
     int32_t bounce_fx; /* $39: remaining bounce velocity for pickups */
     int state;
     int substate; /* $06: per-species state machine substate */
-    int phase;    /* countdown for the current substate ($3B/$39) */
+    int phase;    /* countdown for the current substate ($3B) */
     int hops;     /* $38: hop counter inside a burst */
     int burst;    /* $3A: animation step inside a burst */
+    int spit_cd;    /* $3C: frames until the next child in a volley */
+    int spit_left;  /* $3D: children left in the volley */
+    int saved_state;/* $42: state a finished action returns to */
+    int hide_timer; /* $43: cooldown before the next decision */
+    int target_x_fx;/* $3F: x the leap was aimed at */
+    int landings;   /* $41: ground contacts of the leap */
     int hit_flash; /* frames of white flash after taking a hit */
     int facing;   /* $09: 1 right, -1 left */
     int hp;
