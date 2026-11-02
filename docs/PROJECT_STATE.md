@@ -50,6 +50,60 @@ ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
 - Still procedural: the seven **SFX** (next step), and the track map is still
   per game state (`TITLE/STAGE/BOSS/ENDING`), not per area.
 
+## Session 2026-11-02 — AI character pipeline (planning + tooling, no model trained)
+
+- **`docs/AI_CHARACTER_PIPELINE.md` is the plan for generating new characters**
+  (fan-game content, not ROM art) with the RTX 5060 Ti box at `192.168.0.21`.
+  The verdict and the numbers are in the doc; the summary is that the model
+  drafts and a deterministic tool constrains, because the engine needs ≤64 px,
+  ≤15 opaque colours, binary alpha and foot anchors.
+- **Two new tools, both verified by running them:**
+  - `tools/gen/harvest_dataset.py` cuts `docs/sprites` into training crops using
+    the *same* measured pose boxes as `bake_player_forms.py`: **211 crops** from
+    the six form sheets in 14 s, **525** approximate component crops from the
+    enemy sheets in 265 s (~6 % junk, sampled and measured), integer
+    nearest-neighbour upscaling, captions and palette variants.
+  - `tools/gen/pixelize.py` converts any image into a legal sprite: background
+    key, median-cut palette snapped to SNES BGR555, despeckle, binary alpha,
+    foot anchors, 8x8 tile padding, JSON sidecar, and a **non-zero exit** on
+    >15 colours, >64 px, non-binary alpha or >6 blobs.
+- **Engine budgets that bound the pipeline** (read from the source, not assumed):
+  `DC_SPECIES_FRAMES 8`, `DC_STATE_FRAMES 8`, `DC_SPECIES_MAX 64`,
+  `player_forms[6]`, `DC_ANIM_MAX_STEPS 64`. New content can use species ids
+  ≥ `0x100` (`Assets_SpeciesSheet` compares an `int`; ROM species are a byte).
+- **The GPU box is reachable and now trains:** `ssh -i ~/.ssh/id_ed25519_hermes
+  moop@192.168.0.21` works. Box: `moopc`, Ubuntu 26.04.1, Python 3.14.4, driver
+  595.99.02 (CUDA 13.2), RTX 5060 Ti 16,311 MiB, cap `(12, 0)`.
+  - **Training venv** `/Data/ml/kohya-venv` (torch 2.14.1+cu130, kohya
+    sd-scripts, bitsandbytes 0.50.2), runner `/Data/ml/train_dcrest.sh`,
+    dataset config `/Data/ml/datasets/dcrest.toml`, outputs in `/Data/ml/runs`.
+    ComfyUI's own venv was left untouched.
+  - **Measured on this card**: latent cache 1,472 images @512 in 8.5 min
+    (2.9 img/s, disk-cached for later runs); training batch 2 / 512 px / bf16 /
+    AdamW8bit at **1.13-1.34 it/s** (1,600 steps ≈ 20-24 min); VRAM 9.6 of
+    16.3 GB at ~90 W, i.e. the dataloader, not memory, is the bottleneck.
+  - **No model download was needed**: `/Data/ComfyUI/models/checkpoints` already
+    has five SDXL Illustrious finetunes (base used: `ilustmix_v9`), plus
+    `illustriousXLLineart_v10` ControlNet and `clip_vision_h`. The `ipadapter`
+    folder is empty, so Stage 3's reference route needs one download.
+  - Gotcha recorded in the doc: `sd-scripts/requirements.txt` ends in `-e .`, so
+    the pip install must run from inside the cloned repo.
+- **First style LoRA trained and used end to end** (`/Data/ml/runs`, copied to
+  `/Data/ComfyUI/models/loras/`): `dcrest_style_v1`, SDXL base `ilustmix_v9`,
+  1,472 crops, dim 32, 1,600 steps in **19m47s** at 1.35 it/s, final loss 0.0433,
+  170 MB, checkpoints at 400/800/1200/1600.
+  - Verified generation through ComfyUI's HTTP API with
+    `tools/gen/workflow_sdxl_lora_api.json`: 4/4 images came back as single
+    pixel-art creatures (hard pixels, flat background), no sheets or captions.
+  - **Step 800 is the better checkpoint for sprites**: at 48 px the 1,600-step
+    LoRA aliases its highlights into sparkle pixels while step 800 keeps broader,
+    cleaner clusters. Evaluate at the target size, not at 1024.
+  - Real output → `pixelize.py` → **56×48, 15 colours, binary alpha, one blob,
+    anchor (27, 48)**; a 32 px version was noisier. Nothing from this is in the
+    game yet — no species entry has been added.
+- Nothing has been trained and no generated art is in the tree; `assets/authored/`
+  is the intended home for it (with provenance JSON), never `assets/generated/`.
+
 ## Session 2026-11-01 — what changed
 
 - **The regression suite is green**: `tools/run_regression.py` → PASS (exit 0),

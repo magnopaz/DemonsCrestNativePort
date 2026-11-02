@@ -212,3 +212,44 @@ python tools/video_frames.py "C:\path\take.mp4" --every 20 --sheet
 
 Frames land in `<video-name>/frame_00001.png`. Requires
 `pip install imageio-ffmpeg` (the tool says so if it is missing).
+
+## Harvesting a training set from the sheets (Pipeline C)
+
+`tools/gen/harvest_dataset.py` turns `docs/sprites/` into per-pose crops a
+diffusion trainer can use: pose boxes come from `bake_player_forms.py` for the
+six Firebrand forms (component-based harvesting for the enemy sheets), the flat
+sheet background is keyed out, each pose is padded to a square and upscaled by
+an **integer** nearest-neighbour factor, and every image gets a `.txt` caption.
+
+```
+python tools/gen/harvest_dataset.py --out ~/datasets/dcrest --sheets forms --variants 2
+python tools/gen/harvest_dataset.py --out ~/datasets/dcrest --sheets enemies --variants 1
+```
+
+Measured on the Pi: 211 crops from the form sheets in 14 s, 525 component crops
+from the enemy sheets in 265 s. The component route is approximate — about 1 in
+16 crops is a caption fragment and must be deleted before training. Output
+belongs outside the repo; `manifest.json` records the counts.
+
+## Constraining generated art into a legal sprite
+
+`tools/gen/pixelize.py` is the deterministic bridge between "an image" and "a
+sprite this engine can load":
+
+```
+python tools/gen/pixelize.py drafts/imp_01.png --height 48 --tile-pad \
+  --out assets/authored/spr_imp_walk_0.png --clip walk --duration 7 --species 0x120
+```
+
+It keys the background (border colour, an explicit hex, or the input's own
+alpha), crops to the opaque box, resizes to `--height`, builds a palette by
+weighted median cut over the opaque pixels only, snaps it to the SNES BGR555
+space, despeckles, forces binary alpha, measures the anchors the engine expects
+(`anchor_y` = feet, `anchor_x` = body centre of the lower part of the pose),
+optionally pads to an 8x8 tile grid, and writes a JSON sidecar with the palette,
+blob sizes and anchors. It exits non-zero on a hard violation: more than
+`--colors` (default 15), larger than 64 px, non-binary alpha, more than six
+blobs. Verified on a soft 768x768 "diffusion-like" input: 32x48, 15 colours,
+BGR555-aligned, one blob, and a 96 px request correctly rejected.
+
+The workflow these two tools belong to is `docs/AI_CHARACTER_PIPELINE.md`.
