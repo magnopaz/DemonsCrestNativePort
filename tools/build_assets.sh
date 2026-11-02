@@ -104,6 +104,10 @@ else
   echo "   apply_door_table.py not present yet; ROM transitions only"
 fi
 
+# Last writer: make BG1 agree with each room's world box, otherwise the whole
+# scene is drawn at a different y than collision and entities look airborne.
+python3 tools/dc_extract/normalize_rooms.py --rooms "$OUT"
+
 if [ "$SKIP_CAPTURES" -eq 0 ]; then
   echo "== verify: room/BG2 coverage =="
   python3 - "$OUT" <<'PY'
