@@ -38,6 +38,28 @@ saves (`build/saves/arma_boss.sav`, `world_map.sav`).
   returns to the map, which is the player's first contact with it.
 - Area 2's edge door to area 3 (x=2040) is present, so cemetery -> slope ->
   abyss works in data.
+- **The trace build (debug server) is rebuilt.** The checkout had lost
+  `build-trace/`, so the take cannot be replayed for WRAM. Recreate it with:
+
+  ```sh
+  cd DemonsCrestSNESRecomp
+  cmake -S . -B build-trace -G Ninja -DCMAKE_BUILD_TYPE=Release \
+        -DSNESRECOMP_SDL_BACKEND=SDL2 -DSNESRECOMP_ENABLE_TRACE=ON
+  cmake --build build-trace -j4
+  ```
+
+  It needed one local fix: `snesrecomp/runner/src/debug_server.c` used `mkdir`
+  without `<sys/stat.h>` (GCC 15 rejects the implicit declaration). Verified:
+  the server answers `frame` and `read_ram 8d 1` on
+  `SNESRECOMP_DEBUG_PORT=4450`.
+- **A full take must start at boot to be replayable.**
+  `rec_stage1_full_play` starts at guest frame 964 (a manual start), and
+  replaying it lands on the title/options screen instead of the Somulo fight
+  (`replay_capture.py`, 24 076 samples, ref frame 4964 does not match the
+  recorded frame 4000). Record the next one in `build-trace/` with
+  `SNESREC_AUTORECORD=1` and `SNESREC_INPUT_ONLY=1` (the latter skips the 3.9 GB
+  of BMPs), e.g.
+  `SNESREC_AUTORECORD=1 SNESREC_INPUT_ONLY=1 SNESREC_RECORD_DIR=captures/rec_stage1_trace ./DemonsCrestSNESRecomp "../../roms/Demon's Crest (USA).sfc"`.
 
 ## Session 2026-11-02 (part 3) — the species `$67` ghoul runs its ROM machine
 
