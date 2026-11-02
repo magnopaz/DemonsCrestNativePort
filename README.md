@@ -115,8 +115,15 @@ frame-accurate oracle for movement and timing.
   object record so the guest initialises and draws a chosen species in the
   current room (no area travel), and `tools/dc_extract/extract_species.py` bakes
   the object's OAM cluster into `enemy_<species>_<n>.png` + `species_anim.json`.
-  The engine draws those sheets per species, falling back to the shared sheet
-  for species whose init expects spawner-supplied fields.
+  **21 of the 25 species referenced by rooms now have their own art — 256 of 269
+  placed objects (95%)** — most of it baked straight from the ROM: the species→
+  metasprite mapping only exists in memory, so `tools/dc_extract/
+  match_group_from_oam.py` recovers it by matching the guest's live OAM against
+  `$8B:8000` frame signatures and `bake_rom_species.py` composes the result with
+  `compose_rom_metasprite`. The object draw puts the metasprite origin ~19 px
+  above the object position; the baker measures that per species. The four
+  remaining ids are not sprite objects: `$01` platform, `$09` exit trigger,
+  `$24` talisman (drawn at the player) and `$33`, whose OAM was never matched.
 - Windows build on the raylib Windows installer (`tools/build_windows.ps1`,
   `-DDC_RAYLIB_ROOT`), verified with raylib 6.2 + MinGW GCC 16.2.
 - Campaign-specific debug hooks: `DC_AREA`, `DC_CAMPAIGN`, `DC_BOSS_DEFEATED`,
