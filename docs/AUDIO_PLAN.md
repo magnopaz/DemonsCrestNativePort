@@ -229,15 +229,40 @@ Two blockers, both measured:
   (`src/dc_widescreen.c` calls `PpuSetWidescreenLayerRightEdge`, which the
   submodule no longer has).
 
-So the next session has two clean options, in order of preference:
+### The port ring, and what the replay showed
 
-1. expose the port ring (a `port_events <path>` command next to `spc_dump`) once
-   the oracle builds again, capture the bank transfer, and drive it with the
-   acknowledge-waiting replay that `apu_host --handshake` already implements;
-2. or lift the bank directly: diff ARAM before/after the upload (the probe
-   already dumps both) and write that region into the embedded APU at boot,
-   which skips the protocol entirely but needs the driver's post-transfer state
-   to be reachable — that is what the frame-133 ARAM image is for.
+The ring was exposed (a `port_events <path>` command was added to the oracle's
+debug server, next to `spc_dump`) and the oracle was rebuilt — the build was
+blocked by unrelated widescreen work, see the note at the end. With it:
+
+- a cold boot produces **96,314 port events**; in the window from the frame-60
+  ARAM to frame 145, **16,669** of them are CPU writes — the byte-by-byte IPL
+  transfer (3-4 writes per byte), starting 35,892 samples after the ARAM dump;
+- replaying those 16,669 writes into the embedded APU with a naive "wait for any
+  change on the output ports" handshake (`apu_host --handshake`) is **silent**:
+  30 s rendered, `halted_at=-1`, rms 0.0.
+
+So the pacing rule matters and "any change" is too loose. The correct protocol is
+already specified in the oracle:
+
+```c
+/* apu_waitForTransferReady: the SPC announces readiness with $AA/$BB */
+if (apu->outPorts[0] == 0xaa && apu->outPorts[1] == 0xbb) return true;
+```
+and `apu_finishHleTransfer` terminates with `$CC` on port 0 and waits for its
+echo. The next step is to implement exactly those two rules in `apu_host`
+(ready pair before the stream, echo after the terminator) instead of the
+placeholder wait.
+
+### A note on the oracle tree
+
+The recomp checkout had a build-blocking mismatch unrelated to audio:
+`src/dc_widescreen.c` calls `PpuSetWidescreenLayerRightEdge`, which the
+snesrecomp submodule no longer provides (its neighbours survive as
+`PpuSetWidescreenLayerClamp` etc.). To rebuild for the capture I put a four-line
+no-op shim at the top of that file, marked `TEMPORARY BUILD SHIM`. It is the
+user's in-progress widescreen work, so it should be replaced by the real call —
+the shim only makes the file compile and disables that one policy.
 
 ## Still to do
 

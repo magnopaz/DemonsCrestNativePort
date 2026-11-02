@@ -82,6 +82,8 @@ int main(int argc, char **argv) {
       aram_path = argv[++i];
     } else if (!strcmp(argv[i], "--handshake")) {
       handshake = 1;
+    } else if (!strcmp(argv[i], "--echo-wait")) {
+      handshake = 2;
     } else if (!strcmp(argv[i], "--port-offset") && i + 1 < argc) {
       port_offset = strtol(argv[++i], NULL, 0);
     } else if (!strcmp(argv[i], "--entry") && i + 1 < argc) {
@@ -196,9 +198,21 @@ int main(int argc, char **argv) {
            * the captured timestamps instead loses bytes and the driver never
            * starts; pacing by the acknowledge reproduces the console's side. */
           if (handshake) {
+            /* Two pacing rules were tried: "any change on the output ports"
+             * (handshake == 1) and "the SPC echoed the index we just wrote on
+             * port 0" (handshake == 2). The IPL transfer is a request/echo
+             * protocol, so the echo rule is the faithful one. */
+            uint8_t want = (uint8_t)pv[port_n2 - 1];
+            int port = pp[port_n2 - 1];
             for (int w = 0; w < 400000; w++) {
               apu_cycle(apu);
-              if (memcmp(before, apu->outPorts, sizeof(before))) break;
+              if (handshake == 1) {
+                if (memcmp(before, apu->outPorts, sizeof(before))) break;
+              } else if (port == 0 && apu->outPorts[0] == want) {
+                break;
+              } else if (port != 0 && memcmp(before, apu->outPorts, 4)) {
+                break;
+              }
             }
           }
         }

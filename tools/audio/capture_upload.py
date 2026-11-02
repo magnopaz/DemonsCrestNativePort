@@ -95,11 +95,23 @@ def main() -> int:
 
         client.run_to(args.end_frame)
         time.sleep(0.15)
-        # Fetch immediately: the ring only holds the recent past.
-        events = client.cmd("audio_events 0 8000 2")["events"]
-        writes = [(int(e["s"]), int(e["adr"], 16), int(e["val"], 16))
-                  for e in events if e["t"] == "cpu_wr"]
-        writes = [w for w in writes if w[0] > produced0]
+        # `port_events` reads the dedicated port ring (65536 entries) instead of
+        # the general event ring, which the DSP's register writes flood within a
+        # second - that is why `audio_events` lost the upload.
+        tsv = (args.out / "apu.tsv").resolve()
+        dumped = client.cmd(f"port_events {tsv}")
+        writes = []
+        for line in tsv.read_text().splitlines():
+            if line.startswith("#") or not line.strip():
+                continue
+            frame, kind, port, value, sample = line.split("\t")
+            if kind != "cpu_wr":
+                continue
+            s = int(sample)
+            if s > produced0:
+                writes.append((s, int(port), int(value, 16)))
+        print("port ring:", dumped.get("events"), "events, total",
+              dumped.get("total"))
         elapsed = int(client.cmd("audio_stats")["produced"]) - produced0
         (args.out / "ports.txt").write_text(
             "\n".join(f"{s} {p} {v}" for s, p, v in writes) + "\n")
