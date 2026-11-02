@@ -99,8 +99,26 @@ ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
     LoRA aliases its highlights into sparkle pixels while step 800 keeps broader,
     cleaner clusters. Evaluate at the target size, not at 1024.
   - Real output → `pixelize.py` → **56×48, 15 colours, binary alpha, one blob,
-    anchor (27, 48)**; a 32 px version was noisier. Nothing from this is in the
-    game yet — no species entry has been added.
+    anchor (27, 48)**; a 32 px version was noisier.
+- **First complete enemy exists: species `0x120` ("grave imp")** in
+  `assets/authored/` (7 frames, `species_entries.json`), built without a single
+  new download:
+  - poses came from the game itself (`tools/gen/pose_refs.py --species 0x2c`,
+    the Scavenger Demon's four measured walk boxes) and were repainted with
+    img2img + the installed SDXL lineart ControlNet + LoRA step 800;
+  - **denoise 0.50 / control 0.85** kept the four walk poses distinct and the
+    hurt frame on-model; the first attempt (0.60/0.65) flattened the walk into
+    one stance and produced a different creature for the hurt frame;
+  - all seven frames were constrained with **one locked 15-colour palette**
+    (first frame's palette fed back through `--palette`), giving 32×40 sprites,
+    binary alpha, one blob, anchor (14, 40);
+  - `compose_species.py` wrote the entry and a scratch `species_anim.json` +
+    `audit_sprites.py --strict` reports **1 species, 7 frames, 0 errors**.
+  - `species_anim.json` is an **object keyed by hex species id**, not a list;
+    an array fails the audit with "no 'species' object". The doc's first merge
+    snippet had this wrong and is corrected.
+  - Not in a room yet: a species entry only makes the art loadable, an area
+    still needs an object placed with that id.
 - Nothing has been trained and no generated art is in the tree; `assets/authored/`
   is the intended home for it (with provenance JSON), never `assets/generated/`.
 

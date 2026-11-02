@@ -18,9 +18,14 @@ Rules:
    binary alpha, `anchor_y` on the feet, ≤8 frames per species sheet
    (`DC_SPECIES_FRAMES`), `player_forms[6]` for playable forms.
 5. `species_entries.json` in this directory is the merge payload for
-   `assets/generated/species_anim.json`; the snippet in
-   `docs/AI_CHARACTER_PIPELINE.md` §6 replaces entries by `species` id, so
-   re-running it is idempotent.
+   `assets/generated/species_anim.json`, written by
+   `tools/gen/compose_species.py`. That file is an object keyed by species id in
+   lowercase hex (`{"species": {"120": {...}}}`); merge with a dict update so
+   re-running is idempotent. The snippet is in
+   `docs/AI_CHARACTER_PIPELINE.md` §6.
+6. Current contents: species `0x120`, "grave imp" — 4 walk + 2 idle + 1 hurt,
+   32x40 each, 15 colours, the first enemy built by Pipeline C (§7.5 of that
+   doc).
 
 Everything here still has to pass the same gate as the ROM art:
 

@@ -201,7 +201,8 @@ came from where.
                      ▼
         1024² design drafts + chosen master pose
                      │
-   [4] pose propagation (ControlNet / manual block-in / RD Animation)
+   [4] pose propagation: pose_refs.py (the game's own measured poses)
+       + img2img/ControlNet lineart, 0.50 denoise / 0.85 control
                      ▼
         3-8 frames per clip, one consistent silhouette
                      │
@@ -210,7 +211,8 @@ came from where.
                      ▼
         assets/authored/spr_<name>_<clip>_<i>.png + .json
                      │
-   [6] merge into species_anim.json / player_forms.json
+   [6] compose_species.py -> species_entries.json (budget-checked),
+       then the idempotent dict merge into species_anim.json
                      ▼
    [7] audit_sprites.py --strict  +  run_regression.py  +  visual diff
 ```
@@ -414,11 +416,34 @@ routes, best first:
    figure, 5 minutes in any editor), run img2img at 0.45-0.6 denoise with the
    skeleton as ControlNet input and the master as IP-Adapter reference. The
    silhouette stays, the limbs move.
-2. **Block-in over an existing animation.** Reuse the timing and pose skeleton
-   of an existing species (the walk cadence is already captured:
-   `clip_durations()` in `bake_player_forms.py`: 7/7/9/7/7/9 frames) and repaint
-   the character on top. Best when the new enemy should move like an existing
-   one — which is most of the time, and it is what the original game did.
+2. **Block-in over an existing animation — the route that shipped the first
+   enemy, and it needs no download.** Reuse the poses and timing of a species the
+   game already animates, and repaint the new creature on top with
+   **img2img + the SDXL lineart ControlNet** the box already has:
+
+   ```bash
+   # 1. cut the source poses with the project's own measured boxes
+   python3 tools/gen/pose_refs.py --species 0x2c --out ~/datasets/refs/imp \
+       --size 1024 --labels walk0,walk1,walk2,walk3
+   # 2. upload the four PNGs into ComfyUI's input/ and repaint each one
+   #    (img2img + ControlNetApplyAdvanced + LoRA, workflow in Stage 3)
+   # 3. constrain every frame onto ONE palette (see below)
+   python3 tools/gen/pixelize.py repaint.png --height 40 --tile-pad \
+       --palette 485040,586050,... --out px/walk0.png --clip walk
+   ```
+
+   **Settings that held the pose** (measured, two rounds): denoise **0.50** with
+   ControlNet strength **0.85**. The first attempt (denoise 0.60 / strength
+   0.65) homogenised the four walk poses into nearly the same stance and let the
+   hurt frame drift to a different creature; lowering the denoise and holding
+   the control harder fixed both. The hurt frame needs ~0.52/0.80 — enough to
+   change the pose, not enough to change the character.
+
+   **Palette lock is what makes the frames a set.** Run `pixelize.py` once on the
+   best frame, read the 15 colours out of its `.json` sidecar, then pass that
+   list as `--palette` for every other frame. Two frames generated minutes apart
+   will not agree on their palette on their own, and palette drift is what makes
+   a cycle look like four different creatures.
 3. **A pixel-art animation model.** Retro Diffusion's animation styles
    (`Idle`, `Attack`, `Jump`, `Crouch`, `Four Angle Walking`, `Big Animation`)
    take a starting frame and return a frame sequence at 64×64 or 128×128. That
@@ -472,30 +497,51 @@ treat a non-zero exit as "do not ship".
 
 ### Stage 6 — integrate
 
-Species entry (`species_anim.json`, schema read from `src/assets.c`):
+`tools/gen/compose_species.py` turns a set of pixelized frames into that entry,
+enforcing the budgets and re-checking every PNG (size, palette, alpha) instead
+of trusting the previous step:
+
+```bash
+python3 tools/gen/compose_species.py --spec imp.json --out assets/authored
+# species 0x120 (288): 7 frames, states ['0', '1'], hurt=6, default=4
+#   spr_120_walk_00.png  32x40 15 colours anchor=(14,40) dur=7   ... etc
+```
+
+The spec is the only thing to write by hand:
 
 ```json
 { "species": 288,
   "frames": [
-    { "texture": "spr_imp_walk_0.png", "anchor_x": 11, "anchor_y": 48, "duration": 7 },
-    { "texture": "spr_imp_walk_1.png", "anchor_x": 12, "anchor_y": 48, "duration": 7 }
+    { "src": "px/walk0.png", "clip": "walk", "duration": 7, "anchor_x": 14, "anchor_y": 40 }
   ],
-  "states": { "0": [0, 1], "1": [0, 1] },
-  "default": 0
-}
+  "states": { "0": [4, 5], "1": [0, 1, 2, 3] },
+  "hurt": 6,
+  "default": 4 }
 ```
 
-Player form entry (`player_forms.json`, schema read from `src/anim.c`):
+**`species_anim.json` is an object keyed by the species id in lowercase hex** —
+`{"species": {"2c": {...}, "120": {...}}}` — exactly what
+`bake_enemy_sheets.py` writes. An array is rejected by the audit with *"no
+'species' object"*, so a merge that appends to a list silently breaks the gate
+(this bit the first version of this document). A real entry:
 
 ```json
-{ "form": 6,
-  "clips": { "idle": { "loop": true,
-    "steps": [ { "texture": "fb_new_idle_0.png", "anchor_x": 20,
-                 "anchor_y": 44, "duration": 8 } ] } } }
+{ "species": { "120": {
+  "species": 288, "boss": false,
+  "frames": [
+    { "texture": "spr_120_walk_00.png", "anchor_x": 14, "anchor_y": 40,
+      "duration": 7, "width": 32, "height": 40 }
+  ],
+  "states": { "0": [4, 5], "1": [0, 1, 2, 3] },
+  "hurt": 6, "default": 4,
+  "source": "Pipeline C (docs/AI_CHARACTER_PIPELINE.md)" } } }
 ```
 
-Merge idempotently (this snippet replaces the entry with the same `species`
-key instead of appending a duplicate):
+`states` is indexed by the engine's **object state** (`o->state`, see
+`src/render.c`), so state 0 is idle and state 1 is walk for the enemies this
+project ships; `hurt` and `default` cover the other two render paths.
+
+Merge idempotently — dict update, keyed by hex, so re-running is a no-op:
 
 ```bash
 python3 - <<'PY'
@@ -503,17 +549,32 @@ import json, pathlib
 assets = pathlib.Path("assets/generated")
 authored = pathlib.Path("assets/authored")
 target = assets / "species_anim.json"
-data = json.loads(target.read_text()) if target.exists() else {"species": []}
-incoming = json.loads((authored / "species_entries.json").read_text())
-keys = {e["species"] for e in incoming["species"]}
-data["species"] = [e for e in data["species"] if e.get("species") not in keys] + incoming["species"]
-target.write_text(json.dumps(data, indent=2) + "\n")
-print(f"species entries: {len(data['species'])}")
+data = json.loads(target.read_text()) if target.exists() else {"species": {}}
+data.setdefault("species", {})
+incoming = json.loads((authored / "species_entries.json").read_text())["species"]
+data["species"].update(incoming)
+target.write_text(json.dumps(data, indent=1) + "\n")
+print("species entries:", len(data["species"]))
 PY
 ```
 
 Then copy the PNGs next to the JSON (`assets.c` resolves textures relative to
-the same directory) and re-run the gates.
+the same directory) and re-run the gates. Verified on a scratch tree:
+
+```
+audit: 0 species, 0 frames, 0 error(s), 0 warning(s)   # empty tree
+audit: 1 species, 7 frames, 0 error(s), 0 warning(s)   # after the merge, --strict, exit 0
+```
+
+Player form entry (`player_forms.json`, schema read from `src/anim.c`) is a
+different shape — a list of forms, each with named clips:
+
+```json
+{ "forms": [ { "form": 6,
+  "clips": { "idle": { "loop": true,
+    "steps": [ { "texture": "fb_new_idle_0.png", "anchor_x": 20,
+                 "anchor_y": 44, "duration": 8 } ] } } } ] }
+```
 
 ### Stage 7 — gates (non-negotiable)
 
@@ -689,6 +750,33 @@ GUI for iterating on the prompt.
 
 ---
 
+## 7.5 The first complete enemy (worked example, 2026-11-02)
+
+Species **`0x120`** ("grave imp"), the first character to go through every stage.
+Recorded here because the numbers are the recipe:
+
+| step | what was done | result |
+|---|---|---|
+| source poses | `pose_refs.py --species 0x2c` — the Scavenger Demon's four measured walk boxes | 4 refs at 1024², one clean pose each |
+| repaint | img2img + `illustriousXLLineart_v10` + LoRA step 800, denoise 0.50 / control 0.85, seed 4242 | 4 walk + 2 idle + 1 hurt, same creature in all 7 |
+| constrain | `pixelize.py --height 40 --tile-pad`, palette locked from the first accepted frame | 7 × **32×40**, 15 colours, binary alpha, 1 blob, anchor (14, 40) |
+| compose | `compose_species.py` with `states {"0":[4,5], "1":[0,1,2,3]}`, `hurt 6`, `default 4` | `species_entries.json`, 7 frames |
+| gate | dict merge into a scratch `species_anim.json` + `audit_sprites.py --strict` | `1 species, 7 frames, 0 error(s), 0 warning(s)` |
+
+Files: `assets/authored/spr_120_{walk_00..03,idle_04,idle_05,hurt_06}.png` +
+`assets/authored/species_entries.json`.
+
+What this example does **not** do, deliberately: it does not put the imp in a
+room. A species entry only makes the art loadable — an area still needs an
+object placed with that species id (`apply_boss_table.py` / the room JSON), and
+that is gameplay work, not art. The walk is also subtle: the source walk poses
+of `$2C` differ by only a few pixels, so the repainted cycle reads as a shuffle
+at 40 px. For a stronger cycle, source the poses from `$08` (Ogre Demon) or
+hand-edit two of the four frames — which is exactly the "AI drafts, a human
+finishes" line from §1.
+
+---
+
 ## 8. Time and cost
 
 Local, one-time:
@@ -761,7 +849,9 @@ What the money does not buy: the finishing pass. Budget it either way.
 - [x] Checkpoint evaluation at 48 px → **step 800 beats step 1600** (see Stage 2)
 - [x] First sprite end-to-end: LoRA output → `pixelize.py` → 56×48, 15 colours, 1 blob
 - [ ] Download an SDXL IP-Adapter (+ OpenPose ControlNet if pose propagation is used)
-- [ ] Full new enemy: design → 8 frames → species entry → `audit_sprites --strict`
+- [x] First complete enemy: species `0x120`, 7 frames, `audit_sprites --strict` clean (§7.5)
+- [ ] Place a new species in a room (object entry) and see it move in-engine
+- [ ] Stronger walk cycle: source poses from `$08`, or hand-edit 2 of the 4 frames
 - [ ] Wire `pixelize.py`'s non-zero exit into `tools/run_regression.py`
 - [ ] Portraits/title art pass (same LoRA, palette snap only)
 - [ ] Decide the engine change for a 7th form (`player_forms[6]`) if a new
@@ -808,6 +898,8 @@ Run once, on the box, before trusting any number in this document:
 | `tools/gen/harvest_dataset.py` | sheets → training crops (pose boxes from the project's bakers) |
 | `tools/gen/pixelize.py` | any image → engine-legal sprite + metadata sidecar |
 | `tools/gen/workflow_sdxl_lora_api.json` | ComfyUI API workflow (SDXL + style LoRA), verified on the box |
+| `tools/gen/pose_refs.py` | cut pose references from an existing species' measured boxes |
+| `tools/gen/compose_species.py` | frames → budget-checked `species_entries.json` |
 | `tools/dc_extract/bake_player_forms.py` | the measured pose boxes (shared, do not duplicate) |
 | `tools/audit_sprites.py` | structural gate for `species_anim.json` |
 | `tools/run_regression.py` | full acceptance run |

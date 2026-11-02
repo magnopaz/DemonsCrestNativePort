@@ -253,3 +253,38 @@ blobs. Verified on a soft 768x768 "diffusion-like" input: 32x48, 15 colours,
 BGR555-aligned, one blob, and a 96 px request correctly rejected.
 
 The workflow these two tools belong to is `docs/AI_CHARACTER_PIPELINE.md`.
+
+## Cutting pose references from an existing species
+
+`tools/gen/pose_refs.py` turns the measured pose boxes of a shipped species into
+1024 px reference images an img2img + ControlNet pass can repaint onto a new
+creature. It reuses `bake_enemy_sheets.JOBS`, so the poses are the same ones the
+game itself animates (and the pixel grid survives: integer nearest upscale on a
+white canvas).
+
+```
+python3 tools/gen/pose_refs.py --list
+python3 tools/gen/pose_refs.py --species 0x2c --out ~/datasets/refs/imp \
+    --size 1024 --labels walk0,walk1,walk2,walk3
+```
+
+Measured setting that held the pose while repainting: denoise **0.50** with
+ControlNet strength **0.85** (0.60/0.65 flattened four distinct walk poses into
+one stance). Lock the palette for the whole set by feeding the first accepted
+frame's 15 colours back through `pixelize.py --palette`.
+
+## Assembling a species entry
+
+`tools/gen/compose_species.py` collects pixelized frames into a
+`species_entries.json` payload for `species_anim.json`, and re-checks every PNG
+(≤64 px, ≤15 opaque colours, binary alpha) before writing:
+
+```
+python3 tools/gen/compose_species.py --spec imp.json --out assets/authored
+```
+
+`species_anim.json` is an **object keyed by species id in lowercase hex**; the
+audit rejects an array with "no 'species' object". Merge with a dict update
+(snippet in `docs/AI_CHARACTER_PIPELINE.md` §6) and re-run
+`audit_sprites.py --strict`. The first enemy built this way (species `0x120`, 7
+frames, `1 species, 7 frames, 0 error(s)`) is written up in §7.5 of that doc.
