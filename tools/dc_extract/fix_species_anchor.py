@@ -35,6 +35,11 @@ def main() -> int:
                     help="'x0:x1' fraction of the width holding the legs; anchors "
                          "each frame on that band's lowest opaque row instead of "
                          "the union bbox, so the feet plant every frame")
+    ap.add_argument("--center", action="store_true",
+                    help="anchor on the texture centre. Small ground props (urns, "
+                         "crest pickups) have their object position at the sprite "
+                         "centre, and the CHR-tile bake wrote anchor_y 27/26 for "
+                         "16 px art, which drew them floating in the air")
 
     args = ap.parse_args()
 
@@ -43,6 +48,19 @@ def main() -> int:
     entry = doc["species"].get(args.species.lower().removeprefix("0x"))
     if entry is None:
         raise SystemExit(f"species {args.species} not in {path}")
+
+    if args.center:
+        for frame in entry["frames"]:
+            w, h = Image.open(args.assets / frame["texture"]).size
+            print(f"  {frame['texture']}: anchor {frame.get('anchor_x')},"
+                  f"{frame.get('anchor_y')} -> {w / 2.0},{h / 2.0} (centre)")
+            if not args.dry_run:
+                frame["anchor_x"] = w / 2.0
+                frame["anchor_y"] = h / 2.0
+        if not args.dry_run:
+            path.write_text(json.dumps(doc, indent=1))
+            print("written")
+        return 0
 
     band = None
     if args.feet_band:
