@@ -64,6 +64,7 @@ int main(int argc, char **argv) {
   const char *out_path = NULL;
   const char *ports_path = NULL;
   const char *aram_path = NULL;
+  const char *io_spc_path = NULL;
   long upload_bank = -1, upload_addr = -1;
   long entry_override = -1;
   long port_offset = 0;
@@ -86,6 +87,8 @@ int main(int argc, char **argv) {
       handshake = 2;
     } else if (!strcmp(argv[i], "--port-offset") && i + 1 < argc) {
       port_offset = strtol(argv[++i], NULL, 0);
+    } else if (!strcmp(argv[i], "--spc-io") && i + 1 < argc) {
+      io_spc_path = argv[++i];
     } else if (!strcmp(argv[i], "--entry") && i + 1 < argc) {
       entry_override = strtol(argv[++i], NULL, 0);
     } else if (!strcmp(argv[i], "--out") && i + 1 < argc) {
@@ -153,6 +156,46 @@ int main(int argc, char **argv) {
     memset(apu->outPorts, 0, sizeof(apu->outPorts));
     apu->romReadable = false;
     apu->cpuCyclesLeft = 0;
+    /* ARAM alone does not carry the timer configuration, and this driver's main
+     * loop is `MOV A,$FD` (timer 0) + accumulate: without it the loop never
+     * advances and the driver ignores every command. The .spc snapshot's
+     * synthesized $F0-$FF region has exactly those values. */
+    if (io_spc_path) {
+      FILE *sf = fopen(io_spc_path, "rb");
+      if (!sf) {
+        fprintf(stderr, "apu_host: cannot open %s\n", io_spc_path);
+        return 1;
+      }
+      static uint8_t spc_img[0x10200];
+      size_t got_spc = fread(spc_img, 1, sizeof(spc_img), sf);
+      fclose(sf);
+      if (got_spc != sizeof(spc_img)) {
+        fprintf(stderr, "apu_host: %s is %zu bytes, expected %zu\n",
+                io_spc_path, got_spc, sizeof(spc_img));
+        return 1;
+      }
+      const uint8_t *io = spc_img + 0x100 + 0xf0;
+      uint8_t f1 = io[0x1];
+      for (int i = 0; i < 3; i++) {
+        apu->timer[i].enabled = (f1 >> i) & 1;
+        apu->timer[i].target = io[0xa + i];
+        apu->timer[i].counter = io[0xd + i] & 0x0f;
+        apu->timer[i].divider = 0;
+        apu->timer[i].cycles = 0;
+      }
+      apu->romReadable = (f1 & 0x80) != 0;
+      apu->inPorts[0] = io[0x4];
+      apu->inPorts[1] = io[0x5];
+      apu->inPorts[2] = io[0x6];
+      apu->inPorts[3] = io[0x7];
+      apu->inPorts[4] = io[0x8];
+      apu->inPorts[5] = io[0x9];
+      if (getenv("APU_HOST_DEBUG"))
+        fprintf(stderr, "io: f1=%02X timers=%d/%d/%d target=%d/%d/%d\n", f1,
+                apu->timer[0].enabled, apu->timer[1].enabled,
+                apu->timer[2].enabled, apu->timer[0].target,
+                apu->timer[1].target, apu->timer[2].target);
+    }
     apu->spc->a = 0;
     apu->spc->x = 0;
     apu->spc->y = 0;
@@ -167,6 +210,8 @@ int main(int argc, char **argv) {
       return 1;
     }
     int produced2 = 0, halted2 = -1, port_n2 = 0;
+    int ack_ok = 0, ack_timeout = 0;
+    long long ack_cycles = 0;
     int16_t chunk2[1024 * 2];
     static long ps[MAX_PORTS];
     static int pp[MAX_PORTS], pv[MAX_PORTS];
@@ -184,6 +229,9 @@ int main(int argc, char **argv) {
         fclose(pf);
       }
     }
+    /* Drive the file from APU time, not from a fixed 32 cycles per sample: the
+     * handshake burns cycles inside the write loop, and anything else would
+     * compress the audio against the clock the driver actually sees. */
     while (produced2 < frames2) {
       int want = frames2 - produced2;
       if (want > 1024) want = 1024;
@@ -204,27 +252,40 @@ int main(int argc, char **argv) {
              * protocol, so the echo rule is the faithful one. */
             uint8_t want = (uint8_t)pv[port_n2 - 1];
             int port = pp[port_n2 - 1];
-            for (int w = 0; w < 400000; w++) {
+            /* $CC on port 0 starts an IPL transfer: the driver answers with the
+             * ready pair $AA/$BB on its own output ports (the oracle's
+             * apu_waitForTransferReady uses exactly this test). */
+            int is_start = (port == 0 && want == 0xcc);
+            int w = 0;
+            for (; w < 400000; w++) {
               apu_cycle(apu);
-              if (handshake == 1) {
+              if (is_start) {
+                if (apu->outPorts[0] == 0xaa && apu->outPorts[1] == 0xbb) break;
+              } else if (handshake == 1) {
                 if (memcmp(before, apu->outPorts, sizeof(before))) break;
-              } else if (port == 0 && apu->outPorts[0] == want) {
-                break;
-              } else if (port != 0 && memcmp(before, apu->outPorts, 4)) {
+              } else if (port == 0) {
+                if (apu->outPorts[0] == want) break;
+              } else if (memcmp(before, apu->outPorts, 4)) {
                 break;
               }
             }
+            ack_cycles += w;
+            if (w >= 400000) ack_timeout++; else ack_ok++;
           }
         }
         for (int k = 0; k < 32; k++) apu_cycle(apu);
-        if (apu->spc->stopped && halted2 < 0) halted2 = produced2 + n;
+        if (apu->spc->stopped && halted2 < 0) halted2 = produced2;
+        /* Emit every sample the DSP produced, right away: the handshake can
+         * burn arbitrary cycles, and batching later would stretch the file
+         * against the clock the driver and the DSP actually share. */
+        while (produced2 < frames2 && dsp_available(apu->dsp) > 0) {
+          dsp_getSamples(apu->dsp, &pcm2[(size_t)produced2 * 2], 1);
+          produced2++;
+        }
       }
-      uint32_t gotf = dsp_getSamples(apu->dsp, chunk2, want);
-      if (gotf == 0) break;
-      memcpy(&pcm2[(size_t)produced2 * 2], chunk2,
-             (size_t)gotf * 2 * sizeof(int16_t));
-      produced2 += (int)gotf;
+      if (produced2 >= frames2) break;
     }
+    (void)chunk2;
     double sL = 0, sR = 0;
     int pL = 0, pR = 0;
     for (int i = 0; i < produced2; i++) {
@@ -241,11 +302,13 @@ int main(int argc, char **argv) {
       printf("{\"ok\":true,\"aram\":\"%s\",\"entry_pc\":%ld,"
              "\"frames\":%d,\"seconds\":%.3f,\"halted_at\":%d,"
              "\"peak_l\":%d,\"peak_r\":%d,\"rms_l\":%.1f,\"rms_r\":%.1f,"
-             "\"port_writes\":%d,\"wav\":\"%s\"}\n",
+             "\"port_writes\":%d,\"ack_ok\":%d,\"ack_timeout\":%d,"
+             "\"ack_cycles\":%lld,\"wav\":\"%s\"}\n",
              aram_path, entry_override, produced2,
              (double)produced2 / NATIVE_RATE, halted2, pL, pR,
              produced2 ? sqrt(sL / produced2) : 0,
-             produced2 ? sqrt(sR / produced2) : 0, port_n2, out_path);
+             produced2 ? sqrt(sR / produced2) : 0, port_n2, ack_ok, ack_timeout,
+             ack_cycles, out_path);
     else
       printf("aram %s entry 0x%04lX: rendered %.2f s, peak %d/%d rms %.1f/%.1f,"
              " halted_at=%d\n", aram_path, entry_override,

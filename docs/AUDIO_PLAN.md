@@ -242,17 +242,26 @@ blocked by unrelated widescreen work, see the note at the end. With it:
   change on the output ports" handshake (`apu_host --handshake`) is **silent**:
   30 s rendered, `halted_at=-1`, rms 0.0.
 
-So the pacing rule matters and "any change" is too loose. The correct protocol is
-already specified in the oracle:
+Two concrete gaps were then found and closed, in this order:
 
-```c
-/* apu_waitForTransferReady: the SPC announces readiness with $AA/$BB */
-if (apu->outPorts[0] == 0xaa && apu->outPorts[1] == 0xbb) return true;
-```
-and `apu_finishHleTransfer` terminates with `$CC` on port 0 and waits for its
-echo. The next step is to implement exactly those two rules in `apu_host`
-(ready pair before the stream, echo after the terminator) instead of the
-placeholder wait.
+1. **The timer was missing.** ARAM alone does not describe the driver's
+   timebase, and this driver's main loop is `MOV A,$FD` (timer 0) + accumulate.
+   Booting from ARAM with the default (disabled) timer left the driver deaf:
+   **33 acknowledgements out of 16,669 writes**. Loading the `.spc`'s synthesized
+   `$F0-$FF` region at the same frame (`--spc-io`) raised that to **2,789**: the
+   driver answers now, so the transfer path is live.
+2. **The render clock is wrong for a handshake.** `apu_host` renders in sample
+   time (32 APU cycles per output sample) while the handshake burns APU cycles
+   inside the write loop, so the same run consumed 5.55e9 cycles (172 s of APU
+   time) to produce a 30 s file. Even audio that did play would be compressed in
+   time. The fix is to drive the file from APU time — emit a sample whenever
+   `dsp_cycle` produces one — and let the write schedule follow that clock.
+
+The protocol itself is specified in the oracle and is what `--echo-wait`
+implements: `apu_waitForTransferReady` waits for the `$AA/$BB` ready pair, the
+per-byte ack is the index echoed on port 0, and `apu_finishHleTransfer`
+terminates with `$CC` and waits for its echo. With the timer fix in place the
+remaining silence is explained by item 2, not by the protocol shape.
 
 ### A note on the oracle tree
 

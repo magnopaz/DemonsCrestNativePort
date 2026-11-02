@@ -83,6 +83,9 @@ def main() -> int:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--aram-frame", type=int, default=60)
     ap.add_argument("--end-frame", type=int, default=145)
+    ap.add_argument("--mid-frame", type=int, default=132,
+                    help="second port-ring sample; the ring keeps the last"
+                         " 65536 events, so a long transfer needs two dumps")
     ap.add_argument("--seconds", type=float, default=30.0)
     ap.add_argument("--port", type=int, default=4409)
     ap.add_argument("--no-handshake", action="store_true")
@@ -106,25 +109,43 @@ def main() -> int:
             client.cmd("dump_apu_ram 0 65536")["hex"].replace(" ", ""))
         aram_path = args.out / "aram.bin"
         aram_path.write_bytes(aram)
+        # The .spc at the same frame carries the synthesized $F0-$FF IO region
+        # (timer target/enable), which ARAM alone does not describe.
+        spc_path = (args.out / "io.spc").resolve()
+        client.cmd(f"spc_dump {spc_path}")
         # Enter at the driver's port-poll loop, not at the sampled PC: the
         # sampled PC can be a RET (the driver was inside a CALL when dumped),
         # and the poll loop is the state the CPU talks to.
         entry = 0x046A
         print("sampled PC at dump:", apu["spc"]["pc"], "-> entry 0x046A")
 
+        def dump_ring(tag: str) -> list[tuple[int, int, int]]:
+            tsv = (args.out / f"apu_{tag}.tsv").resolve()
+            dumped = client.cmd(f"port_events {tsv}")
+            print(f"port ring {tag}:", dumped.get("events"), "of",
+                  dumped.get("total"))
+            out = []
+            for line in tsv.read_text().splitlines():
+                if line.startswith("#") or not line.strip():
+                    continue
+                _frame, kind, port, value, sample = line.split("\t")
+                if kind == "cpu_wr" and int(sample) > produced0:
+                    out.append((int(sample), int(port), int(value, 16)))
+            return out
+
+        # The ring only holds the last 65536 events, so a long byte-by-byte
+        # transfer is sampled twice: the first dump has its head, the second
+        # its tail. Merge on the sample clock.
+        head = dump_ring("head") if args.mid_frame else []
         client.run_to(args.end_frame)
         time.sleep(0.15)
-        tsv = (args.out / "apu.tsv").resolve()
-        dumped = client.cmd(f"port_events {tsv}")
-        print("port ring:", dumped.get("events"), "of", dumped.get("total"))
-
-        writes = []
-        for line in tsv.read_text().splitlines():
-            if line.startswith("#") or not line.strip():
-                continue
-            _frame, kind, port, value, sample = line.split("\t")
-            if kind == "cpu_wr" and int(sample) > produced0:
-                writes.append((int(sample), int(port), int(value, 16)))
+        tail = dump_ring("tail")
+        writes = head
+        if head:
+            last = head[-1][0]
+            writes = head + [w for w in tail if w[0] > last]
+        else:
+            writes = tail
         ports = args.out / "ports.txt"
         ports.write_text("\n".join(f"{s} {p} {v}" for s, p, v in writes) + "\n")
         print(f"replaying {len(writes)} writes (first at sample"
@@ -151,6 +172,7 @@ def main() -> int:
     cmd = [str(ROOT / "build" / "apu_host"), str(ROM),
            "--aram", str(aram_path), "--entry", f"0x{entry:04X}",
            "--ports", str(ports), "--port-offset", str(writes[0][0]),
+           "--spc-io", str(args.out / "io.spc"),
            "--out", str(out_wav), "--seconds", str(args.seconds), "--json"]
     if not args.no_handshake:
         cmd.append("--handshake")
