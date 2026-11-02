@@ -34,7 +34,8 @@ ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
   11,043, RMS steady ~1,778.
 - **New tools** (all dev-time, nothing ships): `tools/audio/dump_spc.py`
   (`.spc` + port traffic + provenance), `tools/audio/spc_render.c` +
-  `build_spc_render.sh` (offline `.spc` render + SPC PC tracer),
+  `build_audio_tools.sh` (offline `.spc` render + SPC PC tracer, and the
+  ROM/ARAM APU host),
   `tools/audio/capture_music.py` (live DSP capture with the object pool
   neutralised), `tools/audio/wav_loop.c` (period search + seam-snapped cut),
   `tools/audio/make_music_asset.py` (capture → loop → asset + manifest),

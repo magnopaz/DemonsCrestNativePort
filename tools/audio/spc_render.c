@@ -135,9 +135,14 @@ static int spc_load(Apu *apu, const uint8_t *img) {
   apu->romReadable = (f1 & 0x80) != 0;
   apu->dspAdr = img[0x100 + 0xf2];
 
-  /* The 128 DSP registers, ascending so pitch/source/ADSR land before KON. */
-  for (int r = 0; r < 0x80; r++)
-    dsp_write(dsp, (uint8_t)r, img[0x10100 + r]);
+  /* The 128 DSP registers, ascending so pitch/source/ADSR land before KON.
+   * DC_SPC_NO_DSP=1 skips them: the SPC does not need them, so this isolates
+   * "the DSP register load changes APU RAM" from "the driver needs a CPU". */
+  if (!getenv("DC_SPC_NO_DSP"))
+    for (int r = 0; r < 0x80; r++)
+      dsp_write(dsp, (uint8_t)r, img[0x10100 + r]);
+  if (getenv("DC_SPC_NO_ECHO"))
+    dsp_write(dsp, 0x6c, (uint8_t)(img[0x10100 + 0x6c] | 0x20));
 
   if (getenv("DC_SPC_DUMP_LOAD")) {
     fprintf(stderr,
@@ -179,7 +184,9 @@ int main(int argc, char **argv) {
   double loop_start = -1;
   const char *loop_out = NULL;
   int trace_every = 0;
+  int timer_phase = -1;
   const char *ports_path = NULL;
+  const char *dump_aram_path = NULL;
   long port_offset = 0;
 
   for (int i = 3; i < argc; i++) {
@@ -198,6 +205,10 @@ int main(int argc, char **argv) {
       loop_out = argv[++i];
     } else if (!strcmp(argv[i], "--trace-every") && i + 1 < argc) {
       trace_every = atoi(argv[++i]);
+    } else if (!strcmp(argv[i], "--timer-phase") && i + 1 < argc) {
+      timer_phase = atoi(argv[++i]);
+    } else if (!strcmp(argv[i], "--dump-aram") && i + 1 < argc) {
+      dump_aram_path = argv[++i];
     } else if (!strcmp(argv[i], "--ports") && i + 1 < argc) {
       ports_path = argv[++i];
     } else if (!strcmp(argv[i], "--port-offset") && i + 1 < argc) {
@@ -236,6 +247,15 @@ int main(int argc, char **argv) {
   if (!apu || spc_load(apu, img) != 0) {
     fprintf(stderr, "spc_render: failed to load %s\n", in_path);
     return 1;
+  }
+
+  if (timer_phase >= 0) {
+    /* The .spc carries the timer counter but not the divider phase. Sweeping it
+     * answers "is the driver sensitive to where in a timer period it resumes?" */
+    for (int i = 0; i < 3; i++) {
+      apu->timer[i].divider = (uint8_t)(timer_phase % 256);
+      apu->timer[i].cycles = 0;
+    }
   }
 
   int frames = (int)(seconds * NATIVE_RATE + 0.5);
@@ -294,8 +314,7 @@ int main(int argc, char **argv) {
       for (int k = 0; k < 32; k++) {
         uint16_t pc = apu->spc->pc;
         if (pc != last_pc) {
-          if (!derail_seen &&
-              (pc < 0x0100 || (pc >= 0xFF00 && pc < 0xFFC0))) {
+          if (!derail_seen && pc < 0x0100 && last_pc >= 0x0100) {
             derail_seen = 1;
             derail_at = pc_n;
             derail_pc = pc;
@@ -336,6 +355,14 @@ int main(int argc, char **argv) {
     memcpy(&pcm[(size_t)produced * 2], chunk,
            (size_t)got_frames * 2 * sizeof(int16_t));
     produced += (int)got_frames;
+  }
+
+  if (dump_aram_path) {
+    FILE *af = fopen(dump_aram_path, "wb");
+    if (af) {
+      fwrite(apu->ram, 1, 0x10000, af);
+      fclose(af);
+    }
   }
 
   double sumL = 0, sumR = 0;
@@ -460,8 +487,8 @@ int main(int argc, char **argv) {
   }
 
   if (derail_seen) {
-    fprintf(stderr, "spc_render: first out-of-code PC %04X at instruction %u;"
-                    " preceding 48:\n", derail_pc, derail_at);
+    fprintf(stderr, "spc_render: control entered zero page at PC %04X after"
+                    " instruction %u; preceding 48:\n", derail_pc, derail_at);
     unsigned from = derail_at > 48 ? derail_at - 48 : 0;
     for (unsigned i = from; i < derail_at; i++)
       fprintf(stderr, "%04X:%02X%s", pc_ring[i & 4095], op_ring[i & 4095],

@@ -101,36 +101,47 @@ def main() -> int:
                     default=Path(os.environ.get("RECOMP_DIR", DEFAULT_RECOMP)))
     ap.add_argument("--rom", type=Path,
                     default=Path(os.environ.get("ROM", DEFAULT_ROM)))
-    ap.add_argument("--save", type=Path, required=True,
-                    help="save state to resume (paused)")
+    ap.add_argument("--save", type=Path,
+                    help="save state to resume (paused); omit with --boot")
+    ap.add_argument("--boot", action="store_true",
+                    help="cold-boot the game instead of resuming a save")
     ap.add_argument("--out", type=Path, required=True, help="output directory")
     ap.add_argument("--run", type=int, default=240,
                     help="frames to run after the resume before the snapshot")
     ap.add_argument("--port", type=int, default=4393)
     ap.add_argument("--live-wav", type=float, default=0.0,
                     help="also dump this many seconds of live DSP output")
+    ap.add_argument("--after", type=float, default=0.0,
+                    help="keep running this many seconds after the snapshot and"
+                         " record the CPU->APU commands the game sends; a"
+                         " replayed driver needs the traffic that follows the"
+                         " snapshot, not the traffic before it")
     ap.add_argument("--name", default="music.spc")
     args = ap.parse_args()
 
     exe = args.recomp / "build-trace" / "DemonsCrestSNESRecomp"
     if not exe.is_file():
         raise SystemExit(f"dump_spc: missing trace build: {exe}")
-    if not args.save.is_file():
-        raise SystemExit(f"dump_spc: missing save state: {args.save}")
+    if not args.boot and (not args.save or not args.save.is_file()):
+        raise SystemExit("dump_spc: pass --save <state> or --boot")
 
     args.out.mkdir(parents=True, exist_ok=True)
     # The host rewrites path arguments relative to the game directory, so the
     # one-shot resume state must live inside the recomp tree.
     resume = args.recomp / f"_dc_audio_resume_{args.port}.sav"
-    shutil.copyfile(args.save, resume)
+    if args.boot:
+        resume = None
+    else:
+        shutil.copyfile(args.save, resume)
     spc_path = (args.out / args.name).resolve()
 
     env = dict(os.environ, SNESRECOMP_DEBUG_PORT=str(args.port),
                SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
     log = open(args.out / "capture.log", "wb")
-    proc = subprocess.Popen([str(exe), str(args.rom), "--paused",
-                             "--resume-state", str(resume)],
-                            cwd=str(args.recomp), env=env,
+    argv = [str(exe), str(args.rom), "--paused"]
+    if resume is not None:
+        argv += ["--resume-state", str(resume)]
+    proc = subprocess.Popen(argv, cwd=str(args.recomp), env=env,
                             stdout=log, stderr=log)
     client = None
     try:
@@ -142,6 +153,10 @@ def main() -> int:
         stats = client.cmd("audio_stats")
         dumped = client.cmd(f"spc_dump {spc_path}")
         apu = client.cmd("get_apu_state")
+
+        if args.after > 0:
+            client.run_to(client.frame() + int(args.after * 60))
+            time.sleep(0.3)
 
         # CPU->APU port traffic since the process started. A .spc carries no CPU,
         # so the offline render can only stay on the driver's rails if the
@@ -169,8 +184,8 @@ def main() -> int:
                     "produced_at_dump": produced}
 
         meta = {
-            "save": str(args.save),
-            "save_sha1": sha1(args.save),
+            "save": str(args.save) if args.save else "(cold boot)",
+            "save_sha1": sha1(args.save) if args.save else "(cold boot)",
             "rom_sha1": sha1(args.rom),
             "start_frame": start,
             "frame": frame,
@@ -183,6 +198,8 @@ def main() -> int:
             "spc_pc": dumped.get("pc"),
             "produced_samples": dumped.get("produced"),
             "port_events": len(port_lines),
+            "port_offset": dumped.get("produced"),
+            "after_seconds": args.after,
             "cpu_port_streams": port_streams,
             "ports_file": "ports.txt",
             "audio_produced_cpu": stats.get("produced_cpu"),
@@ -204,10 +221,11 @@ def main() -> int:
         except subprocess.TimeoutExpired:
             proc.kill()
         log.close()
-        try:
-            resume.unlink()
-        except FileNotFoundError:
-            pass
+        if resume is not None:
+            try:
+                resume.unlink()
+            except FileNotFoundError:
+                pass
 
 
 if __name__ == "__main__":

@@ -124,7 +124,7 @@ assets, i.e. skip):
 ### Reproducing it
 
 ```sh
-tools/audio/build_spc_render.sh          # offline .spc renderer + PC tracer
+tools/audio/build_audio_tools.sh         # spc_render + apu_host
 python3 tools/audio/dump_spc.py --save <save> --out captures/audio/<name>   # .spc artifact
 python3 tools/audio/make_music_asset.py  # capture -> loop -> asset + manifest
 python3 tools/check_audio_assets.py      # the three checks above
@@ -135,21 +135,95 @@ present, capturing from the oracle otherwise, and skipping cleanly when neither
 exists); `--no-audio` disables it. Track specs live in
 `tools/audio/music_tracks.json`. Every generated file stays git-ignored.
 
+## Route 1 investigation: can the port run the driver itself? (2026-11-02, S1)
+
+Yes in principle, and the pieces are now identified — but **not from a snapshot**.
+
+### The upload is the CPU's, and the game does not declare an HLE hook
+
+`recomp/bank00.cfg` has no `hle_spc_upload` directive, so Demon's Crest uploads
+the sound driver through the plain IPL byte-by-byte protocol, driven by guest
+code. There is no tidy "block stream in the ROM" to lift: the CPU half of the
+transfer is real work the console did.
+
+Measured on a cold boot (`tools/audio/boot_capture.py`):
+
+| observation | measurement |
+|---|---|
+| driver in ARAM | by frame 20 (`$046A` region non-zero) |
+| idle point at frame 60 | PC `$048C`/`$0470` (the `$046A` port-poll loop) |
+| first upload | 2001 CPU writes between samples 561 and 1346 (~0.8 s) |
+| next CPU→APU traffic | none until sample ~68,700 |
+| second upload (music bank) | 1999 writes at sample ~68,746 (frame ~128) |
+| after that | **no CPU→APU writes at all**, and music plays |
+
+Two consequences: the driver is self-sufficient during playback (no per-frame
+commands), and everything the port needs to reproduce is the two uploads.
+
+### Booting an embedded APU from the clean image works
+
+`tools/audio/apu_host` (new) boots the oracle's SPC700 + DSP from a captured
+ARAM image and an entry PC. From the frame-60 image, entry `$046A`:
+
+```
+aram f0060 entry 0x046A: rendered 20.00 s, peak 0/0 rms 0.0/0.0, halted_at=-1
+```
+
+No halt and no sound — correct: the driver is idling and no music bank is
+loaded. The core, the image and the loader are fine.
+
+### But mid-song `.spc` snapshots derail, and the DSP is the trigger
+
+Every mid-song snapshot (colosseum fight, title screen with music) derails in
+the embedded APU after ~13k instructions, ending in a `STOP` executed from data.
+Isolating the input:
+
+| render | result |
+|---|---|
+| `.spc` with all 128 DSP registers | derails (executes data, `STOP` at `$FE83`/`$FFB5`) |
+| `.spc`, DSP registers skipped (`DC_SPC_NO_DSP=1`) | no halt, silent |
+| `.spc`, DSP registers loaded but echo disabled (`DC_SPC_NO_ECHO=1`) | no halt, music plays ~5 s then goes quiet (rms ~1.9) |
+
+So the driver's behaviour depends on the **DSP's echo state**, not only on ARAM
+and the register image. A `.spc` cannot carry the DSP's per-voice and echo
+state, which is why resuming one hijacks the driver's control flow — the same
+reason the earlier six-dump sweep failed.
+
+### What the port's APU host must do (next step)
+
+1. **Boot**: upload the driver image (a captured post-boot ARAM is enough — it
+   runs forever) and jump to the entry.
+2. **Load a song**: replay the bank upload *with the handshake*. A raw replay of
+   the captured writes produces silence, because the IPL transfer is
+   request/acknowledge: the CPU writes a byte and waits for the SPC's answer on
+   `$2142`/`$2143` before the next one. The oracle's RTL already models this
+   (`apu_waitForTransferReady`, `apu_finishHleTransfer`) and is the reference to
+   port.
+3. **Play**: nothing else — playback needs no commands, so SFX become the only
+   runtime traffic (their ids are in the captured stream).
+
+Success criterion for the next session: `apu_host` renders 60 s of the
+colosseum theme from the embedded APU, A/B against `music_boss.wav`, without a
+halt and without echo tricks.
+
+Tools added for this: `apu_host.c` (boot + render + port replay + ARAM dump),
+`boot_capture.py`, `press_probe.py`, `aram_compare.py` (live-vs-offline ARAM
+diff), and the `--aram`/`--entry`/`--ports`/`--port-offset` flags they use.
+
 ## Still to do
 
-1. **SFX** (next): the seven event triggers still synthesise. The same capture
-   path can isolate them — a save where the event fires, the object pool
-   untouched, and a window around the trigger; the alternative is to read the
-   BRR sample the driver keyed on and play it from `src/audio.c`.
-2. **A track per area**, not per game state: `src/game.c` currently picks
+1. **Route 1, step 2**: the handshake upload above. Until it works the rendered
+   assets are the shipping path, and this is the difference between 5 MB per
+   track and 64 KB of ARAM.
+2. **SFX**: the seven event triggers still synthesise. On route 1 they come for
+   free (same driver, same voices); until then, the capture-window approach or
+   reading the BRR sample the driver keyed on are the options.
+3. **A track per area**, not per game state: `src/game.c` currently picks
    `MUSIC_TITLE/STAGE/BOSS/ENDING`. `room_names.json` (34 maps) is the table to
    extend, with `music_tracks.json` gaining one entry per area that has its own
    theme. Capturing needs a save state in each area (312 exist in the oracle's
    `build-trace/saves/`).
-3. **Format at campaign scale**: one 40 s WAV is 5 MB; 30 tracks would be
+4. **Format at campaign scale**: one 40 s WAV is 5 MB; 30 tracks would be
    ~150 MB. FLAC keeps the sample-exact loop and halves that; OGG is smaller but
-   its encoder delay/padding makes a sample-exact loop harder. Decide before the
-   per-area pass, not after.
-4. **The `.spc` question** stays open (see the trap above): if the driver's CPU
-   dependency is ever decoded, the offline path becomes viable and much cheaper
-   than capturing every track live.
+   its encoder delay/padding makes a sample-exact loop harder. If route 1 lands,
+   this question disappears.
