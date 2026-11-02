@@ -312,6 +312,40 @@ the transfer (counter 0), so the two never agree on which byte comes next. In
 other words the transfer has to be reproduced as a *protocol*, not as a log — the
 data alone cannot say where in the transfer the console was.
 
+### What finally worked, and what it showed
+
+A different approach beat all the snapshot and handshake attempts: **replay the
+console's whole timeline from power-on**. `apu_host --fresh` starts from
+`apu_reset()` and applies the captured CPU writes at their recorded sample
+times; `tools/audio/capture_boot_ports.py` merges repeated port-ring dumps so the
+stream is complete from sample 0 (130,666 writes over 1,200 frames).
+
+The result is real progress:
+
+- the driver boots and runs: after 20 s the embedded APU sits at **`$046A`**, and
+  after 21 s at **`$0302`** — the same poll loop and tempo loop the live console
+  sits in;
+- `tools/audio/compare_ab.py` measures the console's own timeline for the first
+  time: music starts at **second 6** (frame ~360) and plays through second 9,
+  then goes quiet;
+- but the embedded run is silent through that window, and a byte-for-byte ARAM
+  diff at frame 1260 shows **hundreds of pages differ** (`$0059..`, `$3400`,
+  `$3D00`, `$5200`, ...). The replay reaches the same *code*, then diverges in
+  *state*.
+
+The divergence is the transfer's timing: the CPU's writes were queued with
+per-write APU-cycle timestamps (`apu_schedulePortWrite`), while a sample index
+only resolves 32 cycles and several writes share one bucket (the four writes of
+the IPL request all land at sample 561). Spacing them by a fixed 24 cycles is
+what let the driver boot at all, but it is still an approximation, and a
+byte-by-byte handshake accumulates the error.
+
+So the remaining work is now precise: **apply the writes at their true APU-cycle
+timestamps**. Either record the cycle stamp per event (the ring has
+`sample_idx`, add the APU cycle), or replay with the oracle's own queue
+semantics (`apu_schedulePortWrite` + `apu_runToGuestCycle`, both already in
+`apu.c`) instead of the sample-index approximation.
+
 Two clean ways to get it, both small:
 
 1. **Log the handshake state.** Extend the port ring's `cpu_wr` entries with the

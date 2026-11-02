@@ -65,6 +65,7 @@ int main(int argc, char **argv) {
   const char *ports_path = NULL;
   const char *aram_path = NULL;
   const char *io_spc_path = NULL;
+  int fresh = 0;
   long upload_bank = -1, upload_addr = -1;
   long entry_override = -1;
   long port_offset = 0;
@@ -89,6 +90,8 @@ int main(int argc, char **argv) {
       handshake = 3;
     } else if (!strcmp(argv[i], "--port-offset") && i + 1 < argc) {
       port_offset = strtol(argv[++i], NULL, 0);
+    } else if (!strcmp(argv[i], "--fresh")) {
+      fresh = 1;
     } else if (!strcmp(argv[i], "--spc-io") && i + 1 < argc) {
       io_spc_path = argv[++i];
     } else if (!strcmp(argv[i], "--entry") && i + 1 < argc) {
@@ -108,7 +111,7 @@ int main(int argc, char **argv) {
       return 2;
     }
   }
-  if (!out_path || (upload_bank < 0 && !aram_path)) {
+  if (!out_path || (upload_bank < 0 && !aram_path && !fresh)) {
     fprintf(stderr, "apu_host: --upload BANK:ADDR or --aram FILE is required"
                     " (plus --out)\n");
     return 2;
@@ -133,7 +136,93 @@ int main(int argc, char **argv) {
   }
   fclose(rf);
 
-  /* ---- boot source: captured ARAM, or the ROM's upload stream ------ */
+  /* ---- boot source: cold reset, captured ARAM, or a ROM stream ----- */
+  if (fresh) {
+    /* The console's own timeline: power-on state, then the CPU's port writes
+     * replayed at their recorded sample times. No snapshot, no handshake
+     * guessing - if the emulator is deterministic this reproduces the machine,
+     * including the DSP state a .spc cannot carry. */
+    Apu *apu = apu_init();
+    if (!apu) {
+      fprintf(stderr, "apu_host: apu_init failed\n");
+      return 1;
+    }
+    apu_reset(apu);
+    int frames3 = (int)(seconds * NATIVE_RATE + 0.5);
+    int16_t *pcm3 = calloc((size_t)frames3 * 2, sizeof(int16_t));
+    if (!pcm3) {
+      fprintf(stderr, "apu_host: out of memory\n");
+      return 1;
+    }
+    static long fs[MAX_PORTS];
+    static int fp[MAX_PORTS], fv[MAX_PORTS];
+    int fcnt = 0;
+    if (ports_path) {
+      FILE *pf = fopen(ports_path, "r");
+      if (pf) {
+        char line[256];
+        while (fcnt < MAX_PORTS && fgets(line, sizeof(line), pf)) {
+          if (line[0] == '#' || line[0] == '\n') continue;
+          long s; int port, val;
+          if (sscanf(line, "%ld %d %d", &s, &port, &val) < 3) continue;
+          fs[fcnt] = s; fp[fcnt] = port; fv[fcnt] = val; fcnt++;
+        }
+        fclose(pf);
+      }
+    }
+    int produced3 = 0, halted3 = -1, fn = 0, applied = 0;
+    uint64_t last_write_cycle = 0;
+    while (produced3 < frames3) {
+      /* Several CPU writes can share one sample bucket (the sample clock is
+       * 31 us), but the console issued them over hundreds of master cycles and
+       * the IPL observes them one at a time. Applying a whole burst in the same
+       * APU cycle makes the IPL miss the $CC sequence, so space them. */
+      if (fn < fcnt && fs[fn] <= produced3 &&
+          apu->cycles - last_write_cycle >= 24) {
+        apu_writePortNow(apu, (uint8_t)fp[fn], (uint8_t)fv[fn]);
+        last_write_cycle = apu->cycles;
+        fn++; applied++;
+      }
+      apu_cycle(apu);
+      if (apu->spc->stopped && halted3 < 0) halted3 = produced3;
+      while (produced3 < frames3 && dsp_available(apu->dsp) > 0) {
+        dsp_getSamples(apu->dsp, &pcm3[(size_t)produced3 * 2], 1);
+        produced3++;
+      }
+    }
+    if (getenv("APU_HOST_DUMP_ARAM")) {
+      FILE *df = fopen(getenv("APU_HOST_DUMP_ARAM"), "wb");
+      if (df) { fwrite(apu->ram, 1, 0x10000, df); fclose(df); }
+    }
+    double sL3 = 0, sR3 = 0;
+    int pL3 = 0, pR3 = 0;
+    for (int i = 0; i < produced3; i++) {
+      sL3 += (double)pcm3[i * 2] * pcm3[i * 2];
+      sR3 += (double)pcm3[i * 2 + 1] * pcm3[i * 2 + 1];
+      if (abs(pcm3[i * 2]) > pL3) pL3 = abs(pcm3[i * 2]);
+      if (abs(pcm3[i * 2 + 1]) > pR3) pR3 = abs(pcm3[i * 2 + 1]);
+    }
+    if (apu_write_wav(out_path, pcm3, produced3, NATIVE_RATE) != 0) {
+      fprintf(stderr, "apu_host: cannot write %s\n", out_path);
+      return 1;
+    }
+    if (json)
+      printf("{\"ok\":true,\"fresh\":true,\"frames\":%d,\"seconds\":%.3f,"
+             "\"halted_at\":%d,\"port_writes\":%d,\"peak_l\":%d,"
+             "\"rms_l\":%.1f,\"pc_end\":\"%04X\",\"wav\":\"%s\"}\n",
+             produced3, (double)produced3 / NATIVE_RATE, halted3, applied, pL3,
+             produced3 ? sqrt(sL3 / produced3) : 0, (unsigned)apu->spc->pc,
+             out_path);
+    else
+      printf("fresh: %.2f s, %d writes, peak %d, rms %.1f, halted_at=%d\n",
+             (double)produced3 / NATIVE_RATE, applied, pL3,
+             produced3 ? sqrt(sL3 / produced3) : 0, halted3);
+    free(pcm3);
+    apu_free(apu);
+    free(rom);
+    return halted3 >= 0 ? 3 : 0;
+  }
+
   if (aram_path) {
     Apu *apu = apu_init();
     if (!apu) {
