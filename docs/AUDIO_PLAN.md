@@ -208,7 +208,36 @@ halt and without echo tricks.
 
 Tools added for this: `apu_host.c` (boot + render + port replay + ARAM dump),
 `boot_capture.py`, `press_probe.py`, `aram_compare.py` (live-vs-offline ARAM
-diff), and the `--aram`/`--entry`/`--ports`/`--port-offset` flags they use.
+diff), `capture_upload.py`, and the `--aram`/`--entry`/`--ports`/`--port-offset`
+flags they use.
+
+### Where the capture of that handshake stands
+
+Two blockers, both measured:
+
+- The driver's code region is in the ROM **linearly**, not as a length/target
+  block stream: ARAM `$02C0..$0DA0` is byte-identical to file `0x3010C..0x30BEC`
+  (constant delta `0x2FE4C`), and the bytes right after that region are not a
+  terminator. So there is no header to parse — a "boot from ROM" path would copy
+  that region directly, and the *bank* would have to come from elsewhere.
+- The CPU->APU writes cannot be captured through `audio_events`: that command
+  reads the general event ring, and the DSP's register writes (thousands per
+  second) push the transfer out of it within a second. A dedicated port ring
+  exists (`AUDIO_TRACE_PORT_RING`, 65536 events, written to `.apu.tsv` by
+  `state_dump.c`) but **no debug-server command exposes it**, and adding one
+  needs the oracle to build — currently broken by unrelated widescreen work
+  (`src/dc_widescreen.c` calls `PpuSetWidescreenLayerRightEdge`, which the
+  submodule no longer has).
+
+So the next session has two clean options, in order of preference:
+
+1. expose the port ring (a `port_events <path>` command next to `spc_dump`) once
+   the oracle builds again, capture the bank transfer, and drive it with the
+   acknowledge-waiting replay that `apu_host --handshake` already implements;
+2. or lift the bank directly: diff ARAM before/after the upload (the probe
+   already dumps both) and write that region into the embedded APU at boot,
+   which skips the protocol entirely but needs the driver's post-transfer state
+   to be reachable — that is what the frame-133 ARAM image is for.
 
 ## Still to do
 

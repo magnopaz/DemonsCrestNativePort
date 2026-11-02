@@ -67,6 +67,7 @@ int main(int argc, char **argv) {
   long upload_bank = -1, upload_addr = -1;
   long entry_override = -1;
   long port_offset = 0;
+  int handshake = 0;
   double seconds = 60.0;
   bool json = false;
   int trace_every = 0;
@@ -79,6 +80,8 @@ int main(int argc, char **argv) {
       }
     } else if (!strcmp(argv[i], "--aram") && i + 1 < argc) {
       aram_path = argv[++i];
+    } else if (!strcmp(argv[i], "--handshake")) {
+      handshake = 1;
     } else if (!strcmp(argv[i], "--port-offset") && i + 1 < argc) {
       port_offset = strtol(argv[++i], NULL, 0);
     } else if (!strcmp(argv[i], "--entry") && i + 1 < argc) {
@@ -184,8 +187,20 @@ int main(int argc, char **argv) {
       if (want > 1024) want = 1024;
       for (int n = 0; n < want; n++) {
         while (port_n2 < pcnt && ps[port_n2] - port_offset <= produced2 + n) {
+          uint8_t before[4];
+          memcpy(before, apu->outPorts, sizeof(before));
           apu_writePortNow(apu, (uint8_t)pp[port_n2], (uint8_t)pv[port_n2]);
           port_n2++;
+          /* The transfer is request/acknowledge: the CPU waits for the SPC to
+           * answer on its output ports before it sends the next byte. Pacing by
+           * the captured timestamps instead loses bytes and the driver never
+           * starts; pacing by the acknowledge reproduces the console's side. */
+          if (handshake) {
+            for (int w = 0; w < 400000; w++) {
+              apu_cycle(apu);
+              if (memcmp(before, apu->outPorts, sizeof(before))) break;
+            }
+          }
         }
         for (int k = 0; k < 32; k++) apu_cycle(apu);
         if (apu->spc->stopped && halted2 < 0) halted2 = produced2 + n;
