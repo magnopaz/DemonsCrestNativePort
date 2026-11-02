@@ -831,29 +831,44 @@ static bool Game_UpdateBossIntro(Game *game) {
 #define FX_ONE fx_one
 
     switch (game->boss_intro) {
-    case 1: /* off-screen, coming closer */
+    case 1: /* establishing shot: Firebrand alone, distant thumps off-screen */
         boss->x_fx = (int32_t)(-70.0f * FX_ONE);
-        if (f == 1 || (f % 22) == 0)
-            game->shake = 14;
-        if (f > 70) {
+        /* The camera stays on the player until Somulo is actually coming. */
+        Camera_Focus(&game->camera, &game->level,
+                     (float)game->player.x);
+        if (f == 1 || (f % 46) == 0)
+            game->shake = 10;
+        if (f > 150) {
             game->boss_intro = 2;
             game->boss_intro_timer = 0;
         }
         break;
-    case 2: /* walking in, one heavy step after another */
+    case 2: /* off-screen, coming closer: heavier and heavier steps */
+        boss->x_fx = (int32_t)(-70.0f * FX_ONE);
+        if (f == 1 || (f % 22) == 0)
+            game->shake = 14;
+        if (f > 70) {
+            game->boss_intro = 3;
+            game->boss_intro_timer = 0;
+        }
+        break;
+    case 3: /* walking in, one heavy step after another */
         boss->state = 8;   /* walking pose; the intro moves him, not the AI */
-        boss->x_fx += (int32_t)(1.3f * FX_ONE);
-        if (boss->x_fx > (int32_t)(288.0f * FX_ONE))
-            boss->x_fx = (int32_t)(288.0f * FX_ONE);
+        /* He stops short of Firebrand: the walk-in ends where the roar can be
+         * seen from both characters, and the deadly blind walk is what closes
+         * the distance afterwards. Walking him to x=288 walked him *through*
+         * the player before the fight even started. */
+        if (boss->x_fx < (int32_t)(40.0f * FX_ONE))
+            boss->x_fx += (int32_t)(1.3f * FX_ONE);
         if ((f % 24) == 5)
             game->shake = 16;
         if (f > 280) {
-            game->boss_intro = 3;
+            game->boss_intro = 4;
             game->boss_intro_timer = 0;
             game->shake = 26;
         }
         break;
-    case 3: /* the roar */
+    case 4: /* the roar: this is the beat after which control returns */
         boss->state = 0;   /* stands up to roar */
         if (f == 1) {
             game->shake = 60;
@@ -871,6 +886,14 @@ static bool Game_UpdateBossIntro(Game *game) {
     default:
         game->boss_intro = 0;
         break;
+    }
+    if (getenv("DC_BOSS_INTRO_DEBUG")) {
+        static int last = -1;
+        if (game->boss_intro != last) {
+            fprintf(stderr, "boss intro: phase %d at frame %d (boss x=%.1f)\n",
+                    game->boss_intro, f, (float)boss->x_fx / FX_ONE);
+            last = game->boss_intro;
+        }
     }
     return true;
 }

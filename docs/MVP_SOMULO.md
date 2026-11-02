@@ -98,9 +98,13 @@ you can skip:
    Firebrand, so he does not react; standing in his path is fatal.
 6. When he stops and **opens his eyes**, the fireball duel begins.
 
-Implemented so far: the three phases (distant steps, walking in from the left,
-the roar), control lockout until the roar ends, screen shake on the steps and the
-roar, the deadly blind walk (state 7), and `DC_BOSS_INTRO=0` to skip it in tests.
+Implemented so far: four phases with `DC_BOSS_INTRO_DEBUG=1` tracing each
+transition — (1) an establishing shot that holds the camera on Firebrand with
+distant thumps for 150 frames, (2) the off-screen approach with heavier steps,
+(3) the walk-in, which now stops 88 px short of the player instead of walking
+him through the player, and (4) the roar, after which control returns. Control
+is locked for the whole sequence, screen shake marks every step, and the deadly
+blind walk (state 7) starts when the roar ends. `DC_BOSS_INTRO=0` still skips it.
 
 Still missing: the **gate opening** animation, the glowing-eyes-behind-the-bars
 shot, and the eyes-closed / eyes-open / scream sprites (the entrance currently
