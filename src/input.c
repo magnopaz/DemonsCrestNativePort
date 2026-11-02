@@ -131,6 +131,12 @@ void Input_Read(Input *in, InputState *st) {
         shot = demo_frame == 50 || demo_frame == 68 || demo_frame == 86;
         left = demo_frame >= 110 && demo_frame < 140;
         shot = shot || demo_frame == 150 || demo_frame == 168;
+    } else if (demo_mode == 40) {
+        /* Wall-cling probe: spawn beside a tall wall (area 3, the column at
+         * x=336..351) and press into it while falling. The ROM clings on
+         * contact and slides; B jumps off, Down releases. */
+        demo_frame++;
+        left = demo_frame >= 5;
     } else if (demo_mode == 36) {
         /* Navigation: walk right through a door merged from the level saves. */
         demo_frame++;

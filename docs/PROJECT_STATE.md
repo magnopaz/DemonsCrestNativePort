@@ -5,6 +5,40 @@ Project root: `projetos/opencode/DemonsCrestNativePort`
 Reference recompilation: `projetos/opencode/DemonsCrestSNESRecomp`
 ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
 
+## Session 2026-11-02 (part 4) — stage 1 against the full playthrough capture
+
+The owner recorded a complete stage-1 run (`DemonsCrestSNESRecomp/build/captures/
+rec_stage1_full_play`, 23 112 frames from the Somulo fight to the map) and two
+saves (`build/saves/arma_boss.sav`, `world_map.sav`).
+
+- **Wall cling was implemented, but not like the console.** `$80:E389` clings
+  automatically (the handler only probes both walls), and `$E3FD` *slides*:
+  `$22 += 3` per frame, capped at `0x00C0` (0.75 px/frame); B jumps off,
+  Down releases, and the cling ends when the wall does. The port required
+  `input->special_held` and froze `vy = 0`. Both fixed; `DC_DEMO=40` walks into
+  the tall column at area 3's x=336..351 and `tools/check_wall_cling.py` asserts
+  87 frames of state 8, x fixed, y 352.7 -> 393.5 and the 0.750 cap.
+- **The map is not presented like the original.** The port draws the 1024x1024
+  map texture through a rotating `Camera2D` — zoom and rotation, but no
+  perspective: the view is top-down and screen-flat. The original is a Mode 7
+  plane with a horizon, rows shrinking with distance, and the winged cursor at
+  the bottom (`docs/sprites/animated/map_mode7_animated.mp4`, 400x348, 104
+  frames). Side-by-side: `docs/map_compare.png`.
+- **The Hippogriff fight is missing from area 1.** `extract.py` types species
+  `$09` as `"exit"` (`type_by_species`), so the object at x=1920 is only a
+  trigger: `Objects_Init` never spawns it, and the port's own species-`0x09`
+  Hippogriff AI (statue phase and all) is unreachable. `species_anim.json` has
+  no entry for species 9 either, so even a forced spawn would use the fallback
+  sheet. The ROM's `$81:97DA` gate for area 1 (target 2) is consistent with a
+  boss gate, not an exit marker.
+- **Area 3 has no way to the map after Arma.** The boss object is there
+  (species `$A5`, x=856, y=1180, art present) but `gate_next_area` is `-1` and
+  the room has no transitions, so the kill cannot advance. `Game_CompleteArea`
+  maps area 3 to `CREST_TIME`; the original awards the **Earth Crest** there and
+  returns to the map, which is the player's first contact with it.
+- Area 2's edge door to area 3 (x=2040) is present, so cemetery -> slope ->
+  abyss works in data.
+
 ## Session 2026-11-02 (part 3) — the species `$67` ghoul runs its ROM machine
 
 - **`GhoulUpdate` in `src/object.c` replaces the hand-written approximation.**

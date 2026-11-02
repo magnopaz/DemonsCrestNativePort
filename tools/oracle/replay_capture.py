@@ -26,7 +26,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 RECOMP = Path(r"M:\Opencode\DemonsCrestSNESRecomp")
-EXE = RECOMP / "build-trace" / "DemonsCrestSNESRecomp.exe"
+def find_exe(root: Path) -> Path:
+    """The trace build has moved between build-trace/ and build/; take what
+    exists so the tool works on either checkout and on both platforms."""
+    for rel in ("build-trace/DemonsCrestSNESRecomp.exe",
+                "build-trace/DemonsCrestSNESRecomp",
+                "build/DemonsCrestSNESRecomp.exe",
+                "build/DemonsCrestSNESRecomp"):
+        path = root / rel
+        if path.is_file():
+            return path
+    return root / "build-trace" / "DemonsCrestSNESRecomp.exe"
+
+
+EXE = find_exe(RECOMP)
 ROM = Path(r"M:\Opencode\roms\Demon's Crest (USA).sfc")
 
 
@@ -129,8 +142,7 @@ def main() -> int:
     env = dict(os.environ, SNESRECOMP_DEBUG_PORT=str(port),
                SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
     log = open(args.out / "run.log", "wb")
-    proc = subprocess.Popen([str(args.recomp / "build-trace" /
-                                 "DemonsCrestSNESRecomp.exe"),
+    proc = subprocess.Popen([str(find_exe(args.recomp)),
                              str(args.rom), "--paused"],
                             cwd=str(args.recomp), env=env,
                             stdout=log, stderr=log)

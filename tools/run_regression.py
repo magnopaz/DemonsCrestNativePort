@@ -363,6 +363,16 @@ def main() -> int:
             check(isinstance(data.get("area"), int),
                   "pause: save file has no area field")
 
+        # ---- Wall cling: automatic, sliding, capped at 0x00C0 ----
+        cling_proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_wall_cling.py"),
+             "--binary", str(binary), "--assets", str(assets),
+             "--tmp", str(out)],
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=300)
+        check(cling_proc.returncode == 0,
+              "wall cling: check failed\n" + cling_proc.stdout[-800:])
+
         # ---- Species $67: the ROM ghoul state machine ----
         ghoul_proc = subprocess.run(
             [sys.executable, str(ROOT / "tools" / "check_ghoul.py"),

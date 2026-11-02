@@ -579,7 +579,19 @@ void Player_Update(Player *player, Level *level, const Input *input) {
         }
     } else {
         if (player->state == PLAYER_WALL_CLING) {
-            player->vy_fx = 0;
+            /* $80:E3FD: the cling slides. $22 += 3 per frame, capped at
+             * 0x00C0 (0.75 px/frame); the ROM does not freeze the player. */
+            player->vy_fx += 0x0003;
+            if (player->vy_fx > 0x00C0)
+                player->vy_fx = 0x00C0;
+            int32_t old_y = player->y_fx;
+            player->y_fx += player->vy_fx;
+            SyncPublic(player);
+            if (PlayerCollides(level, player->x, player->y)) {
+                player->y_fx = old_y;
+                player->vy_fx = 0;
+                SyncPublic(player);
+            }
             float wall_x = player->x + (float)player->wall_cling_dir * (PLAYER_HALF_W + 1.0f);
             if (!Level_IsWallAt(level, wall_x, player->y - 10.0f)) {
                 player->state = PLAYER_JUMP;
@@ -632,16 +644,16 @@ void Player_Update(Player *player, Level *level, const Input *input) {
                 IntegrateVertical(player, level);
             }
 
-            /* $80:E389 Wall Cling (State 0x08): while descending against a
-             * tall wall (solid at both body and overhead) with A/special or
-             * direction held in a claw-capable form. */
+            /* $80:E389 Wall Cling (State 0x08): automatic while descending
+             * against a tall wall (solid at body and overhead) with the
+             * direction held. The ROM does not require A: its handler only
+             * probes the two walls, slides, jumps on B and releases on Down. */
             if (!player->on_ground && player->vy_fx > 0 && dir != 0 &&
                 player->crest_form != CREST_EARTH &&
                 player->crest_form != CREST_WATER) {
                 float wall_x = player->x + (float)dir * (PLAYER_HALF_W + 1.0f);
                 if (Level_IsWallAt(level, wall_x, player->y - 10.0f) &&
-                    Level_IsWallAt(level, wall_x, player->y - 28.0f) &&
-                    input->special_held) {
+                    Level_IsWallAt(level, wall_x, player->y - 28.0f)) {
                     player->state = PLAYER_WALL_CLING;
                     player->wall_cling_dir = dir;
                     player->vy_fx = 0;
