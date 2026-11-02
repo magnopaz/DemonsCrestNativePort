@@ -104,6 +104,17 @@ else
   echo "   apply_door_table.py not present yet; ROM transitions only"
 fi
 
+# Area 0's atlases must come from the guest's own VRAM: the ROM-segment bake
+# leaves palette-7 tile 15 empty, and that one tile is referenced 674 times in
+# the colosseum's BG1 (it was the solid black rectangles in the wall). Any dump
+# of the room will do; the colosseum save state is the one we have.
+if [ -d captures/rooms/somulo_fight_starts ]; then
+  echo "== rebake area 0 atlases from the colosseum capture =="
+  python3 tools/dc_extract/bake_bg_atlas_from_capture.py \
+    --dump captures/rooms/somulo_fight_starts --area 0 --pals 4,5,6,7 \
+    --out "$OUT"
+fi
+
 # Last writer: make BG1 agree with each room's world box, otherwise the whole
 # scene is drawn at a different y than collision and entities look airborne.
 python3 tools/dc_extract/normalize_rooms.py --rooms "$OUT"
