@@ -430,7 +430,7 @@ def main() -> int:
         # ---- Campaign: Somulo defeat ends the area ----
         d14 = run_demo(base, out, 7, 300,
                        {"DC_AREA": "0", "DC_CAMPAIGN": "1",
-                        "DC_BOSS_INTRO": "0",
+                        "DC_BOSS_INTRO": "0", "DC_BOSS_SKIP_FAINT": "1",
                         "DC_BOSS_HP": "1", "DC_START_X": "560",
                         "DC_START_Y": "172", "DC_BOSS_X": "600",
                         "DC_BOSS_Y": "150"})
@@ -443,7 +443,7 @@ def main() -> int:
         d14 = run_demo(base, out, 14, 1200,
                        {"DC_AREA": "0", "DC_CAMPAIGN": "1",
                         "DC_BOSS_NO_ATTACK": "1",
-                        "DC_BOSS_INTRO": "0",
+                        "DC_BOSS_INTRO": "0", "DC_BOSS_SKIP_FAINT": "1",
                         "DC_MVP_KEEP_CONTROL": "1"})
         rows14 = csv_rows(d14["player"])
         objs14 = csv_rows(d14["objects"])
@@ -458,10 +458,32 @@ def main() -> int:
             hp = int(r["hp"])
             if not hps or hps[-1] != hp:
                 hps.append(hp)
-        check(hps == [6, 5, 4, 3, 2, 1] or hps == [6, 5, 4, 3, 2, 1, 0],
+        # The first death blow is not death: Somulo faints, comes back with three
+        # hits left and then collapses. That shape is asserted separately below
+        # with DC_BOSS_HP=1; this run uses DC_BOSS_SKIP_FAINT so the gate after
+        # the fight can still be exercised in one pass.
+        check(hps[:7] == [6, 5, 4, 3, 2, 1, 0],
               f"MVP: the six-hit rhythm is wrong: hp went {hps}")
         check(boss14 and int(boss14[-1]["frame"]) < len(rows14) - 100,
               "MVP: the boss was still alive at the end of the run")
+
+        # ---- MVP: the post-faint phase (3 hits left, then the collapse) ----
+        d4 = run_demo(base, out, 14, 1600,
+                       {"DC_AREA": "0", "DC_CAMPAIGN": "1",
+                        "DC_BOSS_NO_ATTACK": "1", "DC_BOSS_INTRO": "0",
+                        "DC_MVP_KEEP_CONTROL": "1", "DC_BOSS_HP": "1"})
+        boss4 = [r for r in csv_rows(d4["objects"]) if r["type"] == "6"]
+        seq4 = []
+        for r in boss4:
+            key = (int(r["hp"]), int(r["state"]))
+            if not seq4 or seq4[-1] != key:
+                seq4.append(key)
+        check(seq4[:2] == [(1, 0), (0, 6)],
+              f"MVP: the first death blow did not faint him: {seq4}")
+        check((3, 0) in seq4,
+              f"MVP: he did not come back with 3 hp: {seq4}")
+        check(seq4[-1] == (0, 5),
+              f"MVP: the last three hits did not collapse him: {seq4}")
 
         d10 = run_demo(base, out, 10, 260,
                        {"DC_START_X": "900", "DC_START_Y": "160"})

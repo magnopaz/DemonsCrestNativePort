@@ -417,6 +417,25 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                  * the fight is a fireball duel: idle -> windup -> fire (low or
                  * high, aimed at Firebrand) -> recover, with a stagger when the
                  * head is hit. Six head hits kill him. */
+                if (o->state == 6) {   /* fainted: down, invulnerable, no attacks */
+                    if (o->phase > 0) {
+                        o->phase--;
+                    } else {
+                        /* He comes back with three hits left and cannot give
+                         * chase any more (substate 3). He stays where he fell:
+                         * teleporting him to the room's gate put him out of the
+                         * player's reach and the last three hits never landed.
+                         * The "stuck in the door" framing belongs to the escape
+                         * room, which the port does not model yet. */
+                        o->hp = 3;
+                        o->max_hp = 3;
+                        o->state = 0;
+                        o->phase = 40;
+                        o->substate = 3;
+                    }
+                    o->y_fx = o->origin_y_fx;
+                    continue;
+                }
                 if (o->state == 7) {   /* blind walk after the roar */
                     int32_t towards = (player->x_fx > o->x_fx) ? 1 : -1;
                     o->facing = (int)towards;
@@ -443,17 +462,21 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                         o->facing = 1;
                     else if (dx < 0)
                         o->facing = -1;
-                    if (dx > 150 * FX_ONE)
-                        o->x_fx += 0x0090;
-                    else if (dx < -150 * FX_ONE)
-                        o->x_fx -= 0x0090;
-                    int32_t lo = (int32_t)(40.0f * FX_ONE);
-                    int32_t hi = (int32_t)((level->play_max_x - 60.0f) *
-                                           FX_ONE);
-                    if (o->x_fx < lo)
-                        o->x_fx = lo;
-                    if (o->x_fx > hi)
-                        o->x_fx = hi;
+                    /* Stuck in the gate (substate 3) he cannot give chase, which
+                     * is what makes the last three hits possible. */
+                    if (o->substate != 3) {
+                        if (dx > 150 * FX_ONE)
+                            o->x_fx += 0x0090;
+                        else if (dx < -150 * FX_ONE)
+                            o->x_fx -= 0x0090;
+                        int32_t lo = (int32_t)(40.0f * FX_ONE);
+                        int32_t hi = (int32_t)((level->play_max_x - 60.0f) *
+                                               FX_ONE);
+                        if (o->x_fx < lo)
+                            o->x_fx = lo;
+                        if (o->x_fx > hi)
+                            o->x_fx = hi;
+                    }
                 }
                 o->phase--;
                 if (getenv("DC_BOSS_NO_ATTACK")) {
@@ -1341,8 +1364,8 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                     break;
                 }
             } else if (o->type == OBJECT_BOSS) {
-                if (o->state == 5)
-                    continue;   /* already collapsing: ignore hits */
+                if (o->state == 5 || o->state == 6)
+                    continue;   /* collapsing or fainted: ignore hits */
                 float hw = (o->species == 0x33) ? 40.0f : 20.0f;
                 float hh = (o->species == 0x33) ? 46.0f : 24.0f;
                 if (fabsf(px - ox) <= hw && fabsf(py - oy) <= hh) {
@@ -1369,6 +1392,18 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                     pool->events |= OBJECT_EVENT_ENEMY_HIT;
                     if (o->hp <= 0) {
                         if (o->species == 0x33) {
+                            if (o->hops == 0 && getenv("DC_BOSS_SKIP_FAINT") == NULL) {
+                                /* First death blow is not death: he faints
+                                 * (wiki). The player is free to move while he is
+                                 * down, and he comes back stuck in the gate with
+                                 * three hits left. */
+                                o->hp = 0;
+                                o->hops = 1;
+                                o->state = 6;
+                                o->phase = 180;
+                                o->hit_flash = 0;
+                                break;
+                            }
                             /* Collapse, lie there, then leave the room. */
                             o->state = 5;
                             o->phase = 90;

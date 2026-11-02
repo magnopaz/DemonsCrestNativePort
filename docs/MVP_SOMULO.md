@@ -66,6 +66,13 @@ level "I - Prologue". The wiki describes four distinct beats, and they are a
 3. **The rule that decides the duel** — you can only hit him **when he lowers his
    head to shoot**, and he **only lowers his head if Firebrand is on the ground**.
    If the player stays airborne, he attacks from above instead.
+   **Implemented in the port:** the first death blow now puts him in state 6
+   (fainted, invulnerable, no attacks) for 180 frames; he then returns with
+   **3 hp** and cannot give chase (substate 3), and those three hits collapse
+   him. The escape room and the door framing are not modelled, so he comes
+   back where he fell instead of in the gate. `DC_BOSS_SKIP_FAINT=1` keeps
+   the old one-hit kill for the gate tests.
+
 4. **Faint → escape → stuck head** — after enough damage he faints; while Firebrand
    escapes, Somulo recovers and gives chase, but **gets stuck in the small door**
    with only his head out, still firing. **Three more hits** and the head burns to
