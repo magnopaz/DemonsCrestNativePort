@@ -28,6 +28,89 @@ static double JsonDouble(const cJSON *obj, const char *key, double fallback) {
     return cJSON_IsNumber(item) ? item->valuedouble : fallback;
 }
 
+/* Load a part texture plus its pre-baked mirror, like the species frames. */
+static bool LoadPartTexture(SpeciesPart *part, const char *dir,
+                            const char *name) {
+    if (!LoadOne(&part->texture, dir, name))
+        return false;
+    Image img = LoadImageFromTexture(part->texture);
+    ImageFlipHorizontal(&img);
+    part->flipped = LoadTextureFromImage(img);
+    UnloadImage(img);
+    if (IsTextureValid(part->flipped))
+        SetTextureFilter(part->flipped, TEXTURE_FILTER_POINT);
+    return true;
+}
+
+/* `parts`: body / legs / head textures with measured offsets from the feet
+ * anchor, plus a per-state recipe ("body": name, "legs": bool, "head": name).
+ * Only Somulo has one; everything else keeps the single-image frames. */
+static void LoadSpeciesParts(SpeciesSheet *sheet, const cJSON *entry,
+                             const char *dir) {
+    const cJSON *parts = cJSON_GetObjectItemCaseSensitive(entry, "parts");
+    if (!cJSON_IsObject(parts))
+        return;
+    SpeciesParts *dst = &sheet->parts;
+    for (int i = 0; i < DC_SPECIES_STATES; i++) {
+        dst->states[i].body = -1;
+        dst->states[i].head = -1;
+        dst->states[i].legs = true;
+    }
+    const cJSON *part = NULL;
+    cJSON_ArrayForEach(part, parts) {
+        if (!part->string || strcmp(part->string, "states") == 0 ||
+            strcmp(part->string, "source") == 0)
+            continue;
+        if (!cJSON_IsObject(part) || dst->count >= DC_SPECIES_PARTS)
+            continue;
+        const cJSON *tex = cJSON_GetObjectItemCaseSensitive(part, "texture");
+        if (!cJSON_IsString(tex))
+            continue;
+        SpeciesPart *slot = &dst->parts[dst->count];
+        if (!LoadPartTexture(slot, dir, tex->valuestring))
+            continue;
+        slot->dx = JsonNum(part, "dx", 0);
+        slot->dy = JsonNum(part, "dy", 0);
+        snprintf(dst->names[dst->count], sizeof(dst->names[0]), "%s",
+                 part->string);
+        dst->count++;
+    }
+    const cJSON *states = cJSON_GetObjectItemCaseSensitive(parts, "states");
+    if (cJSON_IsObject(states)) {
+        const cJSON *st = NULL;
+        cJSON_ArrayForEach(st, states) {
+            if (!cJSON_IsObject(st))
+                continue;
+            int idx = atoi(st->string ? st->string : "-1");
+            if (idx < 0 || idx >= DC_SPECIES_STATES)
+                continue;
+            SpeciesPartState *sel = &dst->states[idx];
+            const cJSON *body = cJSON_GetObjectItemCaseSensitive(st, "body");
+            const cJSON *head = cJSON_GetObjectItemCaseSensitive(st, "head");
+            const cJSON *legs = cJSON_GetObjectItemCaseSensitive(st, "legs");
+            sel->body = cJSON_IsString(body)
+                            ? Species_PartIndex(dst, body->valuestring)
+                            : Species_PartIndex(dst, "body");
+            sel->head = cJSON_IsString(head)
+                            ? Species_PartIndex(dst, head->valuestring)
+                            : -1;
+            sel->legs = cJSON_IsBool(legs) ? cJSON_IsTrue(legs) : true;
+            sel->present = sel->body >= 0 || sel->head >= 0 || sel->legs;
+        }
+    }
+    dst->enabled = dst->count > 0;
+}
+
+int Species_PartIndex(const SpeciesParts *parts, const char *name) {
+    if (!parts || !name)
+        return -1;
+    for (int i = 0; i < parts->count; i++) {
+        if (strcmp(parts->names[i], name) == 0)
+            return i;
+    }
+    return -1;
+}
+
 /* `species_anim.json` is produced by tools/dc_extract/extract_species.py from
  * injected-object oracle captures: one entry per species with per-pose texture
  * and anchor. Missing file simply means "fall back to the shared enemy sheet". */
@@ -127,6 +210,7 @@ static void LoadSpeciesSheets(Assets *assets, const char *dir) {
             (sheet->default_frame < 0 ||
              sheet->default_frame >= sheet->frame_count))
             sheet->has_default = false;
+        LoadSpeciesParts(sheet, entry, dir);
         if (sheet->frame_count > 0)
             (*count)++;
         else

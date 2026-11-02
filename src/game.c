@@ -869,7 +869,7 @@ static bool Game_UpdateBossIntro(Game *game) {
         }
         break;
     case 4: /* the roar: this is the beat after which control returns */
-        boss->state = 0;   /* stands up to roar */
+        boss->state = 4;   /* the roar pose (head thrust forward, jaws wide) */
         if (f == 1) {
             game->shake = 60;
             boss->hit_flash = 0;

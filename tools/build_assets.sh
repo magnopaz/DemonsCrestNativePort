@@ -95,6 +95,10 @@ if [ -f docs/reference/somulo_walk.gif ]; then
     --gif docs/reference/somulo_walk.gif --out "$OUT"
   python3 tools/dc_extract/fix_species_anchor.py --species 33 \
     --feet-band 0:0.4 --assets "$OUT"
+  # Body / legs / head parts, composed at runtime for the poses the walk cycle
+  # does not have (head lowered, roar, fainted).
+  echo "== Somulo body/legs/head parts =="
+  python3 tools/dc_extract/bake_somulo_parts.py --assets "$OUT"
 fi
 
 echo "== 5/7 room names (needs the save->area mapping) =="

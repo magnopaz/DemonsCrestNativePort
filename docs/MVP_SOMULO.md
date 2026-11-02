@@ -182,9 +182,43 @@ head+neck sprites: the body and legs are other pieces, drawn by other means — 
 are not reachable through the `$8B:8000` metasprite groups (his head is group
 `$09`, but the neck frill and jaw overlay come from another table).
 
-So the current single-image draw (8 walk frames from the wiki GIF) is a
-placeholder in shape as well as content: the faithful version composes body +
-legs + head per state.
+So the single-image draw (8 walk frames from the wiki GIF) is a placeholder in
+shape as well as content: the faithful version composes body + legs + head per
+state.
+
+## Composed from parts (body + legs + head)
+
+`tools/dc_extract/bake_somulo_parts.py` bakes the parts and the `parts` block in
+`species_anim.json`; `src/render.c` composes them for species `0x33` only. Every
+offset is measured, never guessed:
+
+| part | source | offset from the feet anchor |
+|---|---|---|
+| `somulo_body.png` | atlas "Body" (442,458,195,120 at 2x) | -58, -70 |
+| `somulo_legs.png` | the reference walk frame minus body and head (the game's own leg pixels) | -36, -30 |
+| `somulo_head_neutral.png` | Introduction Roar #1 | 22, -89 |
+| `somulo_head_windup.png` | head lowered, jaws open | 36, -46 |
+| `somulo_head_fire.png` | head lowered, wider | 36, -46 |
+| `somulo_head_roar.png` | widest jaw, head thrust forward | 36, -46 |
+| `somulo_body_defeated.png` | "Hurt / Defeated" collapsed body (a complete creature) | -30, -44 |
+
+The body and the neutral head were located inside `somulo_walk.gif` by mask
+fitting: the body lands pixel-exact (30 stray pixels of 9 868) and the head at
+(161,1) of the 2x frame (14 of 3 008). That fixes the body's neck socket. Every
+other head is placed by its **neck cut** — the long straight run on the bottom or
+left edge of its bounding box, i.e. where the artist severed the neck — so the
+cut's centre sits on the same socket. `--verify` renders each state and asserts
+the head overlaps the body by at least 8 px, which is what keeps the neck
+continuous.
+
+Per-state selection lives in the same block: `1` windup, `2` fire, `4` roar
+(also the intro's roar beat, which now sets state 4 instead of 0), `5`/`6` the
+collapsed body. States **0, 3, 7 and 8 stay on the baked single-image walk
+frames**: the atlas's Walking Legs grid is two sprites per frame (near + far
+pairs) and its best fit leaves ~4% of the reference frame unexplained, so
+re-composing the walk would trade proven art for a guess. The composite's legs
+are the reference frame's own leg pixels, so the body does not change shape when
+a composed state takes over.
 
 ## Somulo animation
 

@@ -281,6 +281,71 @@ static bool DrawSpeciesFirstPose(const Assets *assets, int species, float x,
     return true;
 }
 
+static void DrawSpeciesPart(const SpeciesPart *part, float x, float y,
+                            bool mirrored, Color tint) {
+    if (!IsTextureValid(part->texture))
+        return;
+    Texture2D tex = part->texture;
+    float dx = (float)part->dx;
+    if (mirrored && IsTextureValid(part->flipped)) {
+        /* The baked mirror puts the anchor at (width - anchor); the part's
+         * offset is its left edge, so it becomes -(dx + width). */
+        tex = part->flipped;
+        dx = -(float)(part->dx + part->texture.width);
+    }
+    Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+    Rectangle dst = {x + dx, y + (float)part->dy, (float)tex.width,
+                     (float)tex.height};
+    DrawTexturePro(tex, src, dst, (Vector2){0, 0}, 0.0f, tint);
+}
+
+/* Hardware-style composition: the state names which parts to draw, in the
+ * order the hardware layers them (legs, torso, head). Returns false when the
+ * state has no recipe so the caller keeps the baked single-image frame. */
+static bool DrawSpeciesParts(const SpeciesSheet *sheet, const Object *o,
+                             float x, float y, Color tint) {
+    const SpeciesParts *parts = &sheet->parts;
+    if (!parts->enabled || o->state < 0 || o->state >= DC_SPECIES_STATES)
+        return false;
+    const SpeciesPartState *sel = &parts->states[o->state];
+    if (!sel->present)
+        return false;
+    bool mirrored = o->facing < 0;
+    int legs = sel->legs ? Species_PartIndex(parts, "legs") : -1;
+    if (legs >= 0)
+        DrawSpeciesPart(&parts->parts[legs], x, y, mirrored, tint);
+    if (sel->body >= 0 && sel->body < parts->count)
+        DrawSpeciesPart(&parts->parts[sel->body], x, y, mirrored, tint);
+    if (sel->head >= 0 && sel->head < parts->count)
+        DrawSpeciesPart(&parts->parts[sel->head], x, y, mirrored, tint);
+    return true;
+}
+
+/* Damage tint for an object's sprite (hit flash, boss redden). */
+static Color SpeciesTint(const Object *o) {
+    Color tint = o->hit_flash > 0 ? (Color){255, 200, 200, 255} : WHITE;
+    if (o->hit_flash > 4)
+        tint = (Color){255, 255, 255, 255};
+    if (o->species == 0x13 && o->hit_flash > 0) {
+        /* Grewon's tell: he turns green while invincible, so the player can
+         * read when he is safe to hit again. */
+        tint = (Color){120, 255, 140, 255};
+    } else if (o->type == OBJECT_BOSS && o->species != 0x33 && o->max_hp > 0 &&
+               o->hp < o->max_hp) {
+        /* Bosses redden as they take damage (Somulo is the exception, per the
+         * recorded fights). */
+        float hurt = 1.0f - (float)o->hp / (float)o->max_hp;
+        if (hurt < 0.0f)
+            hurt = 0.0f;
+        if (hurt > 1.0f)
+            hurt = 1.0f;
+        tint.r = 255;
+        tint.g = (unsigned char)(255.0f - 90.0f * hurt);
+        tint.b = (unsigned char)(255.0f - 120.0f * hurt);
+    }
+    return tint;
+}
+
 static void DrawObjects(const Assets *assets, const GameCamera *camera,
                         const ObjectPool *objects) {
     if (getenv("DC_NO_OBJ"))
@@ -396,6 +461,11 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
             if (!sheet)
                 sheet = Assets_SpeciesSheet(assets, o->species);
             if (sheet && sheet->frame_count > 0) {
+                Color tint = SpeciesTint(o);
+                /* Somulo is composed from parts; every other species (and the
+                 * Somulo states without a recipe) keeps the baked frame. */
+                if (DrawSpeciesParts(sheet, o, x, y, tint))
+                    continue;
                 int frame = SpeciesDefaultFrame(sheet, o->timer);
                 /* Pose selection is data (review P1): `hurt` for the hit
                  * flash, then the clip for this object state, then the sheet's
@@ -436,27 +506,6 @@ static void DrawObjects(const Assets *assets, const GameCamera *camera,
                 Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
                 Rectangle dst = {dx, dy, (float)tex.width * scale,
                                  (float)tex.height * scale};
-                Color tint = o->hit_flash > 0 ? (Color){255, 200, 200, 255}
-                                              : WHITE;
-                if (o->hit_flash > 4)
-                    tint = (Color){255, 255, 255, 255};
-                if (o->species == 0x13 && o->hit_flash > 0) {
-                    /* Grewon's tell: he turns green while invincible, so the
-                     * player can read when he is safe to hit again. */
-                    tint = (Color){120, 255, 140, 255};
-                } else if (o->type == OBJECT_BOSS && o->species != 0x33 &&
-                           o->max_hp > 0 && o->hp < o->max_hp) {
-                    /* Bosses redden as they take damage (Somulo is the
-                     * exception, per the recorded fights). */
-                    float hurt = 1.0f - (float)o->hp / (float)o->max_hp;
-                    if (hurt < 0.0f)
-                        hurt = 0.0f;
-                    if (hurt > 1.0f)
-                        hurt = 1.0f;
-                    tint.r = 255;
-                    tint.g = (unsigned char)(255.0f - 90.0f * hurt);
-                    tint.b = (unsigned char)(255.0f - 120.0f * hurt);
-                }
                 DrawTexturePro(tex, src, dst, (Vector2){0, 0}, 0.0f, tint);
             } else {
                 /* No trustworthy sheet for this species yet (the capture was

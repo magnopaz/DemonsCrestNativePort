@@ -43,6 +43,35 @@ typedef struct StateClip {
     int frames[DC_STATE_FRAMES];
 } StateClip;
 
+/* Somulo is drawn the way the hardware draws him: a torso, a leg sprite and a
+ * head+neck sprite that is swapped per state. `parts` in species_anim.json
+ * names the part textures, their offset from the object's feet anchor, and
+ * which parts each object state composes. A species without that block keeps
+ * the single-image frames above. */
+#define DC_SPECIES_PARTS 8
+
+typedef struct SpeciesPart {
+    Texture2D texture;
+    Texture2D flipped;
+    int dx; /* from the object's feet anchor to the part's left edge */
+    int dy; /* from the object's feet anchor to the part's top edge */
+} SpeciesPart;
+
+typedef struct SpeciesPartState {
+    bool present;
+    bool legs;  /* draw the "legs" part */
+    int body;   /* part index, -1 for none */
+    int head;   /* part index, -1 for none */
+} SpeciesPartState;
+
+typedef struct SpeciesParts {
+    bool enabled;
+    int count;
+    char names[DC_SPECIES_PARTS][24];
+    SpeciesPart parts[DC_SPECIES_PARTS];
+    SpeciesPartState states[DC_SPECIES_STATES];
+} SpeciesParts;
+
 typedef struct SpeciesSheet {
     int species;
     int flags;        /* object flags selecting a palette/encounter variant */
@@ -54,6 +83,7 @@ typedef struct SpeciesSheet {
     bool has_hurt;
     int default_frame; /* pose for states with no clip */
     bool has_default;
+    SpeciesParts parts;
     SpeciesFrame frames[DC_SPECIES_FRAMES];
 } SpeciesSheet;
 
@@ -116,6 +146,8 @@ bool Assets_HasAreaBg2(const Assets *assets);
 const SpeciesSheet *Assets_SpeciesSheet(const Assets *assets, int species);
 const SpeciesSheet *Assets_BossSheet(const Assets *assets, int species,
                                      int flags);
+/* Index of a named part inside a sheet's `parts` block, -1 when absent. */
+int Species_PartIndex(const SpeciesParts *parts, const char *name);
 /* Per-crest-form player animation; falls back to player_anim. */
 const PlayerAnim *Assets_PlayerAnimForForm(const Assets *assets, int form);
 int Assets_RoomKind(const Assets *assets, int area);
