@@ -51,12 +51,20 @@ Full-campaign remaining work is tracked in
   invariants.
 - Original procedural audio: looping chiptune theme plus jump/land/shoot/break/
   pickup/hurt/enemy-hit SFX; no ROM audio data.
-  **Pending (user-requested):** extract the ROM's music and SFX. The port must
-  play the original tracks and sound effects instead of the procedural
-  stand-ins — this means reading the music/SPC data out of the ROM and adding a
-  BRR/SPC playback path (`src/audio.c` currently synthesises everything).
-  Plan and recon in `docs/AUDIO_PLAN.md` — the oracle already emulates the
-  APU/SPC700, so the music can be dumped from the guest itself.
+- **ROM music (2026-11-02)**: the colosseum theme (area 0) is the game's own
+  audio, captured from the oracle's S-DSP output and played through
+  `LoadMusicStream` as `assets/generated/audio/music_boss.wav` — 32,040 Hz
+  stereo, measured loop period 40.941 s, seam 0.51× a typical sample step (so
+  no click), verified to wrap in raylib (`t=40.875 → 0.553`) and to leave
+  `DC_NO_AUDIO=1` byte-identical. `src/audio.c` keeps the procedural tracks as
+  a fallback when the assets are absent. The pipeline is
+  `tools/audio/{dump_spc,capture_music,make_music_asset}.py` +
+  `tools/audio/wav_loop.c`, specs in `tools/audio/music_tracks.json`, checks in
+  `tools/check_audio_assets.py` (inside `run_regression.py`).
+  A bare `.spc` does **not** resume this driver (it plays ~2 s then halts on a
+  `STOP` executed from data); the evidence is in `docs/AUDIO_PLAN.md`.
+  **Still procedural:** the seven SFX, and one track per game state rather than
+  per area.
 - Title / Playing / Paused / Area Clear flow with an exit trigger from the
   Area 1 object list (`species $09`, x=1920).
 - Full-campaign foundation:

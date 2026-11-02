@@ -29,12 +29,14 @@ OUT="${OUT:-$ROOT/assets/generated}"
 DUMP="${DUMP:-$ROOT/captures/graveyard}"
 PREFIX="${PREFIX:-stage_600}"
 SKIP_CAPTURES=0
+SKIP_AUDIO=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --rom) ROM="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --no-captures) SKIP_CAPTURES=1; shift ;;
+    --no-audio) SKIP_AUDIO=1; shift ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -140,6 +142,23 @@ fi
 # Last writer: make BG1 agree with each room's world box, otherwise the whole
 # scene is drawn at a different y than collision and entities look airborne.
 python3 tools/dc_extract/normalize_rooms.py --rooms "$OUT"
+
+# ROM music. The tracks are captured from the oracle's own DSP output (a bare
+# .spc does not survive this game's driver - see docs/AUDIO_PLAN.md) and cut to
+# their measured loop period. Captures are reused when present; without the
+# oracle the game keeps its procedural stand-ins, so this step never blocks a
+# from-scratch asset build on a machine without the recomp checkout.
+if [ "$SKIP_AUDIO" -eq 0 ] && [ -f tools/audio/music_tracks.json ]; then
+  RECOMP="${RECOMP_DIR:-$ROOT/../DemonsCrestSNESRecomp}"
+  echo "== music (ROM audio via the oracle) =="
+  if python3 tools/audio/make_music_asset.py --use-capture --outdir "$OUT/audio"; then
+    :
+  elif [ -d "$RECOMP/build-trace" ]; then
+    python3 tools/audio/make_music_asset.py --recomp "$RECOMP" --outdir "$OUT/audio"
+  else
+    echo "   no captures/audio and no oracle; music stays procedural"
+  fi
+fi
 
 if [ "$SKIP_CAPTURES" -eq 0 ]; then
   echo "== verify: room/BG2 coverage =="

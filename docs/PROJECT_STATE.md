@@ -1,11 +1,55 @@
 # Demon's Crest Fan Game — Project State and Handoff
 
-Last updated: 2026-11-01
+Last updated: 2026-11-02
 Project root: `projetos/opencode/DemonsCrestNativePort`
 Reference recompilation: `projetos/opencode/DemonsCrestSNESRecomp`
 ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
 
-## Session 2026-11-01 — what changed (read this first)
+## Session 2026-11-02 — ROM audio (spike done) (read this first)
+
+- **The colosseum theme now plays from the ROM's own audio.** Area 0's track is
+  captured from the oracle's S-DSP output, cut to its measured loop and played
+  through `LoadMusicStream`. Full detail and numbers in `docs/AUDIO_PLAN.md`.
+  - `src/audio.c` loads `<assets>/audio/<track>.wav` and falls back to the
+    procedural loop only when the file is absent, so a tree without audio still
+    runs and `DC_NO_AUDIO=1` is unchanged.
+  - Asset: `assets/generated/audio/music_boss.wav`, 32,040 Hz stereo,
+    **40.941 s**, RMS 1,778, peak 9,502. Loop seam 210.5 against a typical
+    adjacent-sample step of 415.1 (**0.51×**), i.e. no click and no crossfade.
+  - Measured in a headless run with a null ALSA PCM: the stream loads as `ROM`,
+    the clock advances, and it crosses the boundary at `t=40.875 → 0.553`.
+- **The `.spc` route was tried first and does not work for this driver.** The
+  dump itself is fine (`spc_dump` → valid v0.30, area 0 verified through
+  `$008D`), and `tools/audio/spc_render` renders it with the oracle's own
+  SPC700+DSP cores — but the driver plays ~2 s and then executes data, halting
+  on `STOP` at `$FFB5`. Six dumps at different frames behave identically, the
+  timer is running at load (target 64, counter advancing), replaying the
+  captured CPU→APU port writes does not help, and the **live** game never
+  executes that STOP (`SNESRECOMP_SPC_TRACE=1`, 600 frames, zero HALTs). The
+  driver needs the CPU behind it. The tools and the dump are kept for the day
+  the dependency is decoded; `docs/AUDIO_PLAN.md` records the evidence.
+- **Music-only capture**: area 0's save is mid-boss-fight, so the capture
+  neutralises the object pool (`$1080`, stride `$50`, 26 slots) — zeroing each
+  slot's active byte removes the enemies that trigger the roars. Peak 25,121 →
+  11,043, RMS steady ~1,778.
+- **New tools** (all dev-time, nothing ships): `tools/audio/dump_spc.py`
+  (`.spc` + port traffic + provenance), `tools/audio/spc_render.c` +
+  `build_spc_render.sh` (offline `.spc` render + SPC PC tracer),
+  `tools/audio/capture_music.py` (live DSP capture with the object pool
+  neutralised), `tools/audio/wav_loop.c` (period search + seam-snapped cut),
+  `tools/audio/make_music_asset.py` (capture → loop → asset + manifest),
+  `tools/check_audio_assets.py` (asset/playback/determinism, wired into
+  `tools/run_regression.py`; 77 = skip when no audio is built).
+- `tools/build_assets.sh` gained the music step (reuses `captures/audio/`,
+  captures from the oracle otherwise, skips cleanly without either;
+  `--no-audio` disables). Track specs: `tools/audio/music_tracks.json`.
+- Debug hooks: `DC_AUDIO_DEBUG=1` prints which file each track loaded from
+  (`ROM` vs `procedural`); `DC_AUDIO_PROBE=1` prints
+  `audio: probe track= rom= time= playing=` every 60 frames.
+- Still procedural: the seven **SFX** (next step), and the track map is still
+  per game state (`TITLE/STAGE/BOSS/ENDING`), not per area.
+
+## Session 2026-11-01 — what changed
 
 - **The regression suite is green**: `tools/run_regression.py` → PASS (exit 0),
   demos 6/7/9/10/11/12/13, boss data + runtime, boss defeat, multi-area loads.

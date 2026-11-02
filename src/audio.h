@@ -23,7 +23,9 @@ typedef enum MusicTrack {
     MUSIC_TRACK_COUNT
 } MusicTrack;
 
-bool Audio_Init(void);
+/* `assets` is the generated-asset directory; <assets>/audio/<track>.wav holds
+ * the ROM-rendered music and is optional (procedural stand-ins otherwise). */
+bool Audio_Init(const char *assets);
 void Audio_Shutdown(void);
 void Audio_Update(void);
 void Audio_Play(SfxId id);

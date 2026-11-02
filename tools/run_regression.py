@@ -165,6 +165,25 @@ def main() -> int:
         check(mvp_proc.returncode == 0,
               "mvp1: somulo beat check failed\n" + mvp_proc.stdout[-800:])
 
+        # ---- ROM audio: the asset is loopable and the port really plays it,
+        # and audio cannot perturb the simulation (on/off traces identical).
+        # 77 means no rendered audio yet, which is not a regression.
+        audio_check = Path(__file__).with_name("check_audio_assets.py")
+        if audio_check.is_file():
+            print("regression: checking ROM audio assets", flush=True)
+            audio_proc = subprocess.run(
+                [sys.executable, str(audio_check), "--binary", str(binary),
+                 "--assets", str(assets)],
+                cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, timeout=600)
+            if audio_proc.returncode == 77:
+                print("regression: audio assets absent; skipped (procedural "
+                      "stand-ins in use)", flush=True)
+            else:
+                check(audio_proc.returncode == 0,
+                      "audio: asset/playback/determinism check failed\n"
+                      + audio_proc.stdout[-1200:])
+
         # ---- Step 3: walk / tap-jump / hold-jump / hover replay ----
         d6 = run_demo(base, out, 6, 603)
         rows = csv_rows(d6["player"])

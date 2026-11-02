@@ -1,8 +1,9 @@
 # Audio: playing the ROM's music and sound effects
 
-Status: **not started**. `src/audio.c` synthesises an original chiptune theme and
-seven SFX; no ROM audio data is used. This document is the plan and the recon, so
-the work can start cold.
+Status: **music is real**. The colosseum theme (`music_boss.wav`, area 0) is the
+ROM's own audio, played through `LoadMusicStream` and looping at its measured
+period. Sound effects are still the procedural stand-ins — that is the next
+step.
 
 ## What "correct" means here
 
@@ -19,66 +20,136 @@ The SNES soundtrack lives in SPC700 code plus BRR samples driven by the S-DSP.
 There is **no** audio data you can just read out and play: the music *is* a
 program for the APU. Three routes:
 
-1. **Emulate the APU** (SPC700 + DSP) and feed it the ROM's audio program. Most
-   faithful, and it is what the original hardware does. Big: an SPC700 core, the
-   DSP, and the IPL/boot protocol; or vendoring an existing core such as
-   `snes_spc` / `game-music-emu`.
-2. **Render offline, ship audio files.** Produce `.spc` dumps of each track, render
-   them to OGG/WAV with an existing player, and stream the files in-game. Cheap in
-   engine code, still the ROM's real audio, and the rendering step is scripted
-   like every other asset. Requires a way to obtain the `.spc` dumps.
-3. **Re-author the music natively** from the sequence data (BRR samples + a small
-   sequencer). Most work, most control, highest risk of sounding "almost right".
+1. **Emulate the APU** (SPC700 + DSP) and feed it the ROM's audio program.
+2. **Render offline, ship audio files.**
+3. **Re-author the music natively** from the sequence data.
 
-**Recommendation: route 2 first, route 1 only if the dumps prove unobtainable.**
-Route 2 gets "correct music" into the game with a fraction of the risk, and the
-asset pipeline already regenerates everything from the ROM.
+## What was done (2026-11-02)
 
-## Recon (this machine, checked)
+### The dump: the oracle's APU snapshots cleanly
 
-- No emulator or SPC tool is installed: `mednafen`, `snes9x`, `bsnes`, `higan`,
-  `zsnes`, `spc2wav`, `spcplay`, `gme`, `vgmplay`, `sox` are all absent. `ffmpeg`
-  is present but does not read SPC.
-- **The oracle does emulate the APU** — this is the important find. It vendors a
-  full SPC700 + DSP:
-  - `snesrecomp/runner/src/snes/apu.c` with `apu_saveload`, `apu_cycle`,
-    `apu_cpuRead/Write` — so a save state carries APU RAM and DSP state;
-  - `snesrecomp/runner/src/snes/spc.c` and `src/spc_player.h` — an SPC player
-    interface the framework drives;
-  - `snesrecomp/cosim/apu_region_diff.py` — tooling that already diffs APU regions.
+`spc_dump <path>` (debug server) already existed: it writes a standard `.spc`
+v0.30 (64 KB ARAM + 128 DSP registers + SPC700 registers + a synthesized
+`$F0-$FF` IO region). `tools/audio/dump_spc.py` drives it deterministically —
+resume a save paused, run N frames, snapshot — and records provenance: the
+save's and ROM's SHA-1, the frame, and **the guest's area byte (`$008D`)** so a
+dump cannot be silently attributed to the wrong room. Verified on
+`somulo_player_control.sav`: area 0, `music.spc` = 66,048 bytes,
+`spc_pc=0x046A`.
 
-  So the music can be captured from the guest itself, which makes route 2 cheap:
-  dump the APU RAM + SPC/DSP registers out of a save state at the moment a track
-  starts, assemble a `.spc` (v0.30: 64 KB RAM + registers), and render it to
-  OGG/WAV with the oracle's own DSP or with `game-music-emu` built from source.
-- The port's audio is a single `src/audio.c` with an event-driven SFX table and a
-  procedural music loop — the replacement should keep that event API and only
-  change what produces the samples.
+### The trap: a bare `.spc` does not survive this game's driver
 
-## Plan for the next session
+`tools/audio/spc_render.c` renders a `.spc` offline with the oracle's own
+SPC700 + S-DSP cores and can trace the SPC's PC stream. Result: after a bare
+resume the driver plays ~2 s and then executes data, ending in a `STOP` (0xFF)
+at `$FFB5`.
 
-1. **Decide the dump route** (30 min): check whether the recomp has any APU code;
-   if not, pick an emulator that can dump `.spc` non-interactively (or build
-   `game-music-emu` and use a public `.spc` set for the game — the ROM is owned,
-   but a rip is a rip; prefer dumping it ourselves from the user's own ROM).
-2. **Prove one track** (the colosseum): get a `.spc`, render it to OGG, load it in
-   `raylib` (`LoadMusicStream`), and play it in area 0 in place of the procedural
-   loop. This is the spike: if it plays and loops seamlessly, the rest is
-   repetition.
-3. **SFX**: extract the BRR samples the game uses for the seven existing event
-   triggers, or render each SFX from the same dump; play them through the existing
-   event API.
-4. **Wire the rest of the soundtrack** to the campaign's stage list
-   (`assets/generated/room_names.json` has all 34 maps), with the same
-   regenerate-from-ROM rule as every other asset: audio files stay git-ignored and
-   `tools/build_assets.sh` produces them.
-5. **Verify**: an audio regression that asserts each stage loads its track and the
-   events fire (no ear test), plus one manual listen.
+Measured evidence:
 
-## What the port already gives us
+- the first PCs are the driver's main loop (`$046A` port poll → `$02FC` timer
+  accumulate → `BEQ $02F9`), with timer 0 running (target 64, counter
+  advancing) — so the load itself is right;
+- the derail is not a bad snapshot: six dumps at different frames all die the
+  same way, and replaying the CPU→APU port writes captured by `audio_events`
+  does not save it;
+- the **live** game never executes that `STOP`: `SNESRECOMP_SPC_TRACE=1` over
+  600 frames reports no HALT.
 
-- `src/audio.c` with an event API and volume options.
-- `DC_NO_AUDIO=1` for deterministic runs and `DC_AUDIO_DEBUG=1` to print device
-  and music status — the hooks a regression needs.
-- The stage → track mapping can be derived from `room_names.json` (34 maps) once
-  the track list is known.
+Conclusion: this driver needs the CPU behind it (it polls `$F4` and takes
+branches on the game's command handshake), so a `.spc` resumed with no CPU is
+not a viable render source here. Whether a full SPC player (game-music-emu,
+which models timer IRQs) would fare better is **untested** and is the first
+thing to try if the offline path is ever needed again — the tool and the dump
+are kept for exactly that.
+
+### The route that works: the oracle's own DSP output
+
+`audio_wav <path> [start] [count]` dumps the DSP's native output ring (32040 Hz
+stereo, the S-DSP rate). That is the emulated console's own samples, which is
+what the plan allows and what "real audio" means here.
+
+`tools/audio/capture_music.py` records it deterministically:
+
+- resume the save, settle, then **neutralise the object pool** (`$1080`,
+  stride `$50`, 26 slots — zero the active byte of every slot). Area 0's save
+  is mid-boss-fight, so a naive capture is full of roars and hits; with the
+  enemies gone the capture is music only (peak 25,121 → 11,043, RMS steady at
+  ~1,778) and no SFX are triggered.
+- run 120 s, then pull the last N seconds from the ring.
+
+### The loop is measured, not guessed
+
+`tools/audio/wav_loop.c` finds the period with a 10 ms RMS-envelope
+correlation, refines it in the sample domain, then snaps the cut point to where
+the end flows into the start most cleanly.
+
+Measured on the colosseum capture:
+
+| value | measurement |
+|---|---|
+| period | 1,311,739 samples = **40.941 s** (envelope correlation 0.880; the 20.47 s peak is its half) |
+| seam jump | **210.5** vs a typical adjacent-sample step of **415.1** → 0.51× |
+| asset | `assets/generated/audio/music_boss.wav`, 32,040 Hz stereo, RMS 1,778, peak 9,502 |
+
+A seam smaller than an ordinary sample step is why the loop has no click — the
+cut does not need a crossfade, and the check refuses a cut whose seam exceeds
+4× the typical step.
+
+### In the port
+
+`src/audio.c` loads `<assets>/audio/<track>.wav` for each `MusicTrack` and
+falls back to the procedural loop only when the file is absent. `Music.looping`
+is on, and a headless run with a null ALSA PCM shows the stream clock crossing
+the boundary (`t=40.875 → 0.553`), i.e. raylib restarts the track at the exact
+sample boundary.
+
+Debug hooks: `DC_AUDIO_DEBUG=1` prints which file each track loaded from
+(`ROM` vs `procedural`), and `DC_AUDIO_PROBE=1` prints
+`audio: probe track= rom= time= playing=` every 60 frames.
+
+### Verification (no ear test)
+
+`tools/check_audio_assets.py`, run by `tools/run_regression.py` (77 = no
+assets, i.e. skip):
+
+1. **asset** — manifest hash, 32,040 Hz stereo, non-silent, frame count, loop
+   length in range, seam ratio ≤ 4×;
+2. **playback** — a headless run at the track's area logs
+   `music_boss.wav ... (ROM)` and a probe line with `rom=1`, `playing=1`, and a
+   stream clock that advanced;
+3. **determinism** — the same 600-frame demo with audio forced on and with
+   `DC_NO_AUDIO=1` produces **byte-identical** trace CSVs, so audio cannot
+   perturb the simulation.
+
+### Reproducing it
+
+```sh
+tools/audio/build_spc_render.sh          # offline .spc renderer + PC tracer
+python3 tools/audio/dump_spc.py --save <save> --out captures/audio/<name>   # .spc artifact
+python3 tools/audio/make_music_asset.py  # capture -> loop -> asset + manifest
+python3 tools/check_audio_assets.py      # the three checks above
+```
+
+`tools/build_assets.sh` runs the music step (reusing `captures/audio/` when
+present, capturing from the oracle otherwise, and skipping cleanly when neither
+exists); `--no-audio` disables it. Track specs live in
+`tools/audio/music_tracks.json`. Every generated file stays git-ignored.
+
+## Still to do
+
+1. **SFX** (next): the seven event triggers still synthesise. The same capture
+   path can isolate them — a save where the event fires, the object pool
+   untouched, and a window around the trigger; the alternative is to read the
+   BRR sample the driver keyed on and play it from `src/audio.c`.
+2. **A track per area**, not per game state: `src/game.c` currently picks
+   `MUSIC_TITLE/STAGE/BOSS/ENDING`. `room_names.json` (34 maps) is the table to
+   extend, with `music_tracks.json` gaining one entry per area that has its own
+   theme. Capturing needs a save state in each area (312 exist in the oracle's
+   `build-trace/saves/`).
+3. **Format at campaign scale**: one 40 s WAV is 5 MB; 30 tracks would be
+   ~150 MB. FLAC keeps the sample-exact loop and halves that; OGG is smaller but
+   its encoder delay/padding makes a sample-exact loop harder. Decide before the
+   per-area pass, not after.
+4. **The `.spc` question** stays open (see the trap above): if the driver's CPU
+   dependency is ever decoded, the offline path becomes viable and much cheaper
+   than capturing every track live.

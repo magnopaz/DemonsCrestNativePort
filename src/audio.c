@@ -18,8 +18,51 @@ static Sound sfx[SFX_COUNT];
 static Music music[MUSIC_TRACK_COUNT];
 static unsigned char *music_wav[MUSIC_TRACK_COUNT];
 static bool music_loaded[MUSIC_TRACK_COUNT];
+static bool music_from_rom[MUSIC_TRACK_COUNT];
+static char asset_dir[1024];
 static int current_track = MUSIC_NONE;
 static float master_vol = 1.0f;
+
+/* The ROM's own track for each game state, as produced by
+ * tools/audio/make_music_asset.py into <assets>/audio/. Missing files are not
+ * an error: the procedural stand-in keeps the game audible without assets. */
+static const char *TrackAssetName(int track) {
+    switch (track) {
+    case MUSIC_TITLE:
+        return "music_title.wav";
+    case MUSIC_STAGE:
+        return "music_stage.wav";
+    case MUSIC_BOSS:
+        return "music_boss.wav";
+    case MUSIC_ENDING:
+        return "music_ending.wav";
+    default:
+        return NULL;
+    }
+}
+
+/* Load the ROM-rendered track when the asset pipeline produced one. */
+static bool LoadRomTrack(int track) {
+    const char *name = TrackAssetName(track);
+    if (!name || !asset_dir[0])
+        return false;
+    char path[1200];
+    snprintf(path, sizeof(path), "%s/audio/%s", asset_dir, name);
+    if (!FileExists(path))
+        return false;
+    Music loaded = LoadMusicStream(path);
+    if (!IsMusicValid(loaded))
+        return false;
+    loaded.looping = true;
+    music[track] = loaded;
+    music_loaded[track] = true;
+    music_from_rom[track] = true;
+    if (getenv("DC_AUDIO_DEBUG"))
+        fprintf(stderr, "audio: track %d <- %s (%.2f s, %u Hz, ROM)\n", track,
+                path, (double)GetMusicTimeLength(loaded),
+                (unsigned)loaded.stream.sampleRate);
+    return true;
+}
 
 static void Put16(unsigned char *p, uint16_t v) {
     p[0] = (unsigned char)(v & 0xFF);
@@ -109,6 +152,13 @@ static void BuildAllTracks(void) {
         {kEndingMelody, kEndingBass, 0.36f, 0.5f},
     };
     for (int i = MUSIC_TITLE; i < MUSIC_TRACK_COUNT; i++) {
+        /* The ROM's track wins when the asset build produced one; the
+         * procedural loop below is only the no-assets fallback. */
+        if (LoadRomTrack(i))
+            continue;
+        if (getenv("DC_AUDIO_DEBUG"))
+            fprintf(stderr, "audio: track %d <- procedural (no %s)\n", i,
+                    TrackAssetName(i) ? TrackAssetName(i) : "?");
         /* BuildTrack keeps its WAV alive by returning it through the stream;
          * remember the buffer so Shutdown can free it. */
         int step_frames = (int)(MUSIC_SR * defs[i].step);
@@ -179,8 +229,11 @@ static Sound MakeSfx(float seconds, float f0, float f1, float noise,
     return sound;
 }
 
-bool Audio_Init(void) {
+bool Audio_Init(const char *assets) {
     ready = false;
+    asset_dir[0] = '\0';
+    if (assets && *assets)
+        snprintf(asset_dir, sizeof(asset_dir), "%s", assets);
     if ((getenv("DC_NO_AUDIO") || getenv("DC_RUN_FRAMES")) &&
         !getenv("DC_AUDIO_FORCE"))
         return false;
@@ -204,11 +257,13 @@ bool Audio_Init(void) {
     BuildAllTracks();
     ready = true;
     if (getenv("DC_AUDIO_DEBUG")) {
-        int loaded = 0;
-        for (int i = MUSIC_TITLE; i < MUSIC_TRACK_COUNT; i++)
+        int loaded = 0, rom = 0;
+        for (int i = MUSIC_TITLE; i < MUSIC_TRACK_COUNT; i++) {
             loaded += music_loaded[i] ? 1 : 0;
-        fprintf(stderr, "audio: device ready, %d/%d tracks loaded\n", loaded,
-                MUSIC_TRACK_COUNT - 1);
+            rom += music_from_rom[i] ? 1 : 0;
+        }
+        fprintf(stderr, "audio: device ready, %d/%d tracks loaded (%d from ROM)\n",
+                loaded, MUSIC_TRACK_COUNT - 1, rom);
     }
     return true;
 }
@@ -229,6 +284,7 @@ void Audio_Shutdown(void) {
         free(music_wav[i]);
         music_wav[i] = NULL;
         music_loaded[i] = false;
+        music_from_rom[i] = false;
     }
     current_track = MUSIC_NONE;
     CloseAudioDevice();
@@ -239,6 +295,17 @@ void Audio_Update(void) {
     if (ready && current_track > MUSIC_NONE && current_track < MUSIC_TRACK_COUNT &&
         music_loaded[current_track])
         UpdateMusicStream(music[current_track]);
+    /* DC_AUDIO_PROBE: report the stream clock so a headless run can prove the
+     * track is really playing (a loaded-but-silent stream would stay at 0). */
+    if (getenv("DC_AUDIO_PROBE") && ready && current_track > MUSIC_NONE &&
+        current_track < MUSIC_TRACK_COUNT && music_loaded[current_track]) {
+        static int ticks;
+        if (++ticks % 60 == 0)
+            fprintf(stderr, "audio: probe track=%d rom=%d time=%.3f playing=%d\n",
+                    current_track, music_from_rom[current_track] ? 1 : 0,
+                    (double)GetMusicTimePlayed(music[current_track]),
+                    IsMusicStreamPlaying(music[current_track]) ? 1 : 0);
+    }
 }
 
 void Audio_Play(SfxId id) {

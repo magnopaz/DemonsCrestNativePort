@@ -600,7 +600,7 @@ bool Game_Init(Game *game, const char *asset_dir) {
         }
     }
 
-    Audio_Init();
+    Audio_Init(game->asset_dir);
     /* Dev hook: resume the saved run without going through the title menu. */
     if (getenv("DC_RESUME") && game->has_save) {
         if (Game_LoadProgress(game)) {
