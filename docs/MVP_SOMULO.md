@@ -52,6 +52,37 @@ MVP 2: **Murkland cemetery** (area 2) fully playable — its rooms, enemies, urn
 doors and the stage's boss, with the same definition-of-done table.
 
 
+## Fight structure — canonical (Ghosts'n Goblins wiki, "Somulo")
+
+Source: <https://ghostsngoblins.fandom.com/wiki/Somulo> — "the first boss from
+Demon's Crest", also called the Demon Dragon / *Somuro* in the Japanese manual,
+level "I - Prologue". The wiki describes four distinct beats, and they are a
+**chase set-piece**, not a static arena duel:
+
+1. **Chase** — Somulo pursues Firebrand through the coliseum, trying to smash him
+   with its massive claws.
+2. **Dead end** — once Firebrand is cornered, the dragon switches to fireballs;
+   a fireball that touches the ground **spreads into a fire wave**.
+3. **The rule that decides the duel** — you can only hit him **when he lowers his
+   head to shoot**, and he **only lowers his head if Firebrand is on the ground**.
+   If the player stays airborne, he attacks from above instead.
+4. **Faint → escape → stuck head** — after enough damage he faints; while Firebrand
+   escapes, Somulo recovers and gives chase, but **gets stuck in the small door**
+   with only his head out, still firing. **Three more hits** and the head burns to
+   a crisp and falls apart.
+
+Lore that explains the "eyes closed" walk: Somulo is a **rotting, partially
+revived** dragon — he had the Crest of Heaven and was killed by Firebrand in the
+prologue; what fights in the colosseum is the corpse.
+
+Art scale check: the wiki's walking GIF (`DC_BO_Somulo_(Walking).gif`, 241x181,
+16 frames) is a 2x upscale — the in-game sprite is ~116x90, which matches the
+80x92 hitbox the port already uses for species `$33`.
+
+The port currently implements a single-room duel with a blind walk and a fireball
+phase; beats 1 (the chase through the colosseum) and 4 (faint, escape, stuck
+head) are not implemented yet.
+
 ## The entrance (how the fight actually opens)
 
 Explained by the user from the recorded fight — it is scripted, not a cutscene
