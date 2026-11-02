@@ -51,6 +51,10 @@ Full-campaign remaining work is tracked in
   invariants.
 - Original procedural audio: looping chiptune theme plus jump/land/shoot/break/
   pickup/hurt/enemy-hit SFX; no ROM audio data.
+  **Pending (user-requested):** extract the ROM's music and SFX. The port must
+  play the original tracks and sound effects instead of the procedural
+  stand-ins — this means reading the music/SPC data out of the ROM and adding a
+  BRR/SPC playback path (`src/audio.c` currently synthesises everything).
 - Title / Playing / Paused / Area Clear flow with an exit trigger from the
   Area 1 object list (`species $09`, x=1920).
 - Full-campaign foundation:
