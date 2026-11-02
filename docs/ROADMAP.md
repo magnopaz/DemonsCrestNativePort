@@ -55,6 +55,8 @@ Full-campaign remaining work is tracked in
   play the original tracks and sound effects instead of the procedural
   stand-ins — this means reading the music/SPC data out of the ROM and adding a
   BRR/SPC playback path (`src/audio.c` currently synthesises everything).
+  Plan and recon in `docs/AUDIO_PLAN.md` — the oracle already emulates the
+  APU/SPC700, so the music can be dumped from the guest itself.
 - Title / Playing / Paused / Area Clear flow with an exit trigger from the
   Area 1 object list (`species $09`, x=1920).
 - Full-campaign foundation:
