@@ -93,7 +93,10 @@ def main() -> int:
                 fields = line.split("\t")
                 if fields[1] != "cpu_wr":
                     continue
-                key = (int(fields[4]), int(fields[2]), int(fields[3], 16))
+                # cycle stamp is the last column; it is the clock a faithful
+                # replay must use (a sample index resolves only 32 cycles)
+                cycle = int(fields[9]) if len(fields) > 9 else int(fields[4]) * 32
+                key = (cycle, int(fields[2]), int(fields[3], 16))
                 if key not in seen:
                     seen[key] = None
                     order.append(key)

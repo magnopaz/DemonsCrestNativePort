@@ -340,11 +340,22 @@ the IPL request all land at sample 561). Spacing them by a fixed 24 cycles is
 what let the driver boot at all, but it is still an approximation, and a
 byte-by-byte handshake accumulates the error.
 
-So the remaining work is now precise: **apply the writes at their true APU-cycle
-timestamps**. Either record the cycle stamp per event (the ring has
-`sample_idx`, add the APU cycle), or replay with the oracle's own queue
-semantics (`apu_schedulePortWrite` + `apu_runToGuestCycle`, both already in
-`apu.c`) instead of the sample-index approximation.
+The cycle stamps were then recorded (the ring now carries `apu_cycles` per
+event, published by `apu_writePortNow` next to `outPorts`) and replayed exactly:
+
+| replay mode | driver ends at | audio |
+|---|---|---|
+| sample index + 24-cycle spacing | `$0302` (the console's tempo loop) | silent |
+| exact cycle stamp, one write per cycle | `$15C9` | derails |
+
+So the coarse replay *boots* the driver while the exact one derails, which means
+our cycle counter is not comparable to the console's: the stamp is taken from
+`apu->cycles` in the oracle, and that counter's origin (resets, burst catch-up)
+does not line up with a fresh `apu_reset()` in our host. The next step is
+therefore to establish the two clocks' relationship — log `apu->cycles` and
+`dsp->sampleWrite` together at a few points, or replay through the oracle's own
+queue (`apu_schedulePortWrite` + `apu_runToGuestCycle`) so the mapping is the
+same code that produced the trace.
 
 Two clean ways to get it, both small:
 

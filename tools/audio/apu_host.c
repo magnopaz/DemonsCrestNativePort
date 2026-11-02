@@ -66,6 +66,7 @@ int main(int argc, char **argv) {
   const char *aram_path = NULL;
   const char *io_spc_path = NULL;
   int fresh = 0;
+  int cycle_ports = 0;
   long upload_bank = -1, upload_addr = -1;
   long entry_override = -1;
   long port_offset = 0;
@@ -92,6 +93,8 @@ int main(int argc, char **argv) {
       port_offset = strtol(argv[++i], NULL, 0);
     } else if (!strcmp(argv[i], "--fresh")) {
       fresh = 1;
+    } else if (!strcmp(argv[i], "--cycle-ports")) {
+      cycle_ports = 1;
     } else if (!strcmp(argv[i], "--spc-io") && i + 1 < argc) {
       io_spc_path = argv[++i];
     } else if (!strcmp(argv[i], "--entry") && i + 1 < argc) {
@@ -177,8 +180,19 @@ int main(int argc, char **argv) {
        * 31 us), but the console issued them over hundreds of master cycles and
        * the IPL observes them one at a time. Applying a whole burst in the same
        * APU cycle makes the IPL miss the $CC sequence, so space them. */
-      if (fn < fcnt && fs[fn] <= produced3 &&
-          apu->cycles - last_write_cycle >= 24) {
+      if (cycle_ports) {
+        /* Exact replay: the first column is the APU cycle stamp recorded with
+         * the write, so the driver sees every byte at the instant the console
+         * did. Several writes can share a cycle only if the console did. */
+        /* One write per APU cycle: the console's port queue drained a single
+         * event per cycle, and applying a burst inside one cycle skips the
+         * handshake states in between. */
+        if (fn < fcnt && (uint32_t)fs[fn] <= apu->cycles) {
+          apu_writePortNow(apu, (uint8_t)fp[fn], (uint8_t)fv[fn]);
+          fn++; applied++;
+        }
+      } else if (fn < fcnt && fs[fn] <= produced3 &&
+                 apu->cycles - last_write_cycle >= 24) {
         apu_writePortNow(apu, (uint8_t)fp[fn], (uint8_t)fv[fn]);
         last_write_cycle = apu->cycles;
         fn++; applied++;
