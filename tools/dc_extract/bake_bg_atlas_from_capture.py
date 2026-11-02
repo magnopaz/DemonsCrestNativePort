@@ -48,8 +48,29 @@ def main() -> int:
 
     raw = (args.dump / f"{frame}.vram.bin").read_bytes()
     vram = list(struct.unpack(f"<{len(raw) // 2}H", raw))
-    cgram = cgram_colors((args.dump / "cgram.bin").read_bytes())
-    ppu = json.loads((args.dump / "ppu.json").read_text())
+
+    # `captures/area<N>/` (the force-loaded rooms) keep cgram and ppu inside the
+    # frame JSON instead of beside the dump, so accept both layouts.
+    state = {}
+    state_path = args.dump / f"{frame}.json"
+    if state_path.is_file():
+        state = json.loads(state_path.read_text())
+
+    cgram_path = args.dump / "cgram.bin"
+    if cgram_path.is_file():
+        cgram = cgram_colors(cgram_path.read_bytes())
+    elif state.get("cgram"):
+        cgram = cgram_colors(bytes.fromhex(state["cgram"]))
+    else:
+        raise SystemExit(f"no cgram in {args.dump}")
+
+    ppu_path = args.dump / "ppu.json"
+    if ppu_path.is_file():
+        ppu = json.loads(ppu_path.read_text())
+    elif state.get("ppu"):
+        ppu = state["ppu"]
+    else:
+        raise SystemExit(f"no ppu state in {args.dump}")
     if isinstance(ppu, dict) and "ppu" in ppu:
         ppu = ppu["ppu"]
 
