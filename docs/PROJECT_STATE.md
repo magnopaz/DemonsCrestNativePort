@@ -19,6 +19,41 @@ ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
     city room needed an `npc` object (`tools/dc_extract/apply_npc_table.py`);
   - the passive Somulo duel (`DC_BOSS_NO_ATTACK`) now holds a hittable idle, so
     the scripted six hits land and the gate to area 34 opens.
+- **MVP 1 (the Somulo colosseum fight) is done and machine-checked.**
+  `tools/check_mvp_somulo.py` asserts the beats from the port's own traces and
+  runs inside `tools/run_regression.py`:
+  - the boss object stays planted (`y` used to drift to the world bottom, 256,
+    while idle — the "sliding image" the user reported);
+  - the opening runs as four ordered phases (150 establishing + 70 approach +
+    280 walk-in + 110 roar) with the player's x frozen for all 610 frames;
+  - the blind walk (state 7) precedes the first fireball;
+  - the first death blow **faints** him (state 6, invulnerable, 180 frames), he
+    returns with **3 hp** and cannot chase (substate 3), and three more hits
+    collapse him. `DC_BOSS_SKIP_FAINT=1` keeps the old one-hit kill for gate
+    tests.
+  The fight structure and the entrance script come from the Ghosts'n Goblins
+  wiki and are transcribed in `docs/LORE.md` and `docs/MVP_SOMULO.md`.
+- **Somulo has his own art, and it is built, not patched.** The walk cycle is
+  baked from `docs/reference/somulo_walk.gif` (16 GIF frames → 10 unique poses →
+  the 8-frame subset that maximises silhouette delta), anchored per frame on the
+  art's own feet. `build_assets.sh` does both steps, so a from-scratch rebuild
+  reproduces the placement (verified: sprite bottom 177 against a floor of 176).
+  `tools/verify_frame_match.py` proves the engine advances the cycle by matching
+  screenshots against the baked PNGs pixel for pixel.
+  **Still missing:** head-lowered fire, roar and faint poses — they are not in the
+  GIF, and the ROM's own Somulo OAM draws only head+neck (the body hides behind
+  the pillar) in a different style, so states 1/2/5 fall back to frame 0.
+- **Two asset bugs behind the "black rectangles" in the arena:**
+  - the room's BG1 was 3 rows (24 px) taller than its own world box, drawn from
+    row 0, so the whole scene sat 24 px lower than collision — the characters
+    looked airborne. `tools/dc_extract/normalize_rooms.py` now trims that in
+    every build (it fires on area 0 every time, because extraction re-adds the
+    padding).
+  - BG1 referenced palette-7 tile 15 in **674 cells** and that tile was empty in
+    the ROM-segment atlas. `tools/dc_extract/bake_bg_atlas_from_capture.py`
+    rebakes the area's atlases from the guest's own VRAM at the guest's CHR base;
+    the wall is continuous now (pure black 24% → 19%, the remainder being the
+    real void under the floor).
 - **Assets are reproducible from the ROM**: `tools/build_assets.sh` runs
   extract → animations → font/endings → boss table → NPC table → door table,
   and the regression passes on the freshly built tree. The old directory was a
@@ -46,6 +81,17 @@ ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
   door's natural destination), per-species AI (the `$82:8300` species table holds
   `JSL` stubs, so each species is code to port, not data to read), ROM audio, and
   the retail password/SRAM algorithm. `docs/AUTOPILOT_PLAN.md` tracks the queue.
+- **Dark rooms are a BG2 problem, not an atlas one** (measured after the MVP 1
+  work). Area 43 is 92.3% black; rebaking its atlases from its own capture
+  changed nothing, and its BG1 is sparse *by data* (19% non-zero cells). What is
+  actually broken there is that the room does not draw its BG2 at all: the
+  captured BG2 has 50% non-zero cells but they sit in **tilemap rows 32..63** of
+  a 32x64 map while the layer draws from `origin_y = 64` (rows 8..36), and
+  forcing `scroll_y = -192` changed the render not at all. That needs a
+  renderer-level debug of the tall-backdrop path, not more capture work.
+  The retail password has a verified test vector from the wiki:
+  **`QFFF KNRR DDLR XGTQ`** — 16 characters in four groups, which is *not* the
+  shape our 10-letter codec produces (`docs/LORE.md`).
 
 This file is the authoritative handoff. It records the final objective, every
 implemented piece, every recovered technical detail, the traps already hit, and
