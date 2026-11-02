@@ -353,3 +353,36 @@ the shim only makes the file compile and disables that one policy.
    ~150 MB. FLAC keeps the sample-exact loop and halves that; OGG is smaller but
    its encoder delay/padding makes a sample-exact loop harder. If route 1 lands,
    this question disappears.
+
+### Raw material for the next step: the driver's routines
+
+Captured from the frame-60 ARAM image. This is what has to be read and
+re-implemented as the host side of the transfer.
+
+`$02E0-$030F` — driver init / main loop
+
+```
+02E0: E8 40 C5 FA 00 E8 F1 C5 F1 00 E8 01 C4 B2 C5 F6
+02F0: 00 9C C5 F7 00 9C FD DA DD 3F 6A 04 E5 FD 00 60
+0300: 84 B1 C4 B1 F0 F3 8B B1 8D 02 E8 F9 6D 2D 60 98
+```
+
+`$0460-$048F` — port poll + transfer routine
+
+```
+0460: F2 5F A8 0A 2D 3D 5D 00 00 31 E5 F4 00 65 F4 00
+0470: D0 F8 FD F0 17 2D AB B2 3F 8D 04 E8 31 C5 F1 00
+0480: 00 00 00 E4 B2 C5 F6 00 AE C5 F7 00 6F 68 F0 90
+```
+
+`$0A00-$0A2F` — where the failed replay ended up. It decodes as code, not data
+(`E4 A2` = `MOV A,$A2`, `3F 1F 0A` = `CALL $0A1F`, `3F DF 08` = `CALL $08DF`,
+`2D` = `PUSH A`, `D4 00`/`D4 08` = `MOV $00+X,A`/`MOV $08+X,A`, `6F` = `RET`), so
+the driver did branch into a real handler — this is the most likely entry of the
+transfer routine and the place to start reading.
+
+```
+0A00: A0 E4 A2 3F 1F 0A 3F DF 08 2D 3F DF 08 D4 00 AE
+0A10: D4 08 6F E8 02 60 94 00 D4 00 90 02 BB 08 6F C4
+0A20: A0 F4 10 28 97 04 A0 D4 10 6F AE AE AE AE E3 B0
+```
