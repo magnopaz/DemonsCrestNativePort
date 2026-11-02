@@ -134,9 +134,13 @@ def main() -> int:
             for line in tsv.read_text().splitlines():
                 if line.startswith("#") or not line.strip():
                     continue
-                _frame, kind, port, value, sample = line.split("\t")
+                fields = line.split("\t")
+                _frame, kind, port, value, sample = fields[:5]
+                outs = [int(x, 16) for x in fields[5:9]] if len(fields) >= 9 \
+                    else []
                 if kind == "cpu_wr" and int(sample) > produced0:
-                    out.append((int(sample), int(port), int(value, 16)))
+                    out.append((int(sample), int(port), int(value, 16),
+                                tuple(outs)))
             return out
 
         # The ring only holds the last 65536 events, and a byte-by-byte transfer
@@ -144,8 +148,8 @@ def main() -> int:
         # and merging on the sample clock reconstructs the whole stream; the
         # dumps overlap, so duplicates are dropped by (sample, port, value).
         if args.sample_every and args.sample_until:
-            merged: dict[tuple[int, int, int], None] = {}
-            order: list[tuple[int, int, int]] = []
+            merged: dict[tuple, None] = {}
+            order: list[tuple] = []
             f = args.mid_frame
             tag = 0
             while f <= args.sample_until:
@@ -170,7 +174,13 @@ def main() -> int:
         # block boundary. The pacing heuristic (next index on port 0) finds the
         # transfer on its own.
         ports = args.out / "ports.txt"
-        ports.write_text("\n".join(f"{s} {p} {v}" for s, p, v in writes) + "\n")
+        def fmt(w):
+            s, p, v = w[0], w[1], w[2]
+            outs = w[3] if len(w) > 3 and w[3] else []
+            return f"{s} {p} {v} " + " ".join(str(x) for x in outs) if outs \
+                else f"{s} {p} {v}"
+
+        ports.write_text("\n".join(fmt(w) for w in writes) + "\n")
         print(f"replaying {len(writes)} writes (first at sample"
               f" {writes[0][0] - produced0 if writes else '-'} after the ARAM)"
               f" into an APU booted at PC 0x{entry:04X}")
@@ -198,7 +208,7 @@ def main() -> int:
            "--spc-io", str(args.out / "io.spc"),
            "--out", str(out_wav), "--seconds", str(args.seconds), "--json"]
     if not args.no_handshake:
-        cmd.append("--handshake")
+        cmd.append("--state-wait")
     res = subprocess.run(cmd, capture_output=True, text=True)
     print(res.stdout.strip() or res.stderr.strip())
     if out_wav.is_file():

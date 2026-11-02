@@ -11,6 +11,9 @@
 /* apu.c's timer diagnostic counter lives in common_rtl.c. */
 uint64_t g_apu_timer0_total_ticks;
 
+/* The port-ring handshake snapshot (defined in audio_trace.c in the runner). */
+uint8_t g_audio_trace_out_ports[4];
+
 void audio_trace_on_sample(int16_t l, int16_t r, int dropped, uint32_t ring_fill) {
   (void)l; (void)r; (void)dropped; (void)ring_fill;
 }

@@ -85,6 +85,8 @@ int main(int argc, char **argv) {
       handshake = 1;
     } else if (!strcmp(argv[i], "--echo-wait")) {
       handshake = 2;
+    } else if (!strcmp(argv[i], "--state-wait")) {
+      handshake = 3;
     } else if (!strcmp(argv[i], "--port-offset") && i + 1 < argc) {
       port_offset = strtol(argv[++i], NULL, 0);
     } else if (!strcmp(argv[i], "--spc-io") && i + 1 < argc) {
@@ -174,6 +176,13 @@ int main(int argc, char **argv) {
                 io_spc_path, got_spc, sizeof(spc_img));
         return 1;
       }
+      /* The stack pointer is part of the SPC register set: without it the
+       * driver's RET (it was inside a CALL when the image was taken) pops
+       * garbage and the run never reaches the poll loop. */
+      apu->spc->sp = spc_img[0x2b];
+      apu->spc->a = spc_img[0x27];
+      apu->spc->x = spc_img[0x28];
+      apu->spc->y = spc_img[0x29];
       const uint8_t *io = spc_img + 0x100 + 0xf0;
       uint8_t f1 = io[0x1];
       for (int i = 0; i < 3; i++) {
@@ -215,15 +224,23 @@ int main(int argc, char **argv) {
     int16_t chunk2[1024 * 2];
     static long ps[MAX_PORTS];
     static int pp[MAX_PORTS], pv[MAX_PORTS];
+    static int po[MAX_PORTS][4];   /* SPC outPorts recorded with the write */
     int pcnt = 0;
     if (ports_path) {
       FILE *pf = fopen(ports_path, "r");
       if (pf) {
-        char a[64], b[64], c[64];
-        while (pcnt < MAX_PORTS && fscanf(pf, "%63s %63s %63s", a, b, c) == 3) {
-          ps[pcnt] = strtol(a, NULL, 0);
-          pp[pcnt] = (int)strtol(b, NULL, 0);
-          pv[pcnt] = (int)strtol(c, NULL, 0);
+        char line[256];
+        while (pcnt < MAX_PORTS && fgets(line, sizeof(line), pf)) {
+          if (line[0] == '#' || line[0] == '\n') continue;
+          long s;
+          int port, val, o0 = -1, o1 = -1, o2 = -1, o3 = -1;
+          if (sscanf(line, "%ld %d %d %d %d %d %d", &s, &port, &val,
+                     &o0, &o1, &o2, &o3) < 3)
+            continue;
+          ps[pcnt] = s;
+          pp[pcnt] = port;
+          pv[pcnt] = val;
+          po[pcnt][0] = o0; po[pcnt][1] = o1; po[pcnt][2] = o2; po[pcnt][3] = o3;
           pcnt++;
         }
         fclose(pf);
@@ -232,6 +249,15 @@ int main(int argc, char **argv) {
     /* Drive the file from APU time, not from a fixed 32 cycles per sample: the
      * handshake burns cycles inside the write loop, and anything else would
      * compress the audio against the clock the driver actually sees. */
+    /* Start in the handshake state the console was in before its first write;
+     * otherwise the very first wait can never match and every later one is
+     * offset by the same amount. */
+    if (handshake == 3 && pcnt > 0 && po[0][0] >= 0) {
+      apu->outPorts[0] = (uint8_t)po[0][0];
+      apu->outPorts[1] = (uint8_t)po[0][1];
+      apu->outPorts[2] = (uint8_t)po[0][2];
+      apu->outPorts[3] = (uint8_t)po[0][3];
+    }
     while (produced2 < frames2) {
       int want = frames2 - produced2;
       if (want > 1024) want = 1024;
@@ -239,13 +265,29 @@ int main(int argc, char **argv) {
         while (port_n2 < pcnt && ps[port_n2] - port_offset <= produced2 + n) {
           uint8_t before[4];
           memcpy(before, apu->outPorts, sizeof(before));
+          /* handshake == 3: reproduce the console's own ordering exactly - wait
+           * until the SPC's output ports are what they were when the CPU wrote
+           * this byte (recorded in the port ring), then write it. */
+          if (handshake == 3 && po[port_n2][0] >= 0) {
+            int w = 0;
+            for (; w < 20000; w++) {
+              if (apu->outPorts[0] == (uint8_t)po[port_n2][0] &&
+                  apu->outPorts[1] == (uint8_t)po[port_n2][1] &&
+                  apu->outPorts[2] == (uint8_t)po[port_n2][2] &&
+                  apu->outPorts[3] == (uint8_t)po[port_n2][3])
+                break;
+              apu_cycle(apu);
+            }
+            ack_cycles += w;
+            if (w >= 20000) ack_timeout++; else ack_ok++;
+          }
           apu_writePortNow(apu, (uint8_t)pp[port_n2], (uint8_t)pv[port_n2]);
           port_n2++;
           /* The transfer is request/acknowledge: the CPU waits for the SPC to
            * answer on its output ports before it sends the next byte. Pacing by
            * the captured timestamps instead loses bytes and the driver never
            * starts; pacing by the acknowledge reproduces the console's side. */
-          if (handshake) {
+          if (handshake && handshake != 3) {
             /* Two pacing rules were tried: "any change on the output ports"
              * (handshake == 1) and "the SPC echoed the index we just wrote on
              * port 0" (handshake == 2). The IPL transfer is a request/echo
@@ -281,7 +323,7 @@ int main(int argc, char **argv) {
               }
             }
             ack_cycles += w;
-            if (w >= 400000) ack_timeout++; else ack_ok++;
+            if (w >= 20000) ack_timeout++; else ack_ok++;
           }
         }
         for (int k = 0; k < 32; k++) apu_cycle(apu);
@@ -313,10 +355,12 @@ int main(int argc, char **argv) {
       printf("{\"ok\":true,\"aram\":\"%s\",\"entry_pc\":%ld,"
              "\"frames\":%d,\"seconds\":%.3f,\"halted_at\":%d,"
              "\"peak_l\":%d,\"peak_r\":%d,\"rms_l\":%.1f,\"rms_r\":%.1f,"
+             "\"pc_end\":\"%04X\",\"sp_end\":\"%02X\","
              "\"port_writes\":%d,\"ack_ok\":%d,\"ack_timeout\":%d,"
              "\"ack_cycles\":%lld,\"wav\":\"%s\"}\n",
              aram_path, entry_override, produced2,
              (double)produced2 / NATIVE_RATE, halted2, pL, pR,
+             (unsigned)apu->spc->pc, (unsigned)apu->spc->sp,
              produced2 ? sqrt(sL / produced2) : 0,
              produced2 ? sqrt(sR / produced2) : 0, port_n2, ack_ok, ack_timeout,
              ack_cycles, out_path);

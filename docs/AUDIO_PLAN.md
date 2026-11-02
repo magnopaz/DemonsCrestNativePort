@@ -292,6 +292,26 @@ the parts that happen to line up and drifts on the rest. Booting from ARAM taken
 *after* the transfer (frame 200, bank loaded) plus the timer is also silent, so
 the missing piece is the transfer's own state machine, not the data.
 
+Option 1 was then implemented and measured, and it closes the question the other
+way:
+
+- the port ring now records `outPorts[0..3]` with every `cpu_wr`
+  (`g_audio_trace_out_ports`, published by `apu_writePortNow`), and
+  `apu_host --state-wait` waits for exactly that state before writing each byte;
+- with the stack pointer loaded from the `.spc` (a real bug: `--aram` used to
+  start with `SP=0xEF`, so the driver's `RET` popped garbage), the embedded
+  driver is healthy — after 2 s with no traffic it sits at `$0470` with `SP=$CD`,
+  i.e. inside its port-poll loop;
+- replaying the recorded stream with exact state waits still fails: **238
+  acknowledgements out of 65,943**, and the driver ends at `$0A12`, off the poll
+  loop.
+
+The recorded states explain why: the console's stream begins at an index the
+driver's own counter was already at (`$F9`) while our ARAM image is from before
+the transfer (counter 0), so the two never agree on which byte comes next. In
+other words the transfer has to be reproduced as a *protocol*, not as a log — the
+data alone cannot say where in the transfer the console was.
+
 Two clean ways to get it, both small:
 
 1. **Log the handshake state.** Extend the port ring's `cpu_wr` entries with the
