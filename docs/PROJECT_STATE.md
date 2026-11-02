@@ -61,6 +61,42 @@ saves (`build/saves/arma_boss.sav`, `world_map.sav`).
   of BMPs), e.g.
   `SNESREC_AUTORECORD=1 SNESREC_INPUT_ONLY=1 SNESREC_RECORD_DIR=captures/rec_stage1_trace ./DemonsCrestSNESRecomp "../../roms/Demon's Crest (USA).sfc"`.
 
+## NEXT SESSION — MVP 2, start with the Hippogriff (read this first)
+
+The tree is green (`tools/run_regression.py` PASS, 20 gates including the room
+fade, the species `$67` ghoul and the wall cling). The stage-1 audit is complete
+(part 5 below); this is the queue it produced.
+
+1. **Hippogriff in area 1.** The take proves the fight: species `$09` is live in
+   area 1 from gframe 8841 to 11741, at the cemetery's far end, and the ROM gate
+   `$81:97DA` sends area 1 to area 2. The port never spawns him because
+   `tools/dc_extract/extract.py` types species `$09` as `"exit"` (the dict near
+   line 799 and `type_by_species` near line 1452); the object at (1920, 168) is
+   therefore a plain trigger and the species-`0x09` Hippogriff AI already in
+   `src/object.c` (statue phase included) is unreachable. `species_anim.json`
+   has **no** entry for species 9 either - his frames have to be baked, and the
+   take plus `tools/oracle/replay_capture.py` are the source. The same extractor
+   gap drops the 14 `$72` flame objects area 1 really contains.
+2. **Arma -> Earth Crest -> the map.** Area 3 has the boss (`$A5`, object at
+   (856, 1180) in the room JSON; `arma_boss.sav` puts the live one at (856, 151)
+   with its `$8B` companion) but `gate_next_area = -1` and no transitions, so
+   the kill cannot advance. `Game_CompleteArea` also awards `CREST_TIME` for
+   area 3; the original gives the **Earth Crest** and loads **area 94**, the map
+   room (`world_map.sav`: `$008D = $BC`).
+3. **The map is area 94 in Mode 7.** `room_area94.json` is 1024x1024 with a
+   128x128 BG1; rendered as a normal room it is repeating garbage, which is why
+   the port draws a baked texture through a `Camera2D`. `docs/map_compare.png`
+   is the original-vs-port comparison.
+
+Tools that answer questions without guessing:
+
+- `tools/oracle/trace_stage.py save <sav>` / `replay <take>` dumps
+  `gframe,area8d,area,state,sub,x,y,species` from the trace build.
+- The trace build exists again at `DemonsCrestSNESRecomp/build-trace/` (recipe
+  and the `<sys/stat.h>` fix are in part 5). The replayable take is
+  `build-trace/captures/rec_stage1_trace/rec_20261102_193944` (20 667 samples,
+  input-only, starts at gframe 1).
+
 ## Session 2026-11-02 (part 5) — the boot-start take confirms the stage-1 gaps
 
 The owner re-recorded from boot in `build-trace` (`rec_20261102_193944`, 20 667
@@ -89,6 +125,10 @@ the whole run:
   spot; the arena is one screen at the room's bottom. The port's boss object is
   at (856, 1180), so its y is not the save's y (different origin) - the fight
   renders in the right place, but the spawn record deserves a second look.
+- The sampling is now a tool, not a scratch script: `tools/oracle/trace_stage.py`
+  has `save <file.sav>` (resume a save, run N frames, dump area/player/pool) and
+  `replay <take>` (replay an input-only take and sample every N frames). Both
+  write `gframe,area8d,area,state,sub,x,y,species`.
 - **The map is a room, not a menu**: `world_map.sav` has `$008D = $BC` (area 94)
   with the player at (896, 156). `room_area94.json` is 1024x1024 with a 128x128
   BG1. Loading it as a normal room renders repeating garbage tiles (the area is
