@@ -155,6 +155,16 @@ def main() -> int:
         check(boss_proc.returncode == 0,
               "bosses: data/runtime check failed\n" + boss_proc.stdout[-800:])
 
+        # ---- MVP 1: the Somulo fight's beats (planted boss, intro order,
+        # control lock, blind walk before the first fireball) ----
+        mvp_proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_mvp_somulo.py"),
+             "--binary", str(binary), "--assets", str(assets)],
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=600)
+        check(mvp_proc.returncode == 0,
+              "mvp1: somulo beat check failed\n" + mvp_proc.stdout[-800:])
+
         # ---- Step 3: walk / tap-jump / hold-jump / hover replay ----
         d6 = run_demo(base, out, 6, 603)
         rows = csv_rows(d6["player"])
