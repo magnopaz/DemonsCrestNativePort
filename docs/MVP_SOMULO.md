@@ -157,6 +157,35 @@ upscaled screenshot. `DrawHud` now draws only the life row (filled + hollow) and
 the crest slots, with the row starting at x = 26, y = 20 as the game does.
 
 
+## The reference sprite sheet is a component atlas
+
+`docs/sprites/SNES - Demon's Crest - Enemies & Bosses - Somulo.gif` (677x1366,
+single frame) is the complete art, but **not** as full-body frames: it is a
+labelled atlas of the parts the hardware draws separately.
+
+| section | contents |
+|---|---|
+| First Fight → Introduction Roar | 6 head+neck frames |
+| Eye Opening | 4 head+neck frames (identical size 82x95) |
+| Attack (High) / Attack (Low) | 3 + 6 head+neck frames (95x74, 106x74) |
+| Hurt (Defeated) + Body | 3 hurt heads + one **full body**, 119x89 (plus a 195x120 variant) |
+| Walking Legs | ~6x4 grid of leg pairs (69x75 cells) |
+| Darkened Palette, Defeated Legs | alternate body and a limp-leg grid |
+| Fireball / Fire Wall | 4 and 5-6 effect frames |
+| Second Fight | roar / attack / hurt / defeated heads for the second encounter |
+
+Measured with 8-connected labelling on an `r+g+b > 45` mask (the background is
+`(8,8,8)`, so a plain `!= black` test merges the whole sheet into one blob).
+That grid of head sizes is why the oracle's OAM for the boss shows only
+head+neck sprites: the body and legs are other pieces, drawn by other means — and
+`tools/dc_extract/bake_boss_pose.py` documents that 13 of Somulo's 28 OAM parts
+are not reachable through the `$8B:8000` metasprite groups (his head is group
+`$09`, but the neck frill and jaw overlay come from another table).
+
+So the current single-image draw (8 walk frames from the wiki GIF) is a
+placeholder in shape as well as content: the faithful version composes body +
+legs + head per state.
+
 ## Somulo animation
 
 The walk is a **3-frame cycle**, cut from the immortal walk-past (frames 2475,
