@@ -61,6 +61,39 @@ saves (`build/saves/arma_boss.sav`, `world_map.sav`).
   of BMPs), e.g.
   `SNESREC_AUTORECORD=1 SNESREC_INPUT_ONLY=1 SNESREC_RECORD_DIR=captures/rec_stage1_trace ./DemonsCrestSNESRecomp "../../roms/Demon's Crest (USA).sfc"`.
 
+## Session 2026-11-02 (part 5) — the boot-start take confirms the stage-1 gaps
+
+The owner re-recorded from boot in `build-trace` (`rec_20261102_193944`, 20 667
+samples, input-only) and it replays exactly. Sampling `$008D`, the player task
+and the 26 object slots every 20 frames (`/tmp/stage1_trace/trace.csv`) gives
+the whole run:
+
+| gframe | `$008D` | room |
+|---|---|---|
+| 1..601 | `$00` | boot / title |
+| 621..1121 | `$A0` | intro menu cutscene (area 80) |
+| 1141..4621 | `$00` | colosseum, Somulo (`$33`) |
+| 4641..6741 | `$22` | second colosseum room (area 17) |
+| 6761..12061 | `$02` | **murkland-cemetery (area 1)** |
+| 12081..14461 | `$04` | murkland-slope (area 2) |
+| 14481..20661 | `$06` | murkland-abyss (area 3) |
+
+- **The Hippogriff is real and lives in area 1**: species `$09` is in the pool
+  from gframe 8841 to 11741, at the cemetery's far end (the player reaches
+  x=1933). The 14 flame objects (`$72`) are there too (7141..9441 in the pool).
+  Both are dropped by the port's extractor (`$09` typed `exit`, `$72` unknown).
+- **Wall cling is used in the abyss**: player state `$05 = 8` appears in 30
+  samples of area 3 (and a few in area 2), which matches the fixed behaviour.
+- **Arma's save**: `arma_boss.sav` is area 3 with the player at (681, 156) and
+  slot 8 = species `$A5` at (856, 151), plus its `$8B` companion at the same
+  spot; the arena is one screen at the room's bottom. The port's boss object is
+  at (856, 1180), so its y is not the save's y (different origin) - the fight
+  renders in the right place, but the spawn record deserves a second look.
+- **The map is a room, not a menu**: `world_map.sav` has `$008D = $BC` (area 94)
+  with the player at (896, 156). `room_area94.json` is 1024x1024 with a 128x128
+  BG1. Loading it as a normal room renders repeating garbage tiles (the area is
+  drawn with Mode 7), which is why the port bakes a texture and fakes the view.
+
 ## Session 2026-11-02 (part 3) — the species `$67` ghoul runs its ROM machine
 
 - **`GhoulUpdate` in `src/object.c` replaces the hand-written approximation.**
