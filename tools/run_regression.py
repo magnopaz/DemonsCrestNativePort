@@ -322,7 +322,9 @@ def main() -> int:
                                            (20, 440, 144, 22),
                                            (76, 226, 141, 78),
                                            (58, 224, 128, 60)):
-            hop = run_demo(base, out, 36, 12, {
+            # 140 frames: a room change is 28 fade-out + 64 black + 28 fade-in
+            # on the console, and the area only appears once the new room runs.
+            hop = run_demo(base, out, 36, 140, {
                 "DC_AREA": str(src_area),
                 "DC_START_X": str(sx),
                 "DC_START_Y": str(sy),
@@ -360,6 +362,16 @@ def main() -> int:
             data = json.loads(pause_save.read_text())
             check(isinstance(data.get("area"), int),
                   "pause: save file has no area field")
+
+        # ---- Room transition: the console's 28+64+28 INIDISP fade ----
+        fade_proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_transition_fade.py"),
+             "--binary", str(binary), "--assets", str(assets),
+             "--tmp", str(out)],
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=300)
+        check(fade_proc.returncode == 0,
+              "transition: fade profile failed\n" + fade_proc.stdout[-800:])
 
         # ---- End-to-end campaign playthrough ----
         play = subprocess.run(

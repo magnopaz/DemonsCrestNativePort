@@ -5,6 +5,27 @@ Project root: `projetos/opencode/DemonsCrestNativePort`
 Reference recompilation: `projetos/opencode/DemonsCrestSNESRecomp`
 ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
 
+## Session 2026-11-02 (part 2) — MVP 2 starts: room-change fade (done)
+
+- **Room changes now fade like the console.** Measured on the oracle from
+  `lvl_I_murkland-slope_before_door` (hold right, read `inidisp` from the
+  per-frame ring): **28 frames 15→0, 64 frames black, 28 frames →15** — 120
+  frames total, with the room load inside the black stretch. The exact tables
+  are in `src/game.c` (`kFadeOut`/`kFadeIn`); `Game_BeginTransition` starts it,
+  `Game_UpdateTransition` freezes the simulation and swaps the area on the first
+  black frame.
+- `Render_DrawFade()` moved out of `Render_Game` to the end of `Game_Render`, so
+  the HUD, the area banner and dialogue dim with the world — INIDISP dims the
+  whole PPU output. A black frame now measures **mean 0.0, max 0**; before the
+  fix the HUD stayed lit (max 235) through the fade.
+- New gate: `tools/check_transition_fade.py` (area 1 exit object, `DC_TRACE_FADE`)
+  asserts the three stretches and that the area flips 1→2 inside the black hold.
+  Wired into `tools/run_regression.py`.
+- Facts established while scoping Area 1: its `$81:981A` transition list is
+  **empty** (pointer `$989A`, count 0), so the room's only exit is the species
+  `$09` exit object at x=1920 → `gate_next_area` 2. The port already performed
+  that transition; what was missing was the fade, not the link.
+
 ## Session 2026-11-02 — ROM audio (spike done) (read this first)
 
 > **Route 1 verdict (do not retry the replay).** Running the ROM's own SPC700
@@ -19,9 +40,11 @@ ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
 > three options are in `docs/AUDIO_PLAN.md`. **Pre-rendered WAV is the shipped,
 > verified path.**
 >
-> **Next session is MVP 2**, not audio: Area 1 (graveyard) — screen transitions,
-> ghoul AI, the stage boss; then the dark rooms (BG2 missing in ~33 rooms) and
-> retail password (`QFFF KNRR DDLR XGTQ`, see `docs/LORE.md`).
+> **MVP 2 is in progress.** The room-change fade is done and gated (see the
+> first section). Still on the paddle: the authentic species `$67` ghoul state
+> machine (`$83:AF19` init, `$83:AF74` update, states through `$B249`), then the
+> stage boss; after that the dark rooms (BG2 missing in ~33 rooms) and the retail
+> password (`QFFF KNRR DDLR XGTQ`, see `docs/LORE.md`).
 
 - **The colosseum theme now plays from the ROM's own audio.** Area 0's track is
   captured from the oracle's S-DSP output, cut to its measured loop and played
@@ -919,6 +942,7 @@ The original SNES default mapping was verified from `$80:DB00..DB40` and `save0`
 | `DC_RUN_FRAMES=N` | run N updates then exit |
 | `DC_SCREENSHOT=name.png` | save last presented frame |
 | `DC_TRACE_CSV=path` | per-frame player/camera CSV |
+| `DC_TRACE_FADE=path` | per-frame room-change fade CSV (`frame,phase,timer,fade,area`) |
 | `DC_DEMO=1` | long walk/jump/fly demo |
 | `DC_DEMO=2` | short walk/jump demo |
 | `DC_DEMO=3` | mirrors the area-2 physics probe timing |

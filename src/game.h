@@ -50,6 +50,12 @@ typedef struct Game {
     /* Death in an arena restarts the room (entrance included) instead of
      * showing GAME OVER, which is what the recording of Somulo shows. */
     int restart_timer;
+    /* Room change fade, measured from the oracle: 28 frames out, 64 black
+     * (the load happens there), 28 in. 0 = idle, 1 = out, 2 = black, 3 = in. */
+    int transition_phase;
+    int transition_timer;
+    int transition_area;
+    int transition_spawn;
     int talisman_toast;       /* frames the talisman line is shown */
     int talisman_toast_index; /* which talisman was picked up */
     bool attract;    /* title-screen demo running */
@@ -107,6 +113,8 @@ void Game_Update(Game *game);
 void Game_Render(Game *game);
 void Game_Shutdown(Game *game);
 bool Game_TransitionToArea(Game *game, int area_id, int spawn_id);
+void Game_BeginTransition(Game *game, int area_id, int spawn_id);
+bool Game_UpdateTransition(Game *game);
 void Game_EncodePassword(const Game *game, char out[DC_PASSWORD_LEN + 1]);
 uint32_t Game_PasswordPayload(const Game *game);
 void Game_PasswordEncode(uint32_t payload, char out[DC_PASSWORD_LEN + 1]);

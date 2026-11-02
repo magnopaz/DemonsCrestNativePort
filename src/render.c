@@ -597,6 +597,15 @@ static float s_fade = 0.0f;
 
 void Render_SetFade(float alpha) { s_fade = alpha; }
 
+/* The console fades INIDISP, which dims the whole PPU output - HUD, banners
+ * and dialogue included. Draw this last, after every layer. */
+void Render_DrawFade(void) {
+    if (s_fade <= 0.0f)
+        return;
+    unsigned char a = (unsigned char)(s_fade * 255.0f);
+    DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, a});
+}
+
 void Render_Game(const Assets *assets, const Level *level, const GameCamera *camera,
                  const Player *player, const ProjectilePool *projectiles,
                  const ObjectPool *objects, bool show_hud,
@@ -639,10 +648,6 @@ void Render_Game(const Assets *assets, const Level *level, const GameCamera *cam
     /* Projectiles last: drawing them before the objects hid the player's shots
      * whenever a boss was between them and the camera. */
     DrawProjectiles(assets, camera, projectiles);
-    if (s_fade > 0.0f) {
-        unsigned char a = (unsigned char)(s_fade * 255.0f);
-        DrawRectangle(0, 0, 256, 224, (Color){0, 0, 0, a});
-    }
     if (show_hud)
         DrawHud(assets, player);
 

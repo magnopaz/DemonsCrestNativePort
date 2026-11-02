@@ -50,6 +50,9 @@ static void Game_Reset(Game *game) {
     Camera_Init(&game->camera, &game->level);
     game->objects.boss_alive = false;
     game->objects.boss_defeated = false;
+    game->transition_phase = 0;
+    game->transition_timer = 0;
+    Render_SetFade(0.0f);
     if (getenv("DC_BOSS_CLEAR")) {
         /* Cleared room: the boss is gone but the room still "has" one, which is
          * what the post-boss gate checks. */
@@ -110,6 +113,109 @@ bool Game_TransitionToArea(Game *game, int area_id, int spawn_id) {
     game->objects.boss_defeated = false;
     game->state = GAME_PLAYING;
     game->state_timer = 0;
+    return true;
+}
+
+/* Room change with the original's fade. Measured on the recomp from a save
+ * standing before a door (lvl_I_murkland-slope_before_door), reading INIDISP
+ * per frame while walking through it:
+ *
+ *   fade out  28 frames, brightness 15 -> 0 (kFadeOut)
+ *   black     64 frames (the room load happens inside it)
+ *   fade in   28 frames, brightness 1 -> 15 (kFadeIn)
+ *
+ * The old port cut straight to the new room, which is the one visible
+ * difference between its transitions and the console's. */
+static const uint8_t kFadeOut[28] = {
+    14, 13, 13, 12, 12, 11, 11, 10, 10, 9, 9, 8, 8, 7,
+    7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0
+};
+static const uint8_t kFadeIn[28] = {
+    1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 7,
+    8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14
+};
+#define DC_FADE_OUT_FRAMES 28
+#define DC_FADE_BLACK_FRAMES 64
+#define DC_FADE_IN_FRAMES 28
+
+static FILE *s_fade_trace = NULL;
+static bool s_fade_trace_open = false;
+
+static void Game_TraceFade(Game *game, float fade) {
+    if (!s_fade_trace_open) {
+        s_fade_trace_open = true;
+        const char *path = getenv("DC_TRACE_FADE");
+        if (path && *path)
+            s_fade_trace = fopen(path, "w");
+        if (s_fade_trace)
+            fprintf(s_fade_trace, "frame,phase,timer,fade,area\n");
+    }
+    if (!s_fade_trace)
+        return;
+    fprintf(s_fade_trace, "%u,%d,%d,%d,%d\n", game->frame,
+            game->transition_phase, game->transition_timer,
+            (int)lroundf(fade * 15.0f), game->level.area_id);
+    fflush(s_fade_trace);
+}
+
+void Game_BeginTransition(Game *game, int area_id, int spawn_id) {
+    if (game->transition_phase != 0)
+        return;   /* a transition is already running */
+    if (game->restart_timer > 0)
+        return;   /* the death fade owns the screen */
+    if (area_id < 0 || area_id >= DC_CAMPAIGN_AREAS ||
+        area_id == game->level.area_id)
+        return;
+    game->transition_phase = 1;
+    game->transition_timer = 0;
+    game->transition_area = area_id;
+    game->transition_spawn = spawn_id;
+}
+
+/* Advances the fade; returns true while the game should keep the simulation
+ * frozen. The room load happens on the first black frame, like the console's
+ * room-load task, which only consumes $008D after the fade-out. */
+bool Game_UpdateTransition(Game *game) {
+    if (game->transition_phase == 0)
+        return false;
+    switch (game->transition_phase) {
+    case 1:
+        Render_SetFade(kFadeOut[game->transition_timer] / 15.0f);
+        Game_TraceFade(game, kFadeOut[game->transition_timer] / 15.0f);
+        if (++game->transition_timer >= DC_FADE_OUT_FRAMES) {
+            game->transition_phase = 2;
+            game->transition_timer = 0;
+            Game_TransitionToArea(game, game->transition_area,
+                                  game->transition_spawn);
+            Render_SetFade(1.0f);
+        }
+        break;
+    case 2:
+        Render_SetFade(1.0f);
+        Game_TraceFade(game, 1.0f);
+        if (++game->transition_timer >= DC_FADE_BLACK_FRAMES) {
+            game->transition_phase = 3;
+            game->transition_timer = 0;
+        }
+        break;
+    case 3:
+        Render_SetFade(kFadeIn[game->transition_timer] / 15.0f);
+        Game_TraceFade(game, kFadeIn[game->transition_timer] / 15.0f);
+        if (++game->transition_timer >= DC_FADE_IN_FRAMES) {
+            game->transition_phase = 0;
+            game->transition_timer = 0;
+            Render_SetFade(0.0f);
+            Game_TraceFade(game, 0.0f);
+        }
+        break;
+    default:
+        game->transition_phase = 0;
+        Render_SetFade(0.0f);
+        return false;
+    }
+    /* Keep the frame clock running while the simulation is frozen, so timed
+     * traces and the fade itself stay on one timeline. */
+    game->frame++;
     return true;
 }
 
@@ -691,7 +797,7 @@ static void Game_UpdateSimulation(Game *game) {
         }
         int next = game->level.gate_next_area;
         if (next >= 0) {
-            Game_TransitionToArea(game, next, 0);
+            Game_BeginTransition(game, next, 0);
         } else {
             game->campaign_mode = true;
             Game_OpenOverworld(game);
@@ -756,7 +862,7 @@ static void Game_CheckTransitions(Game *game) {
                 tr->next_area == game->level.area_id)
                 continue;
             if (PlayerInsideTransition(player, tr)) {
-                Game_TransitionToArea(game, tr->next_area, tr->spawn_id);
+                Game_BeginTransition(game, tr->next_area, tr->spawn_id);
                 return;
             }
         }
@@ -777,7 +883,7 @@ static void Game_CheckTransitions(Game *game) {
          * gate has to start a little before it. */
         float gate_x = (float)game->level.world_w - 40.0f;
         if (player->x >= gate_x) {
-            Game_TransitionToArea(game, game->level.gate_next_area, 0);
+            Game_BeginTransition(game, game->level.gate_next_area, 0);
             return;
         }
     }
@@ -1506,6 +1612,10 @@ void Game_Update(Game *game) {
         Game_UpdateTitle(game, up_pressed, down_pressed);
         break;
     case GAME_PLAYING: {
+        /* A room change owns the frame until its fade finishes: the console
+         * runs the room loader inside the black stretch. */
+        if (Game_UpdateTransition(game))
+            break;
         bool has_exit = false;
         for (int i = 0; i < game->level.object_count; i++) {
             if (game->level.objects[i].type == LEVEL_OBJECT_EXIT) {
@@ -2298,6 +2408,7 @@ void Game_Render(Game *game) {
             Text_DrawString(&game->assets, "ENTER NEXT", 16,
                             150 + height + 6, (Color){170, 170, 185, 255});
     }
+    Render_DrawFade();
     EndTextureMode();
 }
 

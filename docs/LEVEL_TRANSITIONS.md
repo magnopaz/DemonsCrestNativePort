@@ -43,6 +43,31 @@ the trigger position from the `<from>_before_door` save when one exists.
 | poseidonia-lair-of-holothurion | right (boss door) | boss | boss leaves a life up |
 | dark-forest-scula-cave | up (limestone door) | dark-forest-limestone-cave |  |
 
+## The room-change fade (measured, implemented)
+
+The console does not cut between rooms: it fades INIDISP down, loads the room
+while the screen is black, and fades back up. Measured on the recomp by resuming
+`lvl_I_murkland-slope_before_door`, holding **right** for 50 frames and reading
+`inidisp` from the per-frame ring (`tools/oracle/capture_anim.py`, 291 frames):
+
+| stretch | frames | brightness |
+|---|---|---|
+| fade out | 28 | 14, 13, 13, 12, 12, …, 1, 1, 0 |
+| black (room load) | 64 | 0 |
+| fade in | 28 | 1, 1, 2, 2, …, 13, 13, 14, then 15 |
+
+Total 120 frames. The port now reproduces it exactly: `Game_BeginTransition`
+starts the fade, `Game_UpdateTransition` freezes the simulation, calls
+`Game_TransitionToArea` on the first black frame (the console's loader also only
+consumes `$008D` after the fade-out) and fades back in. `Render_DrawFade` runs
+last so the HUD, the area banner and dialogue dim with everything else, the way
+INIDISP does.
+
+`tools/check_transition_fade.py` runs the binary in area 1 with the player just
+short of the exit object, reads `DC_TRACE_FADE` and asserts the three stretches,
+the exact tables, and that the area changes inside the black hold. It is wired
+into `tools/run_regression.py`.
+
 ## Applying the observed doors
 
 The runtime only sees doors that are present in the generated room JSONs, so
