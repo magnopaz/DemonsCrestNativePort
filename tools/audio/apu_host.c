@@ -252,10 +252,21 @@ int main(int argc, char **argv) {
              * protocol, so the echo rule is the faithful one. */
             uint8_t want = (uint8_t)pv[port_n2 - 1];
             int port = pp[port_n2 - 1];
+            /* Only the transfer's own writes are paced. The CPU also polls the
+             * port while it waits (0xF9 written repeatedly); pacing those burns
+             * the timeout and desyncs the transfer. A transfer byte announces
+             * itself as the next index on port 0, and the block starts with $CC. */
+            static int prev_port0 = -1;
+            int is_index = (port == 0 && prev_port0 >= 0 &&
+                            ((prev_port0 + 1) & 0xff) == want);
+            if (port == 0) prev_port0 = want;
             /* $CC on port 0 starts an IPL transfer: the driver answers with the
              * ready pair $AA/$BB on its own output ports (the oracle's
              * apu_waitForTransferReady uses exactly this test). */
-            int is_start = (port == 0 && want == 0xcc);
+            /* $CC opens a block, but this driver does not answer with the IPL
+             * ROM's $AA/$BB ready pair (post-boot it uses its own routine), so
+             * it is written without waiting. */
+            int is_start = 0;
             int w = 0;
             for (; w < 400000; w++) {
               apu_cycle(apu);
@@ -263,9 +274,9 @@ int main(int argc, char **argv) {
                 if (apu->outPorts[0] == 0xaa && apu->outPorts[1] == 0xbb) break;
               } else if (handshake == 1) {
                 if (memcmp(before, apu->outPorts, sizeof(before))) break;
-              } else if (port == 0) {
+              } else if (is_index) {
                 if (apu->outPorts[0] == want) break;
-              } else if (memcmp(before, apu->outPorts, 4)) {
+              } else {
                 break;
               }
             }

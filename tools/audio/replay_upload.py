@@ -146,6 +146,13 @@ def main() -> int:
             writes = head + [w for w in tail if w[0] > last]
         else:
             writes = tail
+        # Start at a block boundary: the ring can begin mid-transfer, and the
+        # pacing heuristic needs to see the $CC that opens a block.
+        start = next((i for i, w in enumerate(writes)
+                      if w[1] == 0 and w[2] == 0xCC), None)
+        if start is not None:
+            print(f"trimming {start} writes before the first $CC block")
+            writes = writes[start:]
         ports = args.out / "ports.txt"
         ports.write_text("\n".join(f"{s} {p} {v}" for s, p, v in writes) + "\n")
         print(f"replaying {len(writes)} writes (first at sample"

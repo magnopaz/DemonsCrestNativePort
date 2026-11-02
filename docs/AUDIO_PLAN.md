@@ -257,11 +257,27 @@ Two concrete gaps were then found and closed, in this order:
    time. The fix is to drive the file from APU time — emit a sample whenever
    `dsp_cycle` produces one — and let the write schedule follow that clock.
 
-The protocol itself is specified in the oracle and is what `--echo-wait`
-implements: `apu_waitForTransferReady` waits for the `$AA/$BB` ready pair, the
-per-byte ack is the index echoed on port 0, and `apu_finishHleTransfer`
-terminates with `$CC` and waits for its echo. With the timer fix in place the
-remaining silence is explained by item 2, not by the protocol shape.
+**Pacing now works.** With the timer fix, APU-time rendering and a heuristic
+that paces only the transfer's own writes (a port-0 value that is the next index;
+the CPU's `0xF9` polling writes must not be paced), a run acknowledges **8,348 of
+8,617** writes — 97%. The driver is following the transfer.
+
+**And it is still silent**, so the problem is no longer timing but content: the
+bytes are delivered and acknowledged, and nothing plays. Two measurements shape
+the next attempt:
+
+- the driver does **not** answer `$CC` with the IPL ROM's `$AA/$BB` ready pair
+  (post-boot it runs its own transfer routine): waiting for that pair at the
+  block start stalls the whole replay (0 acks), so `$CC` is written unperformed;
+- the best-acknowledged run ends mid-transfer (its window stops at frame 134),
+  and the later window that reaches the end starts from a different point and
+  collapses to 52 acks. The transfer has to be captured **complete and from its
+  own beginning**, which the port ring can only do for a bounded window — so the
+  transfer's length has to be established first (count the index sequence: it is
+  the byte count), and the ring sampled at the exact frames that bracket it.
+
+Everything needed for that is now in place: `port_events`, the two-dump merge,
+`--spc-io`, APU-time rendering, and `--echo-wait` with index-only pacing.
 
 ### A note on the oracle tree
 
