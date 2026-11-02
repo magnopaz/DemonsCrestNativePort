@@ -127,8 +127,11 @@ def main() -> int:
                     help="downscale factor of the source capture")
     ap.add_argument("--object-y", type=float, default=177.0,
                     help="screen y the port draws the boss object at (measured)")
-    ap.add_argument("--floor-y", type=float, default=192.0,
-                    help="screen y of the colosseum floor line")
+    ap.add_argument("--floor-y", type=float, default=176.0,
+                    help="screen y of the colosseum floor line. Both this and "
+                         "--object-y are SCREEN space: the floor is 192 in world "
+                         "and 176 on screen with the 16 px camera, and mixing the "
+                         "two frames anchored the dragon 14 px into the floor")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 

@@ -86,6 +86,17 @@ fi
 echo "== 4/7 boss objects from the check table =="
 python3 tools/dc_extract/apply_boss_table.py --rooms "$OUT"
 
+# Somulo's own art: the walk cycle comes from the reference GIF kept in
+# docs/reference, and its anchors are measured from the art's feet (the baker's
+# own anchor assumes screen-space numbers that drift when the camera moves).
+if [ -f docs/reference/somulo_walk.gif ]; then
+  echo "== bake Somulo (species 33) from the reference GIF =="
+  python3 tools/dc_extract/bake_somulo_gif.py \
+    --gif docs/reference/somulo_walk.gif --out "$OUT"
+  python3 tools/dc_extract/fix_species_anchor.py --species 33 \
+    --feet-band 0:0.4 --assets "$OUT"
+fi
+
 echo "== 5/7 room names (needs the save->area mapping) =="
 if [ -f "$ROOT/captures/save_to_area.json" ]; then
   python3 tools/dc_extract/build_room_names.py \
