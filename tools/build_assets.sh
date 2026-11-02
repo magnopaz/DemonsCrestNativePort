@@ -101,6 +101,13 @@ if [ -f docs/reference/somulo_walk.gif ]; then
   python3 tools/dc_extract/bake_somulo_parts.py --assets "$OUT"
 fi
 
+# Ground props (urns, crest pickups) sit on their object's centre; the CHR-tile
+# bake wrote anchor_y 27/26 for 16 px art and they floated in mid-air.
+for sp in 57 2d 2e 49; do
+  python3 tools/dc_extract/fix_species_anchor.py --species "$sp" \
+    --center --assets "$OUT"
+done
+
 echo "== 5/7 room names (needs the save->area mapping) =="
 if [ -f "$ROOT/captures/save_to_area.json" ]; then
   python3 tools/dc_extract/build_room_names.py \
