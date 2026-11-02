@@ -7,6 +7,22 @@ ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
 
 ## Session 2026-11-02 — ROM audio (spike done) (read this first)
 
+> **Route 1 verdict (do not retry the replay).** Running the ROM's own SPC700
+> driver inside the port was pushed to its end and closed by measurement: a
+> native port has no 65C816 to stay in lockstep with, and the driver's boot is a
+> byte-by-byte IPL handshake whose *timing is part of the data*. Recorded streams
+> reproduce neither the states nor the audio (sample-index replay boots the
+> driver and goes silent with a diverged ARAM; exact cycle-stamp replay derails;
+> a +16..+4096 cycle shift sweep boots nothing). The clocks were ruled out
+> (cycles/produced is exactly 32.0000). Route 1 needs lockstep CPU emulation, a
+> state format richer than `.spc`, or nothing at all. All numbers, tables and the
+> three options are in `docs/AUDIO_PLAN.md`. **Pre-rendered WAV is the shipped,
+> verified path.**
+>
+> **Next session is MVP 2**, not audio: Area 1 (graveyard) — screen transitions,
+> ghoul AI, the stage boss; then the dark rooms (BG2 missing in ~33 rooms) and
+> retail password (`QFFF KNRR DDLR XGTQ`, see `docs/LORE.md`).
+
 - **The colosseum theme now plays from the ROM's own audio.** Area 0's track is
   captured from the oracle's S-DSP output, cut to its measured loop and played
   through `LoadMusicStream`. Full detail and numbers in `docs/AUDIO_PLAN.md`.
