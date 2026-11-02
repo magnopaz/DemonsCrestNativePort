@@ -348,14 +348,70 @@ event, published by `apu_writePortNow` next to `outPorts`) and replayed exactly:
 | sample index + 24-cycle spacing | `$0302` (the console's tempo loop) | silent |
 | exact cycle stamp, one write per cycle | `$15C9` | derails |
 
-So the coarse replay *boots* the driver while the exact one derails, which means
-our cycle counter is not comparable to the console's: the stamp is taken from
-`apu->cycles` in the oracle, and that counter's origin (resets, burst catch-up)
-does not line up with a fresh `apu_reset()` in our host. The next step is
-therefore to establish the two clocks' relationship — log `apu->cycles` and
-`dsp->sampleWrite` together at a few points, or replay through the oracle's own
-queue (`apu_schedulePortWrite` + `apu_runToGuestCycle`) so the mapping is the
-same code that produced the trace.
+The obvious explanation — that the two clocks do not share an origin — was then
+measured and **ruled out**. Polling `get_apu_misc` (the APU cycle counter) and
+`audio_stats` (produced samples) at frames 0..600:
+
+```
+frame  cycles      produced   cycles/produced
+    1       25266         790   31.9823
+   60     1033458       32296   31.9996
+  600    10261013      320657   32.0000
+```
+
+The ratio is exactly 32 from the first frame, so a fresh `apu_reset()` and the
+oracle's counter do share an origin. The difference between the two replays is
+elsewhere, and the first write shows it: the console's very first `$2143` write
+carries cycle stamp **0**, while the sample-index replay lands it at sample 561
+(cycle ~17,952) because the capture bucket is coarse. The exact replay applies it
+at cycle 0, as the console did, and that is the run that derails.
+
+Moving that first write to the second one's stamp (`0` → `17941`) was tested and
+changes nothing: the run still ends at `$15C9`. So the cycle-0 event is not the
+cause either.
+
+What is left is the meaning of the stamp itself. The oracle runs the APU in
+bursts (`apu_runToGuestCycle`), so `apu->cycles` at the hook is the cycle at
+which the *emulator* applied the write, not necessarily the cycle at which the
+console's CPU issued it — the queue drains when the emulator gets there. A
+sample-index replay with 24-cycle spacing happens to land inside the window the
+driver accepts; the exact-stamp replay lands where the emulator did, and the
+driver takes a different branch.
+
+That was tested as a shift sweep over the whole stream:
+
+```
+shift +16   -> driver ends at FFD2 (still inside the IPL)
+shift +64   -> FFCF (IPL wait loop)
+shift +256  -> 09A2
+shift +1024 -> FFD2
+shift +4096 -> FFCF
+```
+
+No shift boots it, and the unshifted stream stops at `$15C9` while the
+sample-index replay reaches `$0302`. Even replaying only the first four writes
+leaves the IPL waiting, which means those writes are not the upload request at
+all — the real transfer happens inside the long stream, and the driver's
+byte-by-byte handshake amplifies whatever drift the replay carries.
+
+### Conclusion after measuring it
+
+A native port has no 65C816 to be in lockstep with. The oracle keeps the SPC in
+sync because it steps both CPUs together, so every port write lands at exactly
+the right APU cycle; feeding a recorded stream to a continuously running APU
+cannot reproduce that — the handshake is a feedback loop, and its timing is part
+of the data.
+
+So the in-process route needs one of:
+
+1. **lockstep emulation of the 65C816** — out of scope for a native port;
+2. **a richer state than `.spc`**, carrying per-voice envelope/decode state and
+   the driver's own variables, so the driver can start from a state it accepts;
+3. **pre-rendering**, which is what ships today and is verified.
+
+The measurements above are the reason to stop pushing route 1 without (1) or
+(2): it is not a matter of finding the right replay technique, it is a missing
+input.
 
 Two clean ways to get it, both small:
 
