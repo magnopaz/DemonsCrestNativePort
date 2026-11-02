@@ -41,7 +41,7 @@
 
 #define NATIVE_RATE 32040
 #define MAX_BLOCKS 4096
-#define MAX_PORTS 20000
+#define MAX_PORTS 200000
 
 typedef struct {
   uint16_t target;

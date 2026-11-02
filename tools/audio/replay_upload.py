@@ -86,6 +86,12 @@ def main() -> int:
     ap.add_argument("--mid-frame", type=int, default=132,
                     help="second port-ring sample; the ring keeps the last"
                          " 65536 events, so a long transfer needs two dumps")
+    ap.add_argument("--sample-every", type=int, default=0,
+                    help="sample the port ring every N frames instead of twice;"
+                         " the ring only holds the last 65536 events and a long"
+                         " byte-by-byte transfer does not fit in one dump")
+    ap.add_argument("--sample-until", type=int, default=0,
+                    help="last frame for --sample-every")
     ap.add_argument("--seconds", type=float, default=30.0)
     ap.add_argument("--port", type=int, default=4409)
     ap.add_argument("--no-handshake", action="store_true")
@@ -133,26 +139,36 @@ def main() -> int:
                     out.append((int(sample), int(port), int(value, 16)))
             return out
 
-        # The ring only holds the last 65536 events, so a long byte-by-byte
-        # transfer is sampled twice: the first dump has its head, the second
-        # its tail. Merge on the sample clock.
-        head = dump_ring("head") if args.mid_frame else []
-        client.run_to(args.end_frame)
-        time.sleep(0.15)
-        tail = dump_ring("tail")
-        writes = head
-        if head:
-            last = head[-1][0]
-            writes = head + [w for w in tail if w[0] > last]
+        # The ring only holds the last 65536 events, and a byte-by-byte transfer
+        # produces far more than that. Sampling it repeatedly over the transfer
+        # and merging on the sample clock reconstructs the whole stream; the
+        # dumps overlap, so duplicates are dropped by (sample, port, value).
+        if args.sample_every and args.sample_until:
+            merged: dict[tuple[int, int, int], None] = {}
+            order: list[tuple[int, int, int]] = []
+            f = args.mid_frame
+            tag = 0
+            while f <= args.sample_until:
+                client.run_to(f)
+                time.sleep(0.05)
+                for w in dump_ring(f"s{tag:03d}"):
+                    if w not in merged:
+                        merged[w] = None
+                        order.append(w)
+                tag += 1
+                f += args.sample_every
+            writes = sorted(order, key=lambda w: w[0])
         else:
-            writes = tail
-        # Start at a block boundary: the ring can begin mid-transfer, and the
-        # pacing heuristic needs to see the $CC that opens a block.
-        start = next((i for i, w in enumerate(writes)
-                      if w[1] == 0 and w[2] == 0xCC), None)
-        if start is not None:
-            print(f"trimming {start} writes before the first $CC block")
-            writes = writes[start:]
+            head = dump_ring("head") if args.mid_frame else []
+            client.run_to(args.end_frame)
+            time.sleep(0.15)
+            tail = dump_ring("tail")
+            writes = head + [w for w in tail if not head or w[0] > head[-1][0]]
+        if not writes:
+            print("replay_upload: no port traffic in the window")
+        # No trimming: $CC is also a legal data byte, so "first $CC" is not a
+        # block boundary. The pacing heuristic (next index on port 0) finds the
+        # transfer on its own.
         ports = args.out / "ports.txt"
         ports.write_text("\n".join(f"{s} {p} {v}" for s, p, v in writes) + "\n")
         print(f"replaying {len(writes)} writes (first at sample"

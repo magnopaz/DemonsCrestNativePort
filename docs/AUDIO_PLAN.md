@@ -276,8 +276,35 @@ the next attempt:
   transfer's length has to be established first (count the index sequence: it is
   the byte count), and the ring sampled at the exact frames that bracket it.
 
-Everything needed for that is now in place: `port_events`, the two-dump merge,
-`--spc-io`, APU-time rendering, and `--echo-wait` with index-only pacing.
+The capture is now complete: sampling the ring every 4 frames over the transfer
+and merging on the sample clock reconstructs **65,936** CPU writes (the dumps
+overlap, so it is complete rather than truncated). Replaying that whole stream
+acknowledges **33,325 of 65,936** writes — about half — and still renders
+silence.
+
+### The conclusion, and the two honest ways forward
+
+A write log cannot reconstruct a handshake. It records what the CPU wrote at
+wall-clock sample times, not what it wrote *in response to each acknowledge*, so
+two writes that the console separated by an ack can look adjacent in the log and
+vice versa. Half the writes landing is exactly the symptom: the driver follows
+the parts that happen to line up and drifts on the rest. Booting from ARAM taken
+*after* the transfer (frame 200, bank loaded) plus the timer is also silent, so
+the missing piece is the transfer's own state machine, not the data.
+
+Two clean ways to get it, both small:
+
+1. **Log the handshake state.** Extend the port ring's `cpu_wr` entries with the
+   SPC's `outPorts[0..3]` at the moment of the write (about 20 lines across
+   `audio_trace.h`, the record site and the `.apu.tsv` writer). The replay then
+   waits for exactly the state the console had before each byte, instead of
+   guessing which writes are paced.
+2. **Read the driver's routine.** Disassemble `$046A` and the caller at `$02F9`
+   in the captured ARAM and implement the transfer as code, which is the route
+   `apu_host` would eventually ship anyway.
+
+Until one of those lands, the port keeps the rendered assets, which are the
+shipped path and are verified.
 
 ### A note on the oracle tree
 
