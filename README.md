@@ -60,8 +60,9 @@ frame-accurate oracle for movement and timing.
   - fireball hits shatter urns and drop a heart with the `$85:C180` arc
     (4.0 px/frame pop-up, 0.25 gravity, decreasing bounces),
   - touching a heart increments HP up to max,
-  - first-pass `species $67` ghouls emerge, chase, damage on contact with
-    knockback and drop hearts when killed by fireballs.
+  - species `$67` ghouls run their ROM state machine (`$83:AF74`: perched
+    volley, hop, chase), damage on contact with knockback and drop hearts when
+    killed by fireballs.
 - BG3 HUD extracted from `save0`: six-point health bar plus three crest slots
   at the top of the frame; the active spell slot is highlighted.
 - Fixed 60 Hz simulation with a frame-time accumulator; presentation refresh
@@ -72,8 +73,9 @@ frame-accurate oracle for movement and timing.
   physics, projectile, pickup, enemy and HP invariants.
 - Original procedural audio: a looping chiptune theme plus jump, land, shoot,
   break, pickup, hurt and enemy-hit SFX (no ROM audio data).
-- Vertical-slice flow: title screen, pause overlay, and an Area Clear trigger
-  at the graveyard exit (`species $09` at `x=1920`).
+- Vertical-slice flow: title screen, pause overlay, and the cemetery's mid-boss
+  gate — the Hippogriff (species `$09` at `x=1920`) blocks the way to Area 2
+  until he is killed.
 - Full-campaign foundation:
   - native ROM CHR decompressor (`$80:C2AF`/`$80:C300`) and `$98:C000`/
     `$98:D000` table decoders;
@@ -88,13 +90,15 @@ frame-accurate oracle for movement and timing.
     BG2 tilemap plus a capture-based atlas (Area 1 and Area 3 are baked today).
     The guest generates BG2 tilemaps at runtime (`$84:A057` DMAs them from WRAM
     `$7F`), so this is the interim path until the generator is decoded;
-  - multi-room transitions, boss gates and boss fights (Area 0 Somulo);
+  - multi-room transitions, boss gates and boss fights (Area 0 Somulo, Area 1
+    Hippogriff);
   - six Gargoyle forms with Earth dash, Air flight, Water swim, Time/Ultimate
     defense, Fire-Crest elements, wall cling and headbutt;
   - skeleton/bat/gargoyle enemies, moving platforms, crest/Life-Stone pickups,
     gold, hazards, water and breakable terrain;
   - Crest/Item subscreen (`Tab`), shop, password/options/game-over/ending
-    screens and a Mode 7-style overworld with six landing nodes.
+    screens and an overworld map with six landing nodes (still drawn as a baked
+    texture through a rotating `Camera2D`; the original Mode 7 plane is coming).
 - `tools/audit_campaign.py` reports per-room structure (BG1/collision coverage,
   BG2 presence, spawn support, object/transition bounds) and classifies rooms as
   playable / partial / empty; `--strict` is suitable for CI.
@@ -115,15 +119,18 @@ frame-accurate oracle for movement and timing.
   object record so the guest initialises and draws a chosen species in the
   current room (no area travel), and `tools/dc_extract/extract_species.py` bakes
   the object's OAM cluster into `enemy_<species>_<n>.png` + `species_anim.json`.
-  **21 of the 25 species referenced by rooms now have their own art — 256 of 269
-  placed objects (95%)** — most of it baked straight from the ROM: the species→
+  **23 of the 25 species referenced by rooms now have their own art — 261 of 269
+  placed objects (97%)** — most of it baked straight from the ROM: the species→
   metasprite mapping only exists in memory, so `tools/dc_extract/
   match_group_from_oam.py` recovers it by matching the guest's live OAM against
   `$8B:8000` frame signatures and `bake_rom_species.py` composes the result with
   `compose_rom_metasprite`. The object draw puts the metasprite origin ~19 px
-  above the object position; the baker measures that per species. The four
-  remaining ids are not sprite objects: `$01` platform, `$09` exit trigger,
-  `$24` talisman (drawn at the player) and `$33`, whose OAM was never matched.
+  above the object position; the baker measures that per species. The two
+  remaining ids are not sprite objects: `$01` platform and `$24` talisman (drawn
+  at the player). The `$09` Hippogriff sheet is baked pose by pose with the
+  VRAM/CGRAM of the frame that drew each pose (`bake_hippogriff.py`): the guest
+  streams OBJ CHR per animation frame, so one capture only holds the tiles of
+  the pose on screen.
 - Windows build on the raylib Windows installer (`tools/build_windows.ps1`,
   `-DDC_RAYLIB_ROOT`), verified with raylib 6.2 + MinGW GCC 16.2.
 - Campaign-specific debug hooks: `DC_AREA`, `DC_CAMPAIGN`, `DC_BOSS_DEFEATED`,
@@ -158,15 +165,16 @@ exact password/save and ROM audio.
   areas still need their own scanline tables.
 - Six Gargoyle forms are implemented with movement/abilities and palette tints,
   but real per-form OAM sheets and animations are still needed.
-- Per-species enemy AI and sprites are first-pass; skeletons, bats and
-  gargoyles reuse the shared ghoul sheet until their `$82:8300` handlers are
-  baked. Note that species `$10` and `$81` are NPC/prop species, not enemies.
+- Per-species enemy AI is ported for the `$67` ghoul only; skeletons, bats and
+  gargoyles still run the generic patrol/chase until their `$82:8300` handlers
+  are ported. Their sprites are baked per species now. Note that species `$10`
+  and `$81` are NPC/prop species, not enemies.
 - The `$1070` probe is wired (`attr & 0xE0 == 0x80`) and selects the
   `0x00B3 → 0x0166` ramp, but exact per-shape oracle comparison remains.
-- Hurt/death player animations and the real species `$67` handler
-  (`$83:AF74`) are still to be ported; the current ghoul is a first-pass
-  chase/damage/drop implementation using the real ghoul metasprite. HUD icons
-  and per-species sprites remain approximations.
+- Hurt/death player animations are still missing. The `$67` ghoul now runs its
+  ROM handler (`$83:AF74`), but its `$80F81D` animation streams are still mapped
+  onto the baked poses and the pacing tables are not byte-for-byte
+  (`docs/GHOUL_AI.md`). HUD icons remain approximations.
 - No audio from the original ROM yet; the current music/SFX are original
   procedural development placeholders.
 - Text/dialogue/cutscenes and the exact retail password algorithm are stubs;
@@ -386,16 +394,16 @@ endings. A full sweep before each release:
 
 | Check | Command | Current result |
 |---|---|---|
-| Regression suite | `python tools/run_regression.py --binary ... --assets ...` | **PASS** (demos 6/7/9/10/11/12/13, boss clears, area subset, playthrough, endings, save/password) |
+| Regression suite | `python tools/run_regression.py --binary ... --assets ...` | **PASS** (demos 6/7/9/10/11/12/13, boss data/runtime, Hippogriff fight, boss clears, area subset, playthrough, endings, save/password) |
 | All rooms load | `python tools/check_areas.py --binary ... --assets ...` | **113/113 ok** |
 | Boss stage clears | `python tools/check_campaign.py --binary ... --assets ...` | **11 boss entries clear** (55 rooms have no boss) |
 | Campaign flow | `python tools/check_playthrough.py --binary ... --assets ...` | **6/6 steps** (title → clear → map → stage travel → boss clear → ending) |
 
-Known fidelity gaps (tracked in `docs/PROJECT_STATE.md`): enemy/boss AI beyond
-the ported species runs a generic patrol/chase, a few species have silhouette
-placeholders instead of captured sprites, most areas have no captured BG2
-backdrop, the Mode 7 overworld is still procedural, and audio is a replacement
-soundtrack rather than ROM BRR/DSP data.
+Known fidelity gaps (tracked in `docs/PROJECT_STATE.md`): many enemies still run
+a generic patrol/chase rather than their `$82:8300` handler, most areas have no
+captured BG2 backdrop, the overworld is a camera-rotated baked texture rather
+than the original Mode 7 plane, and audio is a replacement soundtrack rather
+than ROM BRR/DSP data.
 
 ## Controls
 
@@ -488,15 +496,18 @@ After building and extracting assets:
 cd build && ctest --output-on-failure
 ```
 
-The harness runs demos 6, 7, 9, 10, 11 and 12 through `DC_RUN_FRAMES`, writes trace
+The harness runs the deterministic demos through `DC_RUN_FRAMES`, writes trace
 CSVs, and asserts known movement, fireball, pickup, enemy, HP, Crest-form and
-campaign-transition invariants. It also checks save/options persistence: one run
+campaign-transition invariants. It also boots every boss room (`check_bosses`),
+the species `$67` ghoul state machine and the Area 1 Hippogriff fight (spawn,
+260-frame stone phase, kill and the gate to Area 2), plus the console's
+28+64+28-frame room fade. Save/options persistence is checked twice: one run
 autosaves (with `DC_SAVE_FORCE`), a second run resumes it and the trace must
 report the same area, max HP and gold. The password codec is exercised twice:
 the binary self-test, and a Python-generated code applied via `DC_PASSWORD`
-must restore max HP and form.
-It exits with code 77 (CTest skip) when the binary or generated assets are
-missing.
+must restore max HP and form. On Linux the runner re-executes itself under
+`xvfb-run` when no display is set. It exits with code 77 (CTest skip) when the
+binary or generated assets are missing.
 
 ### Campaign audit
 
@@ -525,6 +536,8 @@ tools/dc_extract/     extraction from ROM + dump (room and animation frames)
 tools/dc_extract/bg2_captures.json  area -> oracle frame map for BG2 backdrops
 tools/dc_extract/extract_species.py per-species sprite baking from injected
                                     object captures
+tools/dc_extract/bake_hippogriff.py  per-pose bake for species $09 (VRAM at
+                                    the frame that drew each pose)
 tools/oracle/capture_species.py     injected-object species capture
 tools/audit_campaign.py             per-room structural audit
 tools/build_windows.ps1             offline MinGW build against local raylib
