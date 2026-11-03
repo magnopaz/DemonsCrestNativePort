@@ -121,10 +121,32 @@ Hippogriff is done (part 6 above); this is the remaining queue.
    the kill cannot advance. `Game_CompleteArea` also awards `CREST_TIME` for
    area 3; the original gives the **Earth Crest** and loads **area 94**, the map
    room (`world_map.sav`: `$008D = $BC`).
+   - The ROM gate table `$81:97DA` is indexed by area and stores the **next room
+     byte** (`$008D`), so area 1 -> 4 = area 2. Area 3 stores **`$F0`**, a
+     special "return to the map" marker rather than an area id (areas 8 and 9
+     store `$F1`). The extractor rejects it, which is why the room says -1.
+   - Expected port flow: area 3's kill grants **CREST_EARTH** (`Game_CompleteArea`
+     `case 3` currently says `CREST_TIME`), marks the stage cleared, and loads
+     **area 94** (the map room) instead of showing the generic clear banner.
+     Decide whether the crest dialogue (`crest_text[CREST_EARTH]`) plays before
+     the map, and keep the save/password bookkeeping.
+   - Probes: `tools/oracle/trace_stage.py save ../DemonsCrestSNESRecomp/build/saves/arma_boss.sav --frames 300`
+     for area/species/player; `tools/oracle/probe_slot_record.py --save ... --slot N`
+     to read the live Arma record and its script bytes over time. The boot-start
+     take never reaches area 3, so the save is the source for this fight.
+   - Acceptance: with the save (or a demo starting at the arena), Arma runs his
+     ROM states, the kill grants the Earth Crest, and the game ends up in area
+     94 with the map on screen.
 2. **The map is area 94 in Mode 7.** `room_area94.json` is 1024x1024 with a
    128x128 BG1; rendered as a normal room it is repeating garbage, which is why
-   the port draws a baked texture through a `Camera2D`. `docs/map_compare.png`
-   is the original-vs-port comparison.
+   the port bakes `world_map.png` (`build_world_map.py` from `captures/map11`)
+   and draws it through a `Camera2D`. The original is a **Mode 7 plane**: a
+   horizon, rows shrinking with distance, and the winged cursor at the bottom.
+   References: `docs/map_compare.png` (original vs port),
+   `docs/sprites/animated/map_mode7_animated.mp4` (400x348, 104 frames),
+   `world_map.sav` (player at 896,156). Acceptance: the Mode 7 projection
+   matches the recording (shrinking rows, horizon), the cursor sits at the
+   bottom, and the map is reachable from Arma's kill.
 3. **The 14 `$72` flames in area 1 are still dropped by the extractor.** They
    are real level objects (present in the pool from gframe 7141 to 9441) but the
    port has no species-`0x72` handler: typing them `"enemy"` today would give
