@@ -5,6 +5,54 @@ Project root: `projetos/opencode/DemonsCrestNativePort`
 Reference recompilation: `projetos/opencode/DemonsCrestSNESRecomp`
 ROM: `projetos/opencode/roms/Demon's Crest (USA).sfc`
 
+## Session 2026-11-02 (part 6) — the Hippogriff fight is real in area 1
+
+- **The extractor now types species `$09` as a boss.** `SPECIES_KIND_MAP` says
+  `0x09: "boss"` and the older per-screen path reuses the same map instead of
+  its own three-entry dict. `room_area1.json` was regenerated: the object at
+  (1920, 168) is `type: boss`, and the old plain "exit" trigger is gone. The
+  ROM gate `$81:97DA` (area 1 -> 2) is what opens the way; the port's boss gate
+  keeps it shut while `boss_alive` is true.
+- **The root cause of every fragmented 16x16 bake was in `parse_oam`.** The
+  ninth tile-number bit lives in OAM *attribute* bit 0 (`(oam1 >> 8) & 1`), but
+  the code read the tile byte's LSB. Every 16x16 sprite whose attributes have
+  bit 0 set (the Hippogriff's whole sheet) composed as scattered tiles. Fixed;
+  `match_group_from_oam.verify` now compares the low 8 bits because the ninth
+  bit is part of the OAM entry, not the base.
+- **The art was baked pose by pose from the take.** The guest reloads OBJ CHR
+  per animation frame, so composing the nine frames of `$8B` group `$0E` with
+  one capture's VRAM always left fragments. Each pose now comes from the frame
+  where the guest actually drew it, with that frame's own VRAM/CGRAM:
+  hover at gframe 11146 (group frame 0), feather volley at 11374 (frame 8) and
+  the death/rubble pose at 11500 (frame 7). The swoop and the stone statue are
+  the reference sheet's row-1 charge pose and top-row statue, because those
+  two frames never draw in this take. `tools/dc_extract/bake_hippogriff.py
+  --poses <dir>` rebuilds the whole entry from those three pose dumps; it
+  reproduces the committed sheet byte for byte.
+- **`species_anim["09"]`** has five frames (hover, volley, swoop, statue,
+  rubble) with states `0:[hover] 1:[volley] 2/3:[swoop] 4:[volley]
+  5:[rubble] 6:[statue]`. The kill now holds the rubble pose for 90 frames
+  before the slot frees, like the take's last three seconds.
+  `DC_SPECIES_FRAMES` went 8 -> 10 (the ROM has nine poses plus the statue).
+- **The stone phase was one frame long outside the test hook.** The state-6
+  wake test had `|| getenv("DC_BOSS_STATUE") == NULL`, so unless the hook was
+  set he woke on the next frame. Now only a headbutt (dash, < 30 px) or the
+  260-frame boredom timer wakes him. Measured in the port: two 260-frame stone
+  windows in a 1500-frame fight, shots spark off.
+- **Area 1 no longer ends the stage.** `Game_CompleteArea(1)` granted the Air
+  Crest and froze the room; the original opens the way to the slope. The boss
+  death now keeps control when the room has a gate and is area 1, and the
+  player walks to x >= 2008 -> `Game_BeginTransition(2)`.
+- **New gate**: `tools/check_hippogriff.py` (wired into `run_regression.py`)
+  asserts the species-9 boss spawns at (1920,168), the stone phase lasts >=120
+  frames, a 1 HP hit kills him, and the room reaches area 2 with the game still
+  in `GAME_PLAYING`. `check_bosses.py` also lists area 1 now.
+
+Verified: `DC_DEBUG_OBJ` shows slot 8 type 6 species 9; screenshots show the
+whole griffin hovering and the stone statue; a default-hp run takes his HP
+8 -> 6 across dive/hover/volley cycles and two stone windows; `check_hippogriff`
+passes; `run_regression.py` PASS.
+
 ## Session 2026-11-02 (part 4) — stage 1 against the full playthrough capture
 
 The owner recorded a complete stage-1 run (`DemonsCrestSNESRecomp/build/captures/
@@ -61,32 +109,27 @@ saves (`build/saves/arma_boss.sav`, `world_map.sav`).
   of BMPs), e.g.
   `SNESREC_AUTORECORD=1 SNESREC_INPUT_ONLY=1 SNESREC_RECORD_DIR=captures/rec_stage1_trace ./DemonsCrestSNESRecomp "../../roms/Demon's Crest (USA).sfc"`.
 
-## NEXT SESSION — MVP 2, start with the Hippogriff (read this first)
+## NEXT SESSION — MVP 2 continues with Arma (read this first)
 
-The tree is green (`tools/run_regression.py` PASS, 20 gates including the room
-fade, the species `$67` ghoul and the wall cling). The stage-1 audit is complete
-(part 5 below); this is the queue it produced.
+The tree is green (`tools/run_regression.py` PASS: the room fade, the species
+`$67` ghoul, the wall cling and the new Hippogriff fight all have gates). The
+Hippogriff is done (part 6 above); this is the remaining queue.
 
-1. **Hippogriff in area 1.** The take proves the fight: species `$09` is live in
-   area 1 from gframe 8841 to 11741, at the cemetery's far end, and the ROM gate
-   `$81:97DA` sends area 1 to area 2. The port never spawns him because
-   `tools/dc_extract/extract.py` types species `$09` as `"exit"` (the dict near
-   line 799 and `type_by_species` near line 1452); the object at (1920, 168) is
-   therefore a plain trigger and the species-`0x09` Hippogriff AI already in
-   `src/object.c` (statue phase included) is unreachable. `species_anim.json`
-   has **no** entry for species 9 either - his frames have to be baked, and the
-   take plus `tools/oracle/replay_capture.py` are the source. The same extractor
-   gap drops the 14 `$72` flame objects area 1 really contains.
-2. **Arma -> Earth Crest -> the map.** Area 3 has the boss (`$A5`, object at
+1. **Arma -> Earth Crest -> the map.** Area 3 has the boss (`$A5`, object at
    (856, 1180) in the room JSON; `arma_boss.sav` puts the live one at (856, 151)
    with its `$8B` companion) but `gate_next_area = -1` and no transitions, so
    the kill cannot advance. `Game_CompleteArea` also awards `CREST_TIME` for
    area 3; the original gives the **Earth Crest** and loads **area 94**, the map
    room (`world_map.sav`: `$008D = $BC`).
-3. **The map is area 94 in Mode 7.** `room_area94.json` is 1024x1024 with a
+2. **The map is area 94 in Mode 7.** `room_area94.json` is 1024x1024 with a
    128x128 BG1; rendered as a normal room it is repeating garbage, which is why
    the port draws a baked texture through a `Camera2D`. `docs/map_compare.png`
    is the original-vs-port comparison.
+3. **The 14 `$72` flames in area 1 are still dropped by the extractor.** They
+   are real level objects (present in the pool from gframe 7141 to 9441) but the
+   port has no species-`0x72` handler: typing them `"enemy"` today would give
+   them walk speed and the fallback silhouette. They need a stationary hazard
+   object and art before they are added.
 
 Tools that answer questions without guessing:
 

@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # area -> (name, species, expected flags or None, x, y)
 BOSSES = {
+    1: [("Hippogriff", 0x09, 0, 1920, 168)],
     3: [("Arma", 0xA5, 0, 856, 1180)],
     23: [("Arma", 0xA5, 2, 640, 1932)],
     26: [("Scula", 0x7B, 0, 1320, 154),

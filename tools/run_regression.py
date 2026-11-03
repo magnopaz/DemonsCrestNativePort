@@ -110,6 +110,13 @@ def close(a: float, b: float, eps: float = 0.01) -> bool:
 
 
 def main() -> int:
+    # Every helper script boots the binary itself, so a headless run needs an X
+    # display for the whole process, not only for the demos (wrapper() below).
+    if (sys.platform.startswith("linux") and not os.environ.get("DISPLAY")
+            and shutil.which("xvfb-run")):
+        os.execvp("xvfb-run", ["xvfb-run", "-a", sys.executable,
+                               str(Path(__file__).resolve()),
+                               *sys.argv[1:]])
     args = parse_args()
     binary = args.binary.resolve()
     assets = args.assets.resolve()
@@ -383,6 +390,16 @@ def main() -> int:
         check(ghoul_proc.returncode == 0,
               "ghoul: state machine check failed\n" + ghoul_proc.stdout[-800:])
 
+        # ---- Species $09: the cemetery Hippogriff fight ----
+        hip_proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_hippogriff.py"),
+             "--binary", str(binary), "--assets", str(assets),
+             "--tmp", str(out)],
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=300)
+        check(hip_proc.returncode == 0,
+              "hippogriff: fight check failed\n" + hip_proc.stdout[-800:])
+
         # ---- Room transition: the console's 28+64+28 INIDISP fade ----
         fade_proc = subprocess.run(
             [sys.executable, str(ROOT / "tools" / "check_transition_fade.py"),
@@ -589,7 +606,7 @@ def main() -> int:
             print(f"  - {message}")
         return 1
     print("regression: PASS (demos 6,7,9,10,11,12,13, boss data/runtime, "
-          "boss defeat + multi-area loads)")
+          "hippogriff fight, boss defeat + multi-area loads)")
     return 0
 
 

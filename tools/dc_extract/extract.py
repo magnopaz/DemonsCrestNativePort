@@ -639,9 +639,12 @@ def parse_oam(oam: bytes, obsel: int) -> list[OamSprite]:
         size = large if ((hi >> ((i % 4) * 2 + 1)) & 1) else small
         tile = oam1 & 0xFF
         # Attribute bit 0 is the ninth tile-number bit for 16x16 and larger
-        # sprites. 8x8 entries have an 8-bit tile number and ignore it.
+        # sprites. It lives in the attribute byte (oam1 >> 8), not in the tile
+        # byte: reading the tile byte's LSB silently dropped the 0x100 half of
+        # every sprite whose attributes have bit 0 set (the Hippogriff's whole
+        # sheet), which composed as scattered tiles.
         if size >= 16:
-            tile |= (oam1 & 1) << 8
+            tile |= ((oam1 >> 8) & 1) << 8
         out.append(OamSprite(i, x, y, size, tile,
                              (oam1 >> 9) & 7, bool(oam1 & 0x4000),
                              bool(oam1 & 0x8000)))
@@ -808,7 +811,7 @@ SPECIES_KIND_MAP = {
     0x33: "boss",
     0xA5: "boss",
     0x96: "boss",
-    0x09: "exit",
+    0x09: "boss",   # Hippogriff: a real boss object (statue phase included)
 }
 
 
@@ -1449,7 +1452,7 @@ def main() -> int:
     if object_list_index is not None:
         row_offset = (0 if args.full_grid
                       else (row_index * 256) if args.full_room else 0)
-        type_by_species = {0x57: "urn", 0x67: "enemy", 0x09: "exit"}
+        type_by_species = SPECIES_KIND_MAP
         for rec in rom.object_list(object_list_index):
             x = rec["x"]
             y = rec["y"] - row_offset

@@ -114,7 +114,7 @@ def verify(parts, sprites, base, ox, oy):
             if k in used or t.size != p["size"]:
                 continue
             if t.x == ox + p["dx"] and t.y == oy + p["dy"] \
-                    and t.tile == want and t.hflip == p["hflip"] \
+                    and (t.tile & 0xFF) == want and t.hflip == p["hflip"] \
                     and t.vflip == p["vflip"]:
                 hit = k
                 break

@@ -38,10 +38,12 @@ FADE_IN = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 7,
            8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14]
 BLACK_FRAMES = 64
 
-# Area 1's exit object sits at x=1920 (ROM object list); spawning just short of
-# it makes the crossing deterministic with no input script.
+# Area 1's gate opens at world-40 (x >= 2008) once the boss is defeated. The
+# old exit object at x=1920 became the Hippogriff, so this spawns past the gate
+# line with the boss marked cleared; the gate uses the same BeginTransition path
+# the door crossing does.
 AREA = 1
-START_X = 1915
+START_X = 2012
 NEXT_AREA = 2
 
 
@@ -58,6 +60,7 @@ def run(binary: Path, assets: Path, trace: Path) -> None:
                DC_AREA=str(AREA),
                DC_START_X=str(START_X),
                DC_CAMPAIGN="1",
+               DC_BOSS_CLEAR="1",
                DC_RUN_FRAMES="200",
                DC_NO_AUDIO="1",
                DC_NO_STORY="1",

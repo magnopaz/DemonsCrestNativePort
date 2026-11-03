@@ -10,7 +10,8 @@
 #define DC_OBJ_PALETTES 8
 #define DC_CAMPAIGN_AREAS 128
 #define DC_SPECIES_MAX 64
-#define DC_SPECIES_FRAMES 8
+/* The Hippogriff needs 9 ROM poses plus his statue. */
+#define DC_SPECIES_FRAMES 10
 
 typedef struct SpeciesFrame {
     Texture2D texture;

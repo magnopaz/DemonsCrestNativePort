@@ -927,10 +927,20 @@ void Objects_Update(ObjectPool *pool, const Level *level, Player *player) {
                 /* Hippogriff: hovers, dives, throws feathers — and now and then
                  * turns back into a statue. Shots do nothing then; a headbutt
                  * wakes him (the recording shows this, randomly). */
+                if (o->state == 5) {
+                    /* Killed: the rubble stays on the floor for the phase. */
+                    if (--o->phase <= 0)
+                        o->active = false;
+                    continue;
+                }
                 if (o->state == 6) {
-                    if ((player->dash_timer > 0 &&
-                         fabsf((float)(player->x_fx - o->x_fx) / FX_ONE) < 30.0f) ||
-                        getenv("DC_BOSS_STATUE") == NULL) {
+                    /* Stone: shots spark off (the boss branch skips damage while
+                     * state 6), only a headbutt at close range wakes him, and
+                     * he gets bored after the phase timer runs out. */
+                    bool headbutt =
+                        player->dash_timer > 0 &&
+                        fabsf((float)(player->x_fx - o->x_fx) / FX_ONE) < 30.0f;
+                    if (headbutt) {
                         o->state = 0;
                         o->phase = 40;
                         o->hit_flash = 10;
@@ -1514,6 +1524,20 @@ void Objects_CheckProjectiles(ObjectPool *pool, ProjectilePool *projectiles) {
                             break;
                         }
                         o->active = false;
+                        if (o->species == 0x09) {
+                            /* The take shows him breaking apart on the floor:
+                             * hold the rubble pose for 1.5 s before freeing the
+                             * slot. The gate is already open (boss_alive is
+                             * cleared below), so this is only presentation. */
+                            o->active = true;
+                            o->state = 5;
+                            o->phase = 90;
+                            o->hit_flash = 0;
+                            pool->boss_alive = false;
+                            pool->boss_defeated = true;
+                            pool->events |= OBJECT_EVENT_BOSS_DEFEATED;
+                            break;
+                        }
                         if (o->species == 0x86 && pool->boss_phase == 1) {
                             /* Phalanx's first form falls and the second rises
                              * from the pit: same head, stronger, and the exit

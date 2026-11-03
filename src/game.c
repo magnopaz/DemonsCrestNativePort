@@ -1661,11 +1661,14 @@ void Game_Update(Game *game) {
                 game->player.hp = game->player.max_hp;
                 /* Keep control after a boss defeat only in the opt-in MVP
                  * flow: the player then walks through the gate and the area
-                 * transitions (area 0 -> 34). Everywhere else the area still
+                 * transitions (area 0 -> 34). Area 1 is the same kind of room:
+                 * the cemetery boss opens the way to the slope, it does not end
+                 * a stage or award a crest. Everywhere else the area still
                  * completes on the spot, which the campaign tests rely on. */
                 bool keep_control =
-                    getenv("DC_MVP_KEEP_CONTROL") != NULL &&
-                    game->campaign_mode && game->level.gate_next_area >= 0;
+                    game->campaign_mode && game->level.gate_next_area >= 0 &&
+                    (getenv("DC_MVP_KEEP_CONTROL") != NULL ||
+                     game->level.area_id == 1);
                 if (!keep_control) {
                     game->campaign_mode = true;
                     Game_CompleteArea(game);
